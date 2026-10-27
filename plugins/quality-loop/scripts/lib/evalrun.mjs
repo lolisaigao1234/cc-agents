@@ -193,7 +193,7 @@ function materializeInto(root, ws, c, surface) {
 export async function runTrial(root, c, o) {
   const started = Date.now()
   mkdirSync(o.transcriptDir, { recursive: true })
-  const transcript = join(o.transcriptDir, `${safeId(c.id)}.r${o.repeat}.log`)
+  const transcript = join(o.transcriptDir, `${transcriptName(c.id)}.r${o.repeat}.log`)
   /** @type {string | null} */
   let ws = null
   /** @type {string | null} */
@@ -471,6 +471,16 @@ function blameRemoved(root, sha) {
 
 /** @param {string} id */
 const safeId = id => id.replace(/[^\w.-]+/g, '-').slice(0, 60)
+
+/**
+ * A file name for a case's transcripts that no other case id maps to. An id
+ * that is already a safe name is used as is; any other id ('a/b', a long id)
+ * gets a hash of the full id after a '~', which no safe id contains, so it
+ * cannot collide with another case's transcript.
+ *
+ * @param {string} id
+ */
+const transcriptName = id => (safeId(id) === id ? id : `${safeId(id)}~${hash(id)}`)
 
 const FIX_SUBJECT = /^(?:fix|bugfix|hotfix)\b|\bfix(?:es|ed)?\s+(?:#\d+|bug|crash|regression)/i
 

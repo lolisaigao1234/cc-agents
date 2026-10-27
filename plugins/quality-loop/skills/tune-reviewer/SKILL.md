@@ -48,9 +48,11 @@ Done when: the baseline has no infra errors, the user agrees with the grader, an
 4. `ql eval run --label r<k> --repeats 3`, then `ql eval compare <current-best> r<k>`:
    - `KEEP` (test improved): copy `REVIEW.md` to `REVIEW.best.md`; `r<k>` is the new best.
    - `REVERT-OVERFIT`, `REVERT-REGRESSION`, `NO-CHANGE`: restore `REVIEW.md` from `REVIEW.best.md`.
-   - `INVALID` (infra errors in either run, or the runs scored different cases): no decision. Read the `infra` transcripts, fix the cause, and rerun `r<k>` (and the best, if it was the one with errors). A candidate that makes the reviewer crash or time out is never adopted.
+   - `INVALID`: no decision; the reason says which applies, and a candidate that makes the reviewer crash or time out is never adopted.
+     - **Infra errors** in either run: read the `infra` transcripts, fix the cause, and rerun the run that had them (`r<k>`, or the best as below).
+     - **The runs scored different cases** (cases were fixed, added or dropped after the best ran): rerunning `r<k>` alone never clears this. Rerun the best on the current cases from its saved surface, `ql eval run --label best<k> --repeats 3 --surface .quality-loop/work/REVIEW.best.md`, then `ql eval compare best<k> r<k>`; `best<k>` is now the best's label. Rerun `r<k>` too if it ran before the cases changed. Never compare runs limited with `--cases`.
 
-**Stall:** after two rounds in a row without `KEEP`, stop editing and bucket every remaining train failure by root cause: ambiguous case, grader error, harness bug, variance, genuine reviewer miss. Fix or drop flawed cases with the user (the lock lifts with `ql eval hillclimb stop`, and goes back on after). Only genuine misses go into further rounds.
+**Stall:** after two rounds in a row without `KEEP`, stop editing and bucket every remaining train failure by root cause: ambiguous case, grader error, harness bug, variance, genuine reviewer miss. Fix or drop flawed cases with the user (the lock lifts with `ql eval hillclimb stop`, and goes back on after). Changing the cases makes every earlier run incomparable: before the next round, rerun the best on the current cases with `--surface .quality-loop/work/REVIEW.best.md` as above and use that run as the best. Only genuine misses go into further rounds.
 
 Done when: N rounds have run, or a stall analysis leaves no genuine misses.
 

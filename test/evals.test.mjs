@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 
@@ -248,4 +248,75 @@ test('harvest never drafts a reverted or fixed commit as clean, even past --limi
     [['src/m.js', 2, 3]],
     'the contiguous lines the fix replaced are one expected bug',
   )
+})
+
+test('ql eval run --depth rejects inherited object keys such as constructor (#42)', () => {
+  const { root, base, head } = repoWithCommittedEvals()
+  writeCase(root, 'd1', { kind: 'bug', source: { type: 'git', base, head } }, [{ file: 'src/x.js', line: 2 }])
+  const { probe, tmp, runner } = probeSetup(root)
+  for (const depth of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+    const r = ql(root, ['eval', 'run', '--label', `x-${depth}`, '--runner', runner, '--repeats', '1', '--depth', depth], { PROBE: probe, TMPDIR: tmp })
+    assert.equal(r.code, 1, `--depth ${depth} was accepted:\n${r.err}`)
+    assert.match(r.err, /--depth must be one of/)
+  }
+  assert.equal(existsSync(probe), false, 'the runner never ran')
+})
+
+test('cases whose ids map to the same file name keep separate transcripts (#31)', () => {
+  const { root, base, head } = repoWithCommittedEvals()
+  // 'a/b' and 'a-b' both sanitise to 'a-b'; the second cannot be built.
+  writeFiles(root, {
+    '.quality-loop/evals/cases/one/case.json': JSON.stringify({ id: 'a/b', kind: 'bug', status: 'confirmed', source: { type: 'git', base, head } }),
+    '.quality-loop/evals/cases/one/expected.json': JSON.stringify({ bugs: [] }),
+    '.quality-loop/evals/cases/two/case.json': JSON.stringify({ id: 'a-b', kind: 'bug', status: 'confirmed', source: { type: 'git', base: 'deadbeef'.repeat(5), head: 'deadbeef'.repeat(5) } }),
+    '.quality-loop/evals/cases/two/expected.json': JSON.stringify({ bugs: [] }),
+  })
+  const { probe, tmp, runner } = probeSetup(root)
+  qlOk(root, ['eval', 'run', '--label', 'ids', '--runner', runner, '--repeats', '1', '--concurrency', '1'], { PROBE: probe, TMPDIR: tmp })
+  const result = JSON.parse(readFileSync(join(root, '.quality-loop/evals/results/ids.json'), 'utf8'))
+  const byId = Object.fromEntries(result.trials.map((/** @type {any} */ t) => [t.caseId, t]))
+  assert.notEqual(byId['a/b'].transcript, byId['a-b'].transcript)
+  assert.match(readFileSync(byId['a-b'].transcript, 'utf8'), /could not build the case workspace/)
+  assert.doesNotMatch(readFileSync(byId['a/b'].transcript, 'utf8'), /could not build/)
+  // Long ids that share a 60-character prefix do not collide either.
+  const long = 'x'.repeat(70)
+  writeCase(root, 'l1', { id: `${long}1`, kind: 'bug', source: { type: 'git', base, head } })
+  writeCase(root, 'l2', { id: `${long}2`, kind: 'bug', source: { type: 'git', base, head } })
+  qlOk(root, ['eval', 'run', '--label', 'long', '--runner', runner, '--repeats', '1', '--cases', `${long}1,${long}2`], { PROBE: probe, TMPDIR: tmp })
+  const lr = JSON.parse(readFileSync(join(root, '.quality-loop/evals/results/long.json'), 'utf8'))
+  assert.equal(lr.trials.length, 2)
+  assert.equal(new Set(lr.trials.map((/** @type {any} */ t) => t.transcript)).size, 2)
+})
+
+test('INVALID from changed case sets says what to rerun; rerunning the best on the current cases clears it', () => {
+  const { root, base, head } = repoWithCommittedEvals()
+  for (const id of ['e1', 'e2', 'e3', 'e4']) writeCase(root, id, { kind: 'bug', source: { type: 'git', base, head } }, [{ file: 'src/x.js', line: 2 }])
+  const { probe, tmp, runner } = probeSetup(root)
+  const env = { PROBE: probe, TMPDIR: tmp }
+  qlOk(root, ['eval', 'run', '--label', 'base', '--runner', runner, '--repeats', '1'], env)
+  // A stall analysis drops a case; the next candidate runs on the remaining cases.
+  const split = JSON.parse(readFileSync(join(root, '.quality-loop/evals/split.json'), 'utf8'))
+  const dropped = split.test[0]
+  rmSync(join(root, '.quality-loop/evals/cases', dropped), { recursive: true })
+  mkdirSync(join(root, '.quality-loop/work'), { recursive: true })
+  writeFileSync(join(root, '.quality-loop/work/REVIEW.best.md'), '')
+  writeFileSync(join(root, '.quality-loop/REVIEW.md'), 'candidate rule\n')
+  qlOk(root, ['eval', 'run', '--label', 'cand', '--runner', runner, '--repeats', '1'], env)
+  const cmp = ql(root, ['eval', 'compare', 'base', 'cand'])
+  assert.equal(cmp.code, 1)
+  assert.match(cmp.out, /decision: INVALID/)
+  assert.match(cmp.out, new RegExp(`only in base: ${dropped}`), cmp.out)
+  assert.match(cmp.out, /rerun the best/i, cmp.out)
+  // The skill says how: rerun the best's saved surface on the current cases.
+  const skill = readFileSync(resolve(import.meta.dirname, '../plugins/quality-loop/skills/tune-reviewer/SKILL.md'), 'utf8')
+  assert.match(skill, /--surface \.quality-loop\/work\/REVIEW\.best\.md/)
+  assert.match(qlOk(root, ['--help']), /eval run .*--surface/)
+  // A mistyped surface is an error, not a silent run with an empty REVIEW.md.
+  const typo = ql(root, ['eval', 'run', '--label', 'typo', '--runner', runner, '--repeats', '1', '--surface', '.quality-loop/work/REVIEW.bset.md'], env)
+  assert.equal(typo.code, 1)
+  assert.match(typo.err, /--surface/)
+  qlOk(root, ['eval', 'run', '--label', 'base2', '--runner', runner, '--repeats', '1', '--surface', '.quality-loop/work/REVIEW.best.md'], env)
+  const again = ql(root, ['eval', 'compare', 'base2', 'cand'])
+  assert.equal(again.code, 0, again.out)
+  assert.doesNotMatch(again.out, /INVALID/)
 })

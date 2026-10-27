@@ -191,15 +191,26 @@ export function decideHillclimb(base, cand, opts) {
   // rates are only comparable over the same cases with no plumbing noise.
   /** @type {string[]} */
   const problems = []
+  /** @type {string[]} */
+  const todo = []
   for (const side of /** @type {const} */ (['train', 'test'])) {
     const infra = base[side].infraErrors + cand[side].infraErrors
     if (infra) problems.push(`${infra} infra error(s) on ${side} (base ${base[side].infraErrors}, candidate ${cand[side].infraErrors})`)
-    const a = Object.keys(base[side].perCase).sort().join('\n')
-    const b = Object.keys(cand[side].perCase).sort().join('\n')
-    if (a !== b) problems.push(`the runs scored different ${side} cases`)
+    const a = Object.keys(base[side].perCase)
+    const b = Object.keys(cand[side].perCase)
+    const onlyBase = a.filter(id => !b.includes(id)).sort()
+    const onlyCand = b.filter(id => !a.includes(id)).sort()
+    if (onlyBase.length || onlyCand.length) {
+      const which = [onlyBase.length ? `only in base: ${onlyBase.join(', ')}` : '', onlyCand.length ? `only in candidate: ${onlyCand.join(', ')}` : '']
+      problems.push(`the runs scored different ${side} cases (${which.filter(Boolean).join('; ')})`)
+    }
   }
+  if (problems.some(p => p.includes('infra error'))) todo.push('read the infra transcripts, fix the cause and rerun the run(s) with errors')
+  // Cases fixed, added or dropped since one of the runs: rerunning the
+  // candidate alone never clears this; the best must be rerun too.
+  if (problems.some(p => p.includes('different'))) todo.push('rerun the best from its saved surface on the current cases (and the candidate too if it ran before the cases changed), without --cases')
   if (problems.length) {
-    return { decision: 'invalid', ...d, reason: `cannot compare: ${problems.join('; ')}. Fix the cause and rerun; do not adopt the candidate` }
+    return { decision: 'invalid', ...d, reason: `cannot compare: ${problems.join('; ')}. To decide, ${todo.join('; ')}. Do not adopt the candidate` }
   }
   if (dTrain <= -opts.minDelta || dTest <= -opts.minDelta) {
     return { decision: 'revert-regression', ...d, reason: 'a split got worse by at least the noise threshold' }

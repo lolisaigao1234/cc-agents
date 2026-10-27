@@ -3,7 +3,7 @@
 // wrong and how to fix it; ql decides what counts (evidence, votes,
 // regressions, convergence) and keeps the state on disk.
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -48,7 +48,7 @@ Evals (tuning the reviewer)
   ql eval harvest [--limit N] [--clean N]   draft cases from reverts and fixes in git history
   ql eval cases                     list cases and their split
   ql eval split [--reset]           (re)write the train/test split
-  ql eval run --label L [--split train|test|all] [--repeats N] [--runner CMD] [--concurrency K] [--cases a,b] [--depth quick|standard|deep] [--keep]
+  ql eval run --label L [--split train|test|all] [--repeats N] [--runner CMD] [--concurrency K] [--cases a,b] [--depth quick|standard|deep] [--surface FILE] [--keep]
   ql eval show <label>              summary of a run
   ql eval compare <base> <cand>     keep / revert decision with deltas
   ql eval leakcheck [--surface F]   eval answers copied into the tuned surface
@@ -374,7 +374,10 @@ async function evalCommand(root, sub, rest, flags) {
       const caseIds = str(flags.cases)?.split(',')
       // The runner reads the review depth from QL_DEPTH.
       const depth = str(flags.depth)
-      if (flags.depth !== undefined && !(depth && depth in DEPTHS)) throw new loop.LoopError(`--depth must be one of ${Object.keys(DEPTHS).join(', ')}`)
+      if (flags.depth !== undefined && !(depth && Object.hasOwn(DEPTHS, depth))) throw new loop.LoopError(`--depth must be one of ${Object.keys(DEPTHS).join(', ')}`)
+      // A mistyped --surface must not silently run an empty REVIEW.md.
+      const surfacePath = flags.surface === undefined ? paths(root).reviewMd : resolve(root, str(flags.surface) ?? '')
+      if (flags.surface !== undefined && !(str(flags.surface) && existsSync(surfacePath))) throw new loop.LoopError(`--surface: no such file ${str(flags.surface) ?? ''}`)
       const n = loadCases(root).filter(c => !caseIds || caseIds.includes(c.id)).length
       process.stderr.write(`eval ${label}: ${n} case(s) × ${repeats} repeat(s) (split ${split}${depth ? `, depth ${depth}` : ''}), concurrency ${int(flags.concurrency, ec.concurrency)}, timeout ${ec.timeoutSec}s per trial\n`)
       const result = await runEval(root, {
@@ -388,7 +391,7 @@ async function evalCommand(root, sub, rest, flags) {
         seed: ec.seed,
         testFraction: ec.testFraction,
         pluginRoot: PLUGIN_ROOT,
-        surfacePath: str(flags.surface) ?? paths(root).reviewMd,
+        surfacePath,
         caseIds,
         maxContextTokens: loop.loadConfig(root).loop.maxContextTokens,
         keep: !!flags.keep,
