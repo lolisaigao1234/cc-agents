@@ -720,3 +720,26 @@ test('an open nit does not keep the fix-step exemption once no important finding
   assert.equal(end.code, 1)
   assert.match(end.err, /phase "review"/)
 })
+
+// --- round 4: the verifier's findings on round 3
+
+test('`ql mark` of the last open finding does not say `round end` when the fix step changed a tree the empty-scope record no longer covers (verifier r3: stale next after mark)', () => {
+  const BUG = 'export function add(a, b) {\n  return a - b\n}\nexport function mul(a, b) {\n  return a * b + 0\n}\n'
+  const root = debugProject(BUG, { fixPreExisting: true })
+  qlOk(root, ['start', '--mode', 'debug', '--repro', ADD_REPRO, '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  writeFiles(root, { 'a.js': BUG.replace('a - b', 'a + b') })
+  ingest(root, [{ ...FINDING, title: 'mul adds 0', file: 'a.js', line: 5, quote: 'return a * b + 0', bugClass: 'mul' }], 'correctness')
+  finishReview(root)
+  voteAll(root, 'F1')
+  writeFiles(root, { 'test/broken.test.js': BROKEN_TEST })
+  assert.match(qlOk(root, ['round', 'end']), /REVERTED/)
+  qlOk(root, ['round', 'begin'])
+  qlOk(root, ['ingest', '--none', '--lens', 'scope'])
+  writeFiles(root, { 'a.js': BUG.replace('a - b', 'a + b').replace('a * b + 0', 'a * b') })
+  const marked = qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'dropped + 0'])
+  assert.doesNotMatch(marked, /next: Validate/)
+  assert.match(marked, /next: Review/)
+  finishReview(root)
+  assert.match(qlOk(root, ['round', 'end']), /decision: DONE/)
+})

@@ -4,7 +4,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 
 import { DEFAULTS, resolveConfig } from './config.mjs'
 import { LOOP_DIR } from './git.mjs'
@@ -48,6 +48,21 @@ const gitStatusIn = root => {
     }
     return known.tracked.has(rel) ? 'tracked' : known.ignored.has(rel) ? 'ignored' : 'untracked'
   }
+}
+
+/**
+ * Whether the repository at `top` tracks a file at or below `dir` (a
+ * submodule's own entry aside): then `dir` is its work, whatever `.git`
+ * sits in it.
+ *
+ * @param {string} top
+ * @param {string} dir
+ */
+const tracksBelow = (top, dir) => {
+  const rel = relative(top, dir)
+  const r = spawnSync('git', ['ls-files', '-s', '-z', '--', rel], { cwd: top, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  if (r.status !== 0) return true
+  return (r.stdout ?? '').split('\0').some(e => e && !(e.startsWith('160000 ') && e.endsWith(`\t${rel}`)))
 }
 
 const MAX_CONTEXT = 6000
@@ -165,17 +180,22 @@ function nudgeLimit(v) {
  * git top level the call runs in, as ql resolves it, is guarded in full; a
  * `.quality-loop/` deeper down is not a loop and cannot hide it. A
  * repository enclosing that top level (a linked worktree under
- * `.claude/worktrees/`, a nested repository) has its own loop, if any: the
- * enclosing loop guards only its own files from there (`enclosing`), so a
- * `git init` below it cannot unguard them, and the inner repository's own
- * work is not held by it. The tombstone outlives `.quality-loop/`, so a
- * repository with only a tombstone is guarded too.
+ * `.claude/worktrees/`, a nested repository) has its own loop, if any: from
+ * there the enclosing loop guards its own files, and destructive commands
+ * only as far as they reach outside the inner repository (`enclosing`), so
+ * the inner repository's own work is not held by it. A `git init` inside a
+ * directory the enclosing repository tracks is no such repository: its
+ * files are the loop's, so the loop guards it in full. The tombstone
+ * outlives `.quality-loop/`, so a repository with only a tombstone is
+ * guarded too.
  *
  * @param {string} cwd
  * @param {any} input the hook's stdin JSON
  */
 function guardReason(cwd, input) {
-  for (const [i, l] of gitLayouts(cwd).entries()) {
+  const layouts = gitLayouts(cwd)
+  const inner = layouts[0]?.top ?? null
+  for (const [i, l] of layouts.entries()) {
     const top = l.top
     const loopDir = existsSync(join(top, LOOP_DIR))
     const tomb = tombstoneDir(top)
@@ -196,7 +216,7 @@ function guardReason(cwd, input) {
       tombstone: tomb,
       restartLocked: !!startRefusal(top, state),
       gitStatus: gitStatusIn(top),
-      enclosing: i > 0,
+      enclosing: i > 0 && inner && !tracksBelow(top, inner) ? inner : null,
     })
     if (reason) return reason
   }

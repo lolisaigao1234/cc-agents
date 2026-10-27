@@ -1112,7 +1112,7 @@ function protectedMatcher(g, globs, wholeDirs) {
  *   tombstone?: string | null,
  *   restartLocked?: boolean,
  *   gitStatus?: GitStatus,
- *   enclosing?: boolean,
+ *   enclosing?: string | null,
  * }} GuardInput
  *
  * `tombstone`: the directory in the git common dir that records each loop's
@@ -1123,9 +1123,9 @@ function protectedMatcher(g, globs, wholeDirs) {
  * judging `git clean` and `git stash -u`; guessed from the loop's own
  * .gitignore when not given. `enclosing`: the loop belongs to a repository
  * that encloses the one the command runs in (a linked worktree or a nested
- * repository inside it): only that loop's own files are guarded, not
- * destructive commands or `ql init --force`, which act on the inner
- * repository, unless the command changes directory or points git elsewhere.
+ * repository inside it), whose top level this is: that loop's own files are
+ * guarded, and a destructive command or `ql init --force` only when it
+ * reaches the enclosing repository outside the inner one (see `reachesOut`).
  */
 
 const LOOP_DIR = '.quality-loop'
@@ -1138,6 +1138,61 @@ const EXTEND =
   'quality-loop: only the user may extend a capped or stalled loop. Report to the user and let them run `! ql extend` themselves.'
 const RESTART =
   'quality-loop: only the user may start over a loop that has not finished: it would reset the round cap and archive the ledger. Report to the user; they can run `! ql start --force ...` (or `! ql extend`) themselves.'
+
+/** Whether `p` is `dir` or lies below it. @param {string} p @param {string} dir */
+const within = (p, dir) => p === dir || p.startsWith(dir.endsWith('/') ? dir : `${dir}/`)
+
+/**
+ * For each command, whether it can act on the enclosing repository `outer`
+ * outside the inner one (`inner`, the top level the command runs in): it
+ * runs, or points git or a path operand, at a place in `outer` but not in
+ * `inner`, or at one the guard cannot tell (a `$VAR`, `~`, `cd -`). The
+ * working directory is followed through `cd` and `pushd`; `--git-dir` and
+ * `--work-tree` always count. Places outside `outer` do not: they are not
+ * its loop's to guard. `away`: the working directory itself got there, for
+ * a command such as ql that acts where it runs.
+ *
+ * @param {SimpleCommand[]} commands
+ * @param {string} cwd
+ * @param {string} inner
+ * @param {string} outer
+ * @returns {{ each: boolean[], away: boolean }}
+ */
+function reachesOut(commands, cwd, inner, outer) {
+  const [innerReal, outerReal] = [realish(resolve(inner)), realish(resolve(outer))]
+  /** @param {string | null} p an absolute path, or null when unknown */
+  const out = p => {
+    if (p === null) return true
+    const r = realish(p)
+    return within(r, outerReal) && !within(r, innerReal)
+  }
+  /** @param {string | null} from @param {string | undefined} to */
+  const step = (from, to) => (to === undefined || to === '-' || /[$`~]/.test(to) || from === null ? null : resolve(from, to))
+  /** @type {string | null} */
+  let here = resolve(cwd)
+  let away = out(here)
+  // Commands run by xargs take their operands from the others' output.
+  const anyOut = () =>
+    commands.some(c => c.name !== 'cd' && c.name !== 'pushd' && operands(c.args).some(a => !a.startsWith('-') && out(step(here, a))))
+  const each = commands.map(c => {
+    if (c.name === 'cd' || c.name === 'pushd' || c.name === 'popd') {
+      here = c.name === 'popd' ? null : step(here, operands(c.args)[0])
+      away ||= out(here)
+      return out(here)
+    }
+    if (out(here)) return true
+    if (c.name === 'git') {
+      if (c.args.some(a => /^--(git-dir|work-tree)\b/.test(a))) return true
+      /** @type {string | null} */
+      let dir = here
+      for (const d of gitParts(c.args).dirs) dir = step(dir, d)
+      return out(dir)
+    }
+    if (c.xargs) return anyOut()
+    return operands(c.args).some(a => out(step(here, a)))
+  })
+  return { each, away }
+}
 
 /** @param {string} path */
 const tombstoneDenial = path =>
@@ -1177,24 +1232,18 @@ export function evaluateGuard(g) {
   if (g.tool === 'Bash') {
     const raw = String(g.input.command ?? '')
     const commands = parseCommands(raw)
-    // Whether the command can act on the loop's repository as a whole: it
-    // changes directory, or points git elsewhere.
-    const reaches =
-      !g.enclosing ||
-      commands.some(
-        c => c.name === 'cd' || c.name === 'pushd' || (c.name === 'git' && c.args.some(a => a === '-C' || /^--(git-dir|work-tree)\b/.test(a))),
-      )
+    const reach = g.enclosing ? reachesOut(commands, g.cwd ?? g.enclosing, g.enclosing, g.root) : null
     for (const q of qlInvocations(raw)) {
       if (q.sub === 'extend') return EXTEND
       if (q.sub === 'start' && q.flags.has('force') && locked) return RESTART
       // It rewrites the config with defaults.
-      if (q.sub === 'init' && q.flags.has('force') && !q.flags.has('help') && reaches && matchesAny(CONFIG_FILE, protectedPaths)) {
+      if (q.sub === 'init' && q.flags.has('force') && !q.flags.has('help') && (!reach || reach.away) && matchesAny(CONFIG_FILE, protectedPaths)) {
         return `quality-loop: \`ql init --force\` rewrites ${CONFIG_FILE}, which is protected ${when}. Ask the user.`
       }
     }
-    if ((isLoopActive || g.hillclimbActive) && g.blockDestructive && reaches) {
-      for (const c of commands) {
-        const why = destructive(c)
+    if ((isLoopActive || g.hillclimbActive) && g.blockDestructive && (!reach || reach.each.some(Boolean))) {
+      for (const [i, c] of commands.entries()) {
+        const why = !reach || reach.each[i] ? destructive(c) : null
         if (why) {
           return `quality-loop: blocked during an active loop (${why}). The loop reverts its own rounds with checkpoints; if you really need this, pause the loop and ask the user.`
         }

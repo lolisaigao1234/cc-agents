@@ -17,6 +17,9 @@ import { GITIGNORE, paths, readJson, writeJson, writeText } from './store.mjs'
 import { holdsCap, readTombstone, recordLoop } from './tombstone.mjs'
 import { scanWeakening } from './weakening.mjs'
 
+// Statuses the record keeps until the user extends the loop or starts over.
+const STOPPED = ['capped', 'stalled', 'aborted']
+
 /** @typedef {import('./findings.mjs').Finding} Finding */
 
 export class LoopError extends Error {}
@@ -256,6 +259,16 @@ export async function start(root, opts) {
 export function beginRound(root) {
   const s = requireState(root)
   requirePhase(s, ['begin'], 'begin a round')
+  // The record, not the state, says whether the loop may run on: a state
+  // edited back to active, or put in place of a loop that holds the cap,
+  // runs no rounds (see recordLoop).
+  const t = readTombstone(root)
+  const held = t && (t.id === s.id ? STOPPED.includes(t.status) : holdsCap(t))
+  if (t && held) {
+    throw new LoopError(
+      `ql records the loop here (${t.id}) as ${t.status} at round ${t.round}; the state in .quality-loop/ says otherwise, so it was edited outside ql. Only the user may extend it (\`! ql extend\`) or start over (\`! ql start --force ...\`). Report to the user.`,
+    )
+  }
   s.round += 1
   s.rounds.push({
     n: s.round,
@@ -486,7 +499,14 @@ export function mark(root, id, status, reason) {
   // The last open important finding marked ends the fix step an empty-scope
   // record was kept for: from here on, a change is unreviewed
   // (dropStaleEmptyScope).
-  if (r.scopeEmptyBeforeFix && !r.fixEndTree && !fixPending(s)) r.fixEndTree = snapshotTree(root)
+  // Once nothing is left to fix, an empty-scope record that does not cover
+  // the tree as it is now goes, so the `next:` line asks for the review
+  // `round end` would (dropStaleEmptyScope).
+  if (r.lensesDone?.includes('scope') && !fixPending(s)) {
+    const { diff, tree } = scopeDiff(root, s)
+    if (r.scopeEmptyBeforeFix && !r.fixEndTree) r.fixEndTree = tree
+    dropStaleEmptyScope(s, diff, tree)
+  }
   saveState(root, s)
   return f
 }
@@ -817,7 +837,10 @@ export function abort(root, reason) {
  */
 export function extend(root, extra) {
   const s = requireState(root)
-  if (!['capped', 'stalled'].includes(s.status)) throw new LoopError(`loop is ${s.status}; only a capped or stalled loop can be extended`)
+  // A state edited out of capped or stalled is still the loop its record holds.
+  const t = readTombstone(root)
+  const recorded = !!t && t.id === s.id && ['capped', 'stalled'].includes(t.status)
+  if (!['capped', 'stalled'].includes(s.status) && !recorded) throw new LoopError(`loop is ${s.status}; only a capped or stalled loop can be extended`)
   s.config.loop.maxRounds = s.round + Math.max(1, extra)
   // Start the convergence counters afresh, or the stall that led here ends
   // the first granted round: attempts, reopens (oscillation), and the round

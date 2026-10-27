@@ -499,8 +499,13 @@ test('a running loop edited to look done is not recorded done by the next save, 
   loop.beginRound(root2)
   loop.ingest(root2, null, 'scope')
   await loop.endRound(root2)
-  handEdit(root2, { id: 'forged', config: { ...state(root2).config, loop: { ...state(root2).config.loop, maxRounds: 10 } } })
+  const forged = { id: 'forged', config: { ...state(root2).config, loop: { ...state(root2).config.loop, maxRounds: 10 } } }
+  handEdit(root2, forged)
+  assert.throws(() => loop.beginRound(root2), /edited outside ql/, 'it cannot begin a round')
+  // nor end one it began before the swap
+  handEdit(root2, { id: tombstoneOf(root2).id })
   loop.beginRound(root2)
+  handEdit(root2, forged)
   loop.ingest(root2, null, 'scope')
   await assert.rejects(loop.endRound(root2), /replaced outside ql/)
 
@@ -515,4 +520,73 @@ test('a running loop edited to look done is not recorded done by the next save, 
   loop.finish(root3)
   assert.equal(tombstoneOf(root3).status, 'active')
   await assert.rejects(loop.start(root3, { mode: 'review' }), /only the user/)
+})
+
+// --- round 4: the verifier's findings on round 3
+
+test("from a linked worktree inside the main checkout, only commands that reach the main checkout are held by its loop (verifier r3: item 8 cd/-C over-blocking)", async () => {
+  const root = makeRepo({ 'README.md': 'x\n', 'src/main.js': 'x\n' })
+  loop.init(root)
+  gitIn(root, ['add', '-A', '.quality-loop'])
+  gitIn(root, ['commit', '-qm', 'cfg'])
+  await loop.start(root, { mode: 'review' })
+  loop.beginRound(root)
+  const wt = join(root, '.claude/worktrees/x')
+  gitIn(root, ['worktree', 'add', '-q', wt])
+  mkdirSync(join(wt, 'build'))
+  mkdirSync(join(wt, 'sub'))
+  writeFileSync(join(wt, 'build/o'), 'x\n')
+  const decision = (/** @type {string} */ c) => bash(wt, c, 'B')?.hookSpecificOutput.permissionDecision
+  for (const c of [
+    `cd ${wt} && rm -rf build`,
+    'cd build && rm -rf o',
+    `cd ${wt} && git reset --hard`,
+    'cd sub && git clean -fd',
+    `git -C ${wt} reset --hard`,
+    'git -C sub clean -fd',
+    `pushd ${wt} && rm -rf build`,
+    'rm -rf /tmp/ql-not-the-loop',
+    `cd ${wt} && ql init --force`,
+    'node "$P/scripts/ql.mjs" init --force',
+  ]) {
+    assert.equal(decision(c), undefined, c)
+  }
+  for (const c of [
+    `cd ${root} && rm -rf src`,
+    `rm -rf ${root}/src`,
+    'rm -rf ../../../src',
+    'cd .. && git reset --hard',
+    'git -C ../../.. reset --hard',
+    `git --work-tree=${root} --git-dir=${root}/.git reset --hard`,
+    'cd "$OTHER" && rm -rf src',
+    'cd ../../.. && ql init --force',
+  ]) {
+    assert.equal(decision(c), 'deny', c)
+  }
+})
+
+test('a nested `git init` in a directory the loop tracks does not turn the guard off there (verifier r3: hooks enclosing decoy)', async () => {
+  const root = makeRepo({ 'README.md': 'x\n', 'src/main.js': 'x\n' })
+  await loop.start(root, { mode: 'review' })
+  loop.beginRound(root)
+  const src = join(root, 'src')
+  gitIn(src, ['init', '-q'])
+  const decision = (/** @type {string} */ c) => bash(src, c, 'A')?.hookSpecificOutput.permissionDecision
+  for (const c of ['rm -rf *', 'git clean -fdx', 'git reset --hard', 'rm -rf ../.quality-loop']) assert.equal(decision(c), 'deny', c)
+})
+
+test('a capped loop hand-edited back to active cannot begin another round (verifier r3: beginRound ignores the record)', async () => {
+  for (const status of ['capped', 'stalled']) {
+    const root = await started()
+    loop.beginRound(root)
+    saveAs(root, { status, round: 1, rounds: state(root).rounds.map((/** @type {any} */ r) => ({ ...r, ended: true })) })
+    handEdit(root, { status: 'active' })
+    assert.throws(() => loop.beginRound(root), /only the user/i, status)
+    assert.equal(tombstoneOf(root).round, 1, status)
+    // the user's extend lets it run on
+    if (status === 'capped') {
+      loop.extend(root, 1)
+      assert.equal(loop.beginRound(root).round, 2)
+    }
+  }
 })
