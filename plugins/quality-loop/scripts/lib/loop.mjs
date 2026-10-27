@@ -126,6 +126,29 @@ function checkSpecs(s) {
 const failingRequired = run => (run?.results ?? []).filter((/** @type {any} */ r) => !r.ok && r.required).map((/** @type {any} */ r) => r.name)
 
 /**
+ * Why `ql start` without --force must not replace `prev`, or null when it
+ * may. Starting over resets the round cap, which only the user may lift, so
+ * a loop that spent rounds without finishing (capped, stalled, paused,
+ * aborted) is replaced only with --force, which the guard keeps from the
+ * agent. A loop that never began a round, or a review-only one, has no cap
+ * to dodge.
+ *
+ * @param {any} prev
+ */
+export function restartRefusal(prev) {
+  if (!prev) return null
+  if (prev.status === 'active') {
+    return `a loop is already active (${prev.id}, round ${prev.round}); continue it (\`ql next\`). Only the user may start over (\`! ql start --force ...\`).`
+  }
+  if (prev.status === 'done' || prev.reviewOnly) return null
+  if (!(prev.round > 0) && !['capped', 'stalled'].includes(prev.status)) return null
+  if (prev.status === 'paused') {
+    return `the loop ${prev.id} is paused at round ${prev.round}: \`ql resume\` it once the user has answered. Starting over would reset its round cap, which only the user may do (\`! ql start --force ...\`).`
+  }
+  return `the loop ${prev.id} ended ${prev.status} after ${prev.round} round(s) without reaching its finish line. Starting over would reset its round cap, which only the user may do: report to the user, who can run \`! ql extend\` or \`! ql start --force ...\`.`
+}
+
+/**
  * @param {string} root
  * @param {{ mode: 'review' | 'debug', goal?: string, base?: string, repro?: string, force?: boolean, reviewOnly?: boolean, depth?: string }} opts
  */
@@ -136,9 +159,8 @@ export async function start(root, opts) {
   if (!existsSync(p.config)) init(root)
   const config = loadConfig(root, { depth: opts.depth })
   const prev = loadState(root)
-  if (prev && prev.status === 'active' && !opts.force) {
-    throw new LoopError(`a loop is already active (${prev.id}, round ${prev.round}); finish it, \`ql abort\`, or pass --force`)
-  }
+  const refusal = opts.force ? null : restartRefusal(prev)
+  if (refusal) throw new LoopError(refusal)
   if (prev) {
     // Keep the old run for the record.
     mkdirSync(p.history, { recursive: true })
@@ -168,6 +190,8 @@ export async function start(root, opts) {
     baseline: { checkpoint: snapshotTree(root), run: /** @type {any} */ (null) },
     lastRun: /** @type {any} */ (null),
     stopNudges: 0,
+    // The Claude Code session running the loop; bound by the hooks (hooks.mjs).
+    sessionId: /** @type {string | null} */ (null),
     warnings: /** @type {string[]} */ ([]),
     reviewOnly: !!opts.reviewOnly,
     reproPassedAtStart: false,
