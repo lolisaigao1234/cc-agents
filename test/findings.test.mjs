@@ -219,6 +219,20 @@ const fileOf = (/** @type {number} */ n, /** @type {Record<number, string>} */ c
 const ctxFor = (/** @type {string[]} */ lines, overrides = {}) =>
   ctx({ diffFiles: [], readLines: (/** @type {string} */ p) => (p === 'src/m.js' ? lines : null), ...overrides })
 
+/**
+ * A pure stand-in for the loop's translator (track.mjs) over one edit to the
+ * file since tree T1: `count` lines inserted after old line `after`, and the
+ * old lines in `gone` rewritten. Contexts using it read the file as tree T2.
+ */
+const track = ({ after = Infinity, count = 0, gone = /** @type {number[]} */ ([]) } = {}) => ({
+  tree: 'T2',
+  translate: (/** @type {string} */ _file, /** @type {number} */ line, /** @type {number} */ endLine) => {
+    for (let l = line; l <= endLine; l++) if (gone.includes(l)) return null
+    const shift = (/** @type {number} */ l) => (l > after ? l + count : l)
+    return { line: shift(line), endLine: shift(endLine) }
+  },
+})
+
 const at = (/** @type {number} */ line, /** @type {string} */ quote, extra = {}) => ({
   ...base,
   file: 'src/m.js',
@@ -260,10 +274,9 @@ test('ingest: identical code at two lines is two instances, kept apart across ro
   const quote = 'const cap = order.total'
   const lines = fileOf(60, { 10: `  ${quote}`, 40: `  ${quote}` })
   const ledger = newLedger()
-  const r1 = ingestFindings(ledger, [at(10, quote), at(40, quote)], ctxFor(lines))
+  const r1 = ingestFindings(ledger, [at(10, quote), at(40, quote)], ctxFor(lines, { tree: 'T1' }))
   assert.deepEqual(r1.report.accepted, ['F1', 'F2'])
   assert.deepEqual(Object.values(ledger.findings).map(f => f.line), [10, 40])
-  assert.notEqual(ledger.findings.F1?.fingerprint, ledger.findings.F2?.fingerprint)
 
   // F1 is guarded at line 10; the instance at 40 is still its own finding.
   const f1 = ledger.findings.F1
@@ -273,7 +286,7 @@ test('ingest: identical code at two lines is two instances, kept apart across ro
   const r2 = ingestFindings(
     ledger,
     [at(13, quote), at(43, quote, { title: 'again', category: 'security' })],
-    ctxFor(edited, { round: 2, lens: 'security' }),
+    ctxFor(edited, { round: 2, lens: 'security', ...track({ after: 5, count: 3 }) }),
   )
   assert.deepEqual(r2.report.repeats, ['F1'])
   assert.deepEqual(r2.report.merged, ['F2'])
@@ -297,13 +310,13 @@ test('ingest: when one copy is fixed, a report of the other copy goes to its own
   const quote = 'const cap = order.total'
   const lines = fileOf(60, { 10: `  ${quote}`, 30: `  ${quote}` })
   const ledger = newLedger()
-  ingestFindings(ledger, [at(10, quote), at(30, quote)], ctxFor(lines))
+  ingestFindings(ledger, [at(10, quote), at(30, quote)], ctxFor(lines, { tree: 'T1' }))
   const [f1, f2] = [ledger.findings.F1, ledger.findings.F2]
   if (!f1 || !f2) throw new Error('missing findings')
   f1.status = 'fixed'
   f2.status = 'rejected'
   const fixed = fileOf(60, { 10: '  const cap = toUsd(order.total)', 30: `  ${quote}` })
-  const r2 = ingestFindings(ledger, [at(30, quote)], ctxFor(fixed, { round: 2 }))
+  const r2 = ingestFindings(ledger, [at(30, quote)], ctxFor(fixed, { round: 2, ...track({ gone: [10] }) }))
   assert.deepEqual(r2.report.reopened, [])
   assert.deepEqual(r2.report.repeats, ['F2'])
   assert.equal(f1.status, 'fixed')
@@ -312,18 +325,18 @@ test('ingest: when one copy is fixed, a report of the other copy goes to its own
 test('ingest: the same short quote elsewhere in the file is not a repeat of a rejected finding', () => {
   const lines = fileOf(60, { 20: '  return null', 50: '  return null' })
   const ledger = newLedger()
-  ingestFindings(ledger, [at(20, 'return null', { bugClass: 'missing-error' })], ctxFor(lines))
+  ingestFindings(ledger, [at(20, 'return null', { bugClass: 'missing-error' })], ctxFor(lines, { tree: 'T1' }))
   const f1 = ledger.findings.F1
   if (f1) f1.status = 'rejected'
   const r2 = ingestFindings(
     ledger,
     [at(50, 'return null', { bugClass: 'null-contract-violation', title: 'real bug' })],
-    ctxFor(lines, { round: 2 }),
+    ctxFor(lines, { round: 2, tree: 'T1' }),
   )
   assert.deepEqual(r2.report.repeats, [])
   assert.deepEqual(r2.report.accepted, ['F2'])
   // The same code at the same place under another label is still the rejected finding.
-  const r3 = ingestFindings(ledger, [at(20, 'return null', { bugClass: 'null-contract-violation' })], ctxFor(lines, { round: 3 }))
+  const r3 = ingestFindings(ledger, [at(20, 'return null', { bugClass: 'null-contract-violation' })], ctxFor(lines, { round: 3, tree: 'T1' }))
   assert.deepEqual(r3.report.repeats, ['F1'])
 })
 
@@ -512,13 +525,13 @@ test('ingest: one copy keeps its finding when an edit lands right beside it', ()
   const quote = 'const cap = order.total'
   const lines = fileOf(60, { 10: `  ${quote}`, 30: `  ${quote}` })
   const ledger = newLedger()
-  ingestFindings(ledger, [at(10, quote), at(30, quote)], ctxFor(lines))
+  ingestFindings(ledger, [at(10, quote), at(30, quote)], ctxFor(lines, { tree: 'T1' }))
   const f2 = ledger.findings.F2
   if (!f2) throw new Error('no F2')
   f2.status = 'rejected'
   // a fix inserts a guard right above copy B
   const edited = [...lines.slice(0, 29), '  assert(order)', ...lines.slice(29)]
-  const r2 = ingestFindings(ledger, [at(31, quote), at(10, quote)], ctxFor(edited, { round: 2 }))
+  const r2 = ingestFindings(ledger, [at(31, quote), at(10, quote)], ctxFor(edited, { round: 2, ...track({ after: 29, count: 1 }) }))
   assert.deepEqual(r2.report.repeats, ['F2'])
   assert.deepEqual(r2.report.merged, ['F1'])
   assert.deepEqual(r2.report.accepted, [])

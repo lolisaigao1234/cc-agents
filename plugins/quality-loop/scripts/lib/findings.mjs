@@ -1,6 +1,7 @@
 // The findings ledger: every issue a bug hunter reported, deduplicated across
 // lenses and rounds, with the votes that confirmed or rejected it. Pure: the
-// caller injects file contents and the parsed diff.
+// caller injects file contents, the parsed diff and a line translator
+// between snapshot trees (see ADR 0002 and track.mjs).
 
 import { rangeTouches } from './diff.mjs'
 import { matchesAny, normalizePath } from './glob.mjs'
@@ -16,16 +17,21 @@ export const SEVERITIES = /** @type {const} */ (['important', 'nit'])
  *   explanation: string, failureScenario: string, suggestedFix: string, confidence: number,
  *   origin: 'introduced' | 'pre-existing', status: FindingStatus, lenses: string[],
  *   votes: Vote[], attempts: number, reopens: number, firstRound: number, lastRound: number,
- *   resolution: string, confirmedRound?: number, anchor?: Anchor,
- * }} Finding
- * @typedef {{ before: string, after: string, copies: number }} Anchor where a finding's code sits:
- *   the non-blank lines just above and below it, and how many copies of it the file held
+ *   resolution: string, confirmedRound?: number, tree?: string, copies?: number,
+ * }} Finding `line` and `endLine` are where the finding was last seen, in the
+ *   snapshot `tree` (absent in ledgers from before line tracking); `copies`
+ *   is how many times its quote occurred in the file then
  * @typedef {{ nextId: number, findings: Record<string, Finding> }} Ledger
  * @typedef {{ skipPaths?: string[], dropCategories?: string[], maxNitsPerRound?: number }} IngestConfig
+ * @typedef {{ line: number, endLine: number }} Span
+ * @typedef {(file: string, line: number, endLine: number, fromTree: string) => Span | null} Translate
+ *   where lines [line, endLine] of `file` in the snapshot `fromTree` are in
+ *   the current tree, or null when any of them was changed or deleted
  * @typedef {{
  *   round: number, lens: string, diffFiles: import('./diff.mjs').DiffFile[],
  *   readLines: (path: string) => string[] | null, config: IngestConfig,
- * }} IngestContext
+ *   tree?: string, translate?: Translate,
+ * }} IngestContext `tree` is the snapshot the files are read from
  */
 
 /** @returns {Ledger} */
@@ -76,20 +82,14 @@ function hash(s) {
 }
 
 /**
- * Identity that survives line drift: the file, the offending code, the class
- * of bug and, when the same code appears more than once in the file, which
- * occurrence it is (0-based, counted from the top). Line numbers drift as
- * fixes land; the quoted code and its order among its copies do not. The
- * first occurrence carries no suffix, so a quote that appears once keeps the
- * plain file|quote|class identity. The occurrence shifts when an earlier
- * copy is rewritten, so the ledger tells copies apart by their anchor (what
- * surrounds them, see locate), not by the fingerprint alone.
+ * A line-insensitive summary of a finding (file, offending code, bug class),
+ * kept for the record. It does not decide identity: copies of the same code
+ * share it. The ledger tracks each finding's lines instead (see matchKnown).
  *
- * @param {Record<string, unknown> & { file: string, quote: string, bugClass?: string, category: string, occurrence?: number }} f
+ * @param {Record<string, unknown> & { file: string, quote: string, bugClass?: string, category: string }} f
  */
 export function fingerprint(f) {
-  const occ = typeof f.occurrence === 'number' && f.occurrence > 0 ? `#${f.occurrence}` : ''
-  return hash(`${normalizePath(f.file)}|${normalizeQuote(f.quote)}|${slug(f.bugClass || f.category)}${occ}`)
+  return hash(`${normalizePath(f.file)}|${normalizeQuote(f.quote)}|${slug(f.bugClass || f.category)}`)
 }
 
 // A quote within this many lines of the cited line is relocated to where it
@@ -139,197 +139,150 @@ export function checkEvidence(f, lines) {
   return { ok: false, reason: 'quote-not-found' }
 }
 
-/**
- * Which copy of its quote a finding at `line` is: the number of earlier
- * lines where the same quote starts.
- *
- * @param {string} quote
- * @param {number} line 1-based, where the quote starts
- * @param {string[]} lines
- */
-function occurrenceAt(quote, line, lines) {
-  const startsAt = quoteMatcher(quote, lines)
-  let n = 0
-  for (let l = 1; l < line; l++) if (startsAt(l)) n++
-  return n
-}
-
 /** @param {string} quote */
 const quoteHeight = quote => Math.max(1, quote.trim().split('\n').length)
-
-// How many non-blank neighbouring lines on each side identify a copy.
-const ANCHOR_LINES = 2
-
-/**
- * What surrounds the copy of `quote` that starts at `line`: the nearest
- * non-blank lines above and below it, whitespace-normalised.
- *
- * @param {string} quote
- * @param {number} line 1-based, where the quote starts
- * @param {string[]} lines
- * @returns {{ before: string, after: string }}
- */
-function surroundings(quote, line, lines) {
-  /** @param {number} from 0-based @param {number} step */
-  const collect = (from, step) => {
-    const got = []
-    for (let i = from; i >= 0 && i < lines.length && got.length < ANCHOR_LINES; i += step) {
-      const l = normalizeQuote(lines[i] ?? '')
-      if (l) got.push(l)
-    }
-    return got.join('\n')
-  }
-  return { before: collect(line - 2, -1), after: collect(line - 1 + quoteHeight(quote), 1) }
-}
-
-/** @param {string} quote @param {string[]} lines */
-function countCopies(quote, lines) {
-  const startsAt = quoteMatcher(quote, lines)
-  let n = 0
-  for (let l = 1; l <= lines.length; l++) if (startsAt(l)) n++
-  return n
-}
-
-/**
- * @param {string} quote
- * @param {number} line
- * @param {string[]} lines
- * @returns {Anchor}
- */
-function anchorAt(quote, line, lines) {
-  return { ...surroundings(quote, line, lines), copies: countCopies(quote, lines) }
-}
-
-/** @typedef {{ line: number, endLine: number }} Span */
 
 /** @param {Span} a @param {Span} b */
 const overlaps = (a, b) => a.line <= b.endLine && b.line <= a.endLine
 
-// Statuses whose issue is still open. A settled finding (rejected, fixed,
-// wontfix, stuck) absorbs a new report only when it quotes the same code.
-const OPEN = ['candidate', 'confirmed']
+/** @param {Span} inner @param {Span} outer */
+const within = (inner, outer) => outer.line <= inner.line && inner.endLine <= outer.endLine
 
 /**
- * Where a recorded finding's code is now: its stored line is from the round
- * it was reported in, and fixes have moved code since. Null when its copy of
- * the code is no longer near the stored line.
+ * The lines its quote occupies when it starts at `line`.
  *
- * Another copy of the same code within the relocation window is not this
- * finding's copy: a copy is recognised by its surroundings (either side
- * unchanged is enough, so an edit beside it does not lose it). Only when the
- * code was, and still is, the one copy in the file does it stay this
- * finding's code after edits on both sides. A finding recorded before
- * anchors existed relocates to the nearest copy, as checkEvidence does.
- *
- * @param {Pick<Finding, 'line' | 'endLine' | 'quote' | 'anchor'>} f
- * @param {string[] | null} lines
- * @returns {Span | null}
+ * @param {string} quote
+ * @param {number} line
+ * @returns {Span}
  */
-export function locate(f, lines) {
-  if (!lines || f.line > lines.length + RELOCATE_WINDOW) return null
-  const startsAt = quoteMatcher(f.quote, lines)
-  /** @type {number[]} nearest first */
-  const copies = []
-  for (let d = 0; d <= RELOCATE_WINDOW; d++) {
-    for (const cand of d === 0 ? [f.line] : [f.line - d, f.line + d]) if (startsAt(cand)) copies.push(cand)
-  }
-  const anchor = f.anchor
-  const found =
-    copies.length === 0 || !anchor
-      ? copies[0]
-      : copies.find(l => {
-          const s = surroundings(f.quote, l, lines)
-          return s.before === anchor.before || s.after === anchor.after
-        }) ?? (anchor.copies === 1 && countCopies(f.quote, lines) === 1 ? copies[0] : undefined)
-  return found === undefined ? null : { line: found, endLine: found + Math.max(0, f.endLine - f.line) }
-}
+const quoteSpan = (quote, line) => ({ line, endLine: line + quoteHeight(quote) - 1 })
 
 /**
- * @typedef {Pick<Finding, 'file' | 'fingerprint' | 'category' | 'bugClass' | 'line' | 'endLine' | 'quote' | 'status' | 'anchor'>} Comparable
+ * The start lines of every occurrence of each quote in each file, computed
+ * once per ingest.
+ *
+ * @param {(path: string) => string[] | null} readLines
  */
-
-/**
- * How `report` (a fresh finding, its lines current) matches the recorded
- * finding `known`, or null when they are different issues. Lower rank is a
- * stronger match. Known code is first relocated in the current file (see
- * locate), so stale line numbers never decide:
- *
- * - rank 0: the same code at the same place, under the same category or bug
- *   class (two lenses naming one bug with different labels);
- * - rank 1: different code of the same bug class on overlapping lines, while
- *   the known finding is still open. A rejected or fixed finding never
- *   absorbs different code: that is a new report, not a repeat;
- * - rank 2: the known code is no longer near its old line, and the report
- *   quotes the same code under the same bug class with the same lines on
- *   both sides: the block moved far. (A finding recorded before anchors
- *   existed falls back to its fingerprint.)
- *
- * Different code on nearby lines is kept apart, and so is the same code at
- * another place: adjacent lines and repeated snippets often hold distinct
- * bugs, and a duplicate costs one extra vote where a wrong merge loses one.
- * When a copy is rewritten (fixed or edited), a report of a sibling copy is a
- * new finding, never a reopen or repeat of the rewritten one.
- *
- * @param {Comparable} known
- * @param {Comparable} report
- * @param {string[] | null} lines the current contents of report.file
- * @returns {{ rank: number, at: Span } | null}
- */
-function matchIssue(known, report, lines) {
-  if (normalizePath(known.file) !== normalizePath(report.file)) return null
-  const at = locate(known, lines)
-  if (!at) {
-    const moved =
-      known.anchor && report.anchor
-        ? normalizeQuote(known.quote) === normalizeQuote(report.quote) &&
-          known.bugClass === report.bugClass &&
-          known.anchor.before === report.anchor.before &&
-          known.anchor.after === report.anchor.after
-        : known.fingerprint === report.fingerprint
-    // The code moved to where the report found it.
-    return moved ? { rank: 2, at: { line: report.line, endLine: report.endLine } } : null
-  }
-  if (!overlaps(at, report)) return null
-  if (normalizeQuote(known.quote) === normalizeQuote(report.quote)) {
-    return known.category === report.category || known.bugClass === report.bugClass ? { rank: 0, at } : null
-  }
-  return known.bugClass === report.bugClass && OPEN.includes(known.status) ? { rank: 1, at } : null
-}
-
-/**
- * Whether a fresh report describes the same issue as a recorded finding.
- * See matchIssue for the rules.
- *
- * @param {Comparable} known
- * @param {Comparable} report
- * @param {string[] | null} lines the current contents of report.file
- */
-export function isSameIssue(known, report, lines) {
-  return matchIssue(known, report, lines) !== null
-}
-
-/**
- * The recorded finding that best matches a report: strongest rank, then the
- * one whose stored line is nearest.
- *
- * @template {Comparable} T
- * @param {T[]} known
- * @param {Comparable} report
- * @param {string[] | null} lines
- * @returns {{ finding: T, at: Span } | null}
- */
-function bestMatch(known, report, lines) {
-  /** @type {{ finding: T, at: Span, rank: number, dist: number } | null} */
-  let best = null
-  for (const finding of known) {
-    const m = matchIssue(finding, report, lines)
-    if (!m) continue
-    const dist = Math.abs(finding.line - report.line)
-    if (!best || m.rank < best.rank || (m.rank === best.rank && dist < best.dist)) {
-      best = { finding, at: m.at, rank: m.rank, dist }
+function occurrenceIndex(readLines) {
+  /** @type {Map<string, number[]>} */
+  const memo = new Map()
+  /** @type {Map<string, string[] | null>} */
+  const files = new Map()
+  /** @param {string} file @param {string} quote @returns {number[]} */
+  return (file, quote) => {
+    const key = `${file}\0${quoteHeight(quote)}\0${normalizeQuote(quote)}`
+    let at = memo.get(key)
+    if (!at) {
+      at = []
+      if (!files.has(file)) files.set(file, readLines(file))
+      const lines = files.get(file)
+      if (lines) {
+        const startsAt = quoteMatcher(quote, lines)
+        for (let l = 1; l <= lines.length; l++) if (startsAt(l)) at.push(l)
+      }
+      memo.set(key, at)
     }
+    return at
   }
-  return best && { finding: best.finding, at: best.at }
+}
+
+/**
+ * Where a recorded finding's quoted code starts in the current file, or null
+ * when that cannot be told for certain (see ADR 0002):
+ *
+ * - its lines are translated from the tree it was last seen in through the
+ *   real diff of the file, so the copy it was is followed whatever happened
+ *   to its siblings;
+ * - when those lines were changed or deleted, or the finding has no tree
+ *   (an older ledger), its quote is relocated only if it is the one copy in
+ *   the file now and was the one copy when last seen. Any other case is
+ *   ambiguous, and ambiguity means "not this finding".
+ *
+ * @param {Finding} known
+ * @param {IngestContext} ctx
+ * @param {(file: string, quote: string) => number[]} occurrences
+ * @returns {number | null}
+ */
+function whereNow(known, ctx, occurrences) {
+  const own = quoteSpan(known.quote, known.line)
+  if (known.tree && ctx.tree) {
+    const t = known.tree === ctx.tree ? own : ctx.translate?.(known.file, own.line, own.endLine, known.tree) ?? null
+    if (t && occurrences(known.file, known.quote).includes(t.line)) return t.line
+  }
+  // A ledger from before line tracking knew the count from its anchor.
+  const copies = known.copies ?? /** @type {any} */ (known).anchor?.copies
+  if (copies !== undefined && copies !== 1) return null
+  const now = occurrences(known.file, known.quote)
+  return now.length === 1 ? (now[0] ?? null) : null
+}
+
+/**
+ * How strongly a report (its line current) matches recorded code that now
+ * starts at `at`, or null when they are different issues. Lower is stronger.
+ * Both line numbers are exact quote starts (the report's from checkEvidence,
+ * the known one's from whereNow), so places must agree exactly:
+ *
+ * - 0: the same code at the same line, under the same bug class or category
+ *   (two lenses naming one bug with different labels);
+ * - 1: one quote contains the other (a trimmed or extended quote) and lies
+ *   within the other's lines, under the same bug class or category;
+ * - 2: different code of the same bug class on overlapping lines.
+ *
+ * The same code at another line is another instance; different code on
+ * adjacent lines is another bug.
+ *
+ * @param {Pick<Finding, 'quote' | 'bugClass' | 'category'>} known
+ * @param {number} at
+ * @param {Pick<Finding, 'quote' | 'bugClass' | 'category' | 'line'>} report
+ * @returns {number | null}
+ */
+function matchRank(known, at, report) {
+  const kq = normalizeQuote(known.quote)
+  const rq = normalizeQuote(report.quote)
+  const k = quoteSpan(known.quote, at)
+  const r = quoteSpan(report.quote, report.line)
+  const labelled = known.bugClass === report.bugClass || known.category === report.category
+  if (kq === rq) return k.line === r.line && labelled ? 0 : null
+  if (labelled && ((rq.includes(kq) && within(k, r)) || (kq.includes(rq) && within(r, k)))) return 1
+  return known.bugClass === report.bugClass && overlaps(k, r) ? 2 : null
+}
+
+/**
+ * Pairs each report with the recorded finding it is, if any. Nearest first:
+ * a finding is claimed by at most one report of the batch, and a report that
+ * loses it to a nearer one is new.
+ *
+ * @param {Finding[]} known
+ * @param {Finding[]} reports current lines
+ * @param {IngestContext} ctx
+ * @param {(file: string, quote: string) => number[]} occurrences
+ * @returns {Map<Finding, { finding: Finding, at: number }>} by report
+ */
+function matchKnown(known, reports, ctx, occurrences) {
+  /** @type {Map<Finding, number | null>} */
+  const where = new Map()
+  /** @type {{ report: Finding, finding: Finding, at: number, rank: number, dist: number, order: number }[]} */
+  const pairs = []
+  reports.forEach((report, order) => {
+    for (const finding of known) {
+      if (normalizePath(finding.file) !== report.file) continue
+      if (!where.has(finding)) where.set(finding, whereNow(finding, ctx, occurrences))
+      const at = where.get(finding)
+      if (at === null || at === undefined) continue
+      const rank = matchRank(finding, at, report)
+      if (rank !== null) pairs.push({ report, finding, at, rank, dist: Math.abs(at - report.line), order })
+    }
+  })
+  pairs.sort((a, b) => a.dist - b.dist || a.rank - b.rank || a.order - b.order)
+  /** @type {Map<Finding, { finding: Finding, at: number }>} */
+  const claims = new Map()
+  const taken = new Set()
+  for (const p of pairs) {
+    if (claims.has(p.report) || taken.has(p.finding)) continue
+    claims.set(p.report, { finding: p.finding, at: p.at })
+    taken.add(p.finding)
+  }
+  return claims
 }
 
 /**
@@ -359,9 +312,8 @@ export function ingestFindings(ledger, raws, ctx) {
   }
   const skip = ctx.config.skipPaths ?? []
   const drop = (ctx.config.dropCategories ?? []).map(slug)
-  /** @type {Finding[]} */
-  const fresh = []
-
+  /** @type {Finding[]} the batch's valid reports, their lines current */
+  const reports = []
   for (const raw of raws) {
     const v = validateFinding(raw)
     const label = { title: String(raw?.title ?? '?'), file: String(raw?.file ?? '?') }
@@ -414,18 +366,30 @@ export function ingestFindings(ledger, raws, ctx) {
       lastRound: ctx.round,
       resolution: '',
     }
-    f.fingerprint = fingerprint({ ...f, occurrence: occurrenceAt(f.quote, line, lines) })
-    f.anchor = anchorAt(f.quote, line, lines)
+    f.fingerprint = fingerprint(f)
+    reports.push(f)
+  }
 
-    const match = bestMatch(Object.values(ledger.findings), f, lines)
+  const occurrences = occurrenceIndex(ctx.readLines)
+  /** Records where a finding is seen now: its lines in the current tree. @param {Finding} f */
+  const seenNow = f => {
+    if (ctx.tree) f.tree = ctx.tree
+    else delete f.tree
+    f.copies = occurrences(f.file, f.quote).length
+    delete (/** @type {any} */ (f).anchor)
+  }
+  const claims = matchKnown(Object.values(ledger.findings), reports, ctx, occurrences)
+  /** @type {Finding[]} */
+  const fresh = []
+  for (const f of reports) {
+    const match = claims.get(f)
     if (match) {
       const existing = match.finding
       existing.lastRound = ctx.round
       if (!existing.lenses.includes(ctx.lens)) existing.lenses.push(ctx.lens)
-      // Keep the recorded location current, so later rounds compare against it.
-      existing.line = match.at.line
-      existing.endLine = match.at.endLine
-      existing.anchor = anchorAt(existing.quote, match.at.line, lines)
+      // Keep the recorded location current, so later rounds translate from it.
+      existing.endLine = match.at + Math.max(0, existing.endLine - existing.line)
+      existing.line = match.at
       if (existing.status === 'rejected' || existing.status === 'wontfix') {
         report.repeats.push(existing.id)
       } else if (existing.status === 'fixed') {
@@ -445,7 +409,6 @@ export function ingestFindings(ledger, raws, ctx) {
           confidence: f.confidence,
           origin: f.origin,
           fingerprint: f.fingerprint,
-          anchor: f.anchor,
         })
         existing.status = 'candidate'
         existing.votes = []
@@ -454,13 +417,22 @@ export function ingestFindings(ledger, raws, ctx) {
       } else {
         report.merged.push(existing.id)
       }
+      seenNow(existing)
       continue
     }
-    const dup = bestMatch(fresh, f, lines)?.finding
+    // The same report twice in one batch: the nearest earlier one at the same
+    // place. The same code elsewhere is another instance.
+    let dup = null
+    let dist = Infinity
+    for (const g of fresh) {
+      if (g.file !== f.file || matchRank(g, g.line, f) === null) continue
+      if (Math.abs(g.line - f.line) < dist) [dup, dist] = [g, Math.abs(g.line - f.line)]
+    }
     if (dup) {
       if (!dup.lenses.includes(ctx.lens)) dup.lenses.push(ctx.lens)
       continue
     }
+    seenNow(f)
     fresh.push(f)
   }
 
