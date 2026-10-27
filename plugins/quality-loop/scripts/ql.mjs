@@ -7,6 +7,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { briefLine, clearRoundWork, fixBriefs, hunterBriefs, investigateBrief, resolveLens, verifierBriefs } from './lib/brief.mjs'
 import { runChecks } from './lib/checks.mjs'
 import { ensureCompactWindow } from './lib/compact.mjs'
 import { DEPTHS } from './lib/config.mjs'
@@ -15,10 +16,15 @@ import { ensureSplit, evalPaths, harvest, loadCases, loadResult, runEval } from 
 import { repoRoot } from './lib/git.mjs'
 import { handleHook } from './lib/hooks.mjs'
 import * as loop from './lib/loop.mjs'
-import { nextAction, renderReport, statusLine } from './lib/report.mjs'
+import { nextAction, phaseOf, renderReport, statusLine, stepFile } from './lib/report.mjs'
 import { paths, readJson, readJsonInput, writeJson, writeText } from './lib/store.mjs'
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+// The round protocol, one small file per step: ql names the one to read.
+const STEP_DIR = join(PLUGIN_ROOT, 'references', 'round')
+// A failing check shows this many lines of its output; the rest is in its log.
+const TAIL_LINES = 15
+const MAX_LINE = 200
 
 const USAGE = `ql — quality-loop core
 
@@ -31,9 +37,13 @@ Loop
   ql start --mode review|debug [--goal G] [--base REF] [--repro CMD] [--depth quick|standard|deep] [--review-only] [--force]
   ql round begin                    checkpoint the tree and write the review scope
   ql scope [--json]                 this round's diff (full first, then diff-only)
+  ql brief hunters [--intent T]     write one bug-hunter brief per lens; print "<agent> <brief> -> <output>" per brief
+  ql brief verifiers                one finding-verifier brief per missing vote, each with its own stance
+  ql brief fix <bugClass>|--all     one fixer brief per open bug class (with its wave)
+  ql brief investigate --hypothesis H [--k N]   one root-cause-investigator brief (debug)
   ql ingest <file|-> --lens L       add a bug hunter's findings (JSON array)
   ql ingest --none --lens L         record that lens L's reviewer found nothing (L=scope: the scope is empty)
-  ql pending [--json]               candidates awaiting verifier votes
+  ql pending [--json]               candidates awaiting verifier votes (one line each; full JSON in a file)
   ql vote <file|-> [file ...]       record votes: {id, verdict: confirm|reject, voter, reason, severity?} or arrays of them
   ql open [--json]                  confirmed findings to fix, grouped by bug class
   ql mark <id> fixed|wontfix --reason R
@@ -114,6 +124,51 @@ function capContext(root, config) {
   return `context cap: auto-compact at ${cap} tokens (${r.changed ? 'set in' : 'already in'} .claude/settings.local.json; takes effect from the next turn)`
 }
 
+/** @param {string} line */
+const clip = line => (line.length > MAX_LINE ? `${line.slice(0, MAX_LINE)}…` : line)
+
+/**
+ * Finding ids as compact ranges: F1-F30, F32.
+ *
+ * @param {string[]} ids
+ */
+function idList(ids) {
+  /** @type {string[]} */
+  const out = []
+  let i = 0
+  while (i < ids.length) {
+    const m = /^(\D*)(\d+)$/.exec(ids[i] ?? '')
+    let j = i
+    while (m && j + 1 < ids.length && ids[j + 1] === `${m[1]}${Number(m[2]) + (j + 1 - i)}`) j++
+    out.push(j > i + 1 ? `${ids[i]}-${ids[j]}` : ids.slice(i, j + 1).join(', '))
+    i = j + 1
+  }
+  return out.join(', ')
+}
+
+/**
+ * The `next:` line, and the protocol step file to read when the command
+ * moved the loop to another step (or `step` names one).
+ *
+ * @param {any} s the state after the command
+ * @param {string | null} before the phase before the command
+ * @param {{ always?: boolean, step?: string | null }} [opts]
+ */
+function printNext(s, before, opts = {}) {
+  print(`next: ${nextAction(s)}`)
+  const name = opts.step ?? stepFile(s)
+  if (name && (opts.always || opts.step || phaseOf(s) !== before)) print(`step: ${join(STEP_DIR, name)}`)
+}
+
+/** @param {string} root */
+function phaseNow(root) {
+  try {
+    return phaseOf(loop.loadState(root))
+  } catch {
+    return null
+  }
+}
+
 /** @param {any} run */
 function formatRun(run) {
   const lines = run.results.map(
@@ -123,9 +178,10 @@ function formatRun(run) {
       (r.flaky ? ' · flaky (passed on retry)' : '') +
       (r.counts ? ` · tests ${r.counts.passed} passed, ${r.counts.failed} failed, ${r.counts.skipped} skipped` : ''),
   )
-  // Show the output, do not just claim the result.
+  // Show the output, do not just claim the result: the last lines here, all of it in the log.
   for (const r of run.results.filter((/** @type {any} */ x) => !x.ok)) {
-    lines.push('', `--- ${r.name} (exit ${r.exitCode}) last lines; full log ${r.logFile}`, r.tail)
+    const tail = String(r.tail ?? '').replace(/\s+$/, '').split('\n').slice(-TAIL_LINES).map(clip)
+    lines.push(`--- ${r.name} (exit ${r.exitCode}): last ${tail.length} lines; full log ${r.logFile}`, ...tail)
   }
   return lines.join('\n')
 }
@@ -184,6 +240,8 @@ async function main(argv) {
 
   const root = repoRoot(process.cwd())
   if (!root) throw new loop.LoopError('not inside a git repository')
+  const before = phaseNow(root)
+  const rel = (/** @type {string} */ p) => relative(root, p)
 
   switch (cmd) {
     case 'init': {
@@ -215,6 +273,8 @@ async function main(argv) {
         reviewOnly: !!flags['review-only'],
         depth: str(flags.depth),
       })
+      // Work paths are built from round numbers and finding ids, which restart here.
+      clearRoundWork(root)
       const capped = capContext(root, s.config)
       if (flags.json) return print(s)
       if (capped) print(capped)
@@ -222,21 +282,28 @@ async function main(argv) {
       if (!s.reviewOnly) print(formatRun(s.baseline.run))
       for (const w of s.warnings) print(`WARNING: ${w}`)
       if (s.status !== 'active') print(`${s.status.toUpperCase()}: ${s.statusReasons.join('; ')}`)
-      return print(`next: ${nextAction(s)}`)
+      return printNext(s, before, { always: true })
     }
     case 'round': {
       if (sub === 'begin') {
         const { round, scope } = loop.beginRound(root)
         if (flags.json) return print({ round, scope })
-        print(`round ${round} begun · scope: ${scope.diffOnly ? 'diff-only since last kept round' : 'full change vs base'}`)
+        const s = loop.loadState(root)
+        // The file list and each lens's focus go into the hunter briefs (`ql brief hunters`), not here.
+        print(
+          `round ${round} begun · ${scope.diffOnly ? 'diff-only since last kept round' : 'full change vs base'} · ${scope.files.length} file(s) · diff ${rel(scope.diffFile)}`,
+        )
+        print(`lenses: ${scope.lenses.map((/** @type {{ name: string }} */ l) => l.name).join(', ')}`)
         // In debug mode the fix lands after round begin: an empty scope here
         // is the state before the fix, not a review to skip.
-        const emptyNote =
-          loop.loadState(root)?.mode === 'debug'
-            ? 'scope is empty so far: apply the fix, then `ql scope` and review it with one bug hunter per lens'
-            : 'scope is empty: nothing changed to review (record with `ql ingest --none --lens scope`)'
-        print(scope.empty ? emptyNote :`diff: ${scope.diffFile}\nfiles:\n${scope.files.map(f => `  ${f.status} ${f.path} (+${f.added} -${f.removed})`).join('\n')}`)
-        return print(`lenses:\n${scope.lenses.map((/** @type {{ name: string, focus: string }} */ l) => `  ${l.name}: ${l.focus}`).join('\n')}\nREVIEW.md: ${scope.reviewMd}`)
+        if (scope.empty) {
+          print(
+            s?.mode === 'debug'
+              ? 'scope is empty so far: apply the fix, then `ql brief hunters` and review it with one bug hunter per lens'
+              : 'scope is empty: nothing changed to review (record with `ql ingest --none --lens scope`)',
+          )
+        }
+        return printNext(s, before)
       }
       if (sub === 'end') {
         const out = await loop.endRound(root, { allowWeakening: !!flags['allow-weakening'] })
@@ -248,7 +315,9 @@ async function main(argv) {
         for (const d of out.discarded) print(`  discarded ${d.id} ${d.file}:${d.line} ${d.title} (its code was reverted)`)
         print(`decision: ${out.decision.status.toUpperCase()} · score ${out.decision.endScore}`)
         for (const r of out.decision.reasons) print(`  - ${r}`)
-        return print(`next: ${nextAction(loop.loadState(root))}`)
+        // Anything but a plain CONTINUE is acted on from the decision table.
+        const settled = out.decision.revert || out.decision.status !== 'continue'
+        return printNext(loop.loadState(root), before, { step: settled ? 'decisions.md' : null })
       }
       throw new loop.LoopError('ql round begin|end')
     }
@@ -261,7 +330,9 @@ async function main(argv) {
       if (!flags.none && !source) throw new loop.LoopError('ql ingest <file|-> --lens L, or ql ingest --none --lens L')
       // A --none stands for one lens's hunter (or an empty scope): it must say which.
       if (flags.none && !str(flags.lens)) throw new loop.LoopError('ql ingest --none needs --lens: the lens whose hunter found nothing, or `scope` for an empty scope')
-      const lens = str(flags.lens) ?? 'general'
+      const lenses = /** @type {string[]} */ (loop.loadState(root)?.config.review.lenses ?? [])
+      // A hunter brief's file name carries the lens as a slug: that names the lens too.
+      const lens = resolveLens(lenses, str(flags.lens) ?? 'general')
       let raws = null
       if (!flags.none && source) {
         const parsed = readJsonInput(source)
@@ -270,15 +341,24 @@ async function main(argv) {
       }
       const report = loop.ingest(root, raws, lens)
       if (flags.json) return print(report)
-      print(`lens ${lens}: ${report.accepted.length} new, ${report.merged.length} merged, ${report.reopened.length} reopened, ${report.repeats.length} repeats ignored, ${report.rejected.length} rejected`)
-      for (const r of report.rejected) print(`  rejected (${r.reason}${r.detail ? `: ${r.detail}` : ''}): ${r.file} — ${r.title}`)
-      return print(`next: ${nextAction(loop.loadState(root))}`)
+      const n = (/** @type {string[]} */ ids, /** @type {string} */ what) => `${ids.length} ${what}${ids.length ? ` (${idList(ids)})` : ''}`
+      print(
+        `lens ${lens}: ${n(report.accepted, 'new')}, ${n(report.merged, 'merged')}, ${n(report.reopened, 'reopened')}, ${n(report.repeats, 'repeats ignored')}, ${report.rejected.length} rejected`,
+      )
+      if (lens !== 'scope' && !lenses.includes(lens)) print(`note: "${lens}" is not a configured lens (${lenses.join(', ')}): it counts toward no lens's review`)
+      for (const r of report.rejected) {
+        print(clip(`  rejected ${r.reason}${r.detail ? ` (${String(r.detail).slice(0, 80)})` : ''}: ${r.file} ${String(r.title ?? '').slice(0, 80)}`))
+      }
+      return printNext(loop.loadState(root), before)
     }
     case 'pending': {
       const p = loop.pending(root)
       if (flags.json) return print(p)
-      print(`${p.findings.length} candidate(s) · ${p.verifiers} verifier(s) each, quorum ${p.quorum}`)
-      for (const f of p.findings) print(`${findingLine(f)} (needs ${f.votesNeeded} more vote(s))`)
+      // The full JSON goes to a file, read on demand (or `ql brief verifiers`).
+      const file = join(paths(root).work, `round-${loop.loadState(root)?.round ?? 0}`, 'pending.json')
+      writeJson(file, p)
+      print(`${p.findings.length} candidate(s) · ${p.verifiers} voter(s) each, quorum ${p.quorum} · full JSON: ${rel(file)}`)
+      for (const f of p.findings) print(clip(`${f.id} ${f.severity} ${f.file}:${f.line} ${f.title.slice(0, 100)} (needs ${f.votesNeeded})`))
       return
     }
     case 'vote': {
@@ -293,9 +373,18 @@ async function main(argv) {
       })
       const out = loop.vote(root, votes)
       if (flags.json) return print(out)
-      for (const [id, v] of Object.entries(out.outcome)) print(`${id}: ${v}`)
-      for (const i of out.invalid) print(`  invalid vote (${i.reason}): ${JSON.stringify(i.vote)}`)
-      return print(`next: ${nextAction(loop.loadState(root))}`)
+      const s = loop.loadState(root)
+      const { quorum, verifiers } = s.config.review
+      // One line per finding touched: the outcome and the tally, never the votes.
+      for (const [id, v] of Object.entries(out.outcome)) {
+        const fv = /** @type {any[]} */ (s.ledger.findings[id]?.votes ?? [])
+        const yes = fv.filter(x => x.verdict === 'confirm').length
+        print(`${id}: ${v} · ${yes} confirm, ${fv.length - yes} reject (quorum ${quorum} of ${verifiers})`)
+      }
+      for (const i of out.invalid) {
+        print(clip(`  invalid vote (${i.reason}): id ${String(i.vote?.id ?? '?').slice(0, 20)}, voter ${String(i.vote?.voter ?? '?').slice(0, 40)}`))
+      }
+      return printNext(s, before)
     }
     case 'open': {
       const groups = loop.openByClass(root)
@@ -304,7 +393,7 @@ async function main(argv) {
       if (!entries.length) return print('nothing open')
       for (const [cls, fs] of entries) {
         print(`## ${cls} (${fs.length}) — fix every instance of this class, not just one line`)
-        for (const f of fs) print(`${findingLine(f)}\n    why: ${f.explanation}\n    fails when: ${f.failureScenario || 'n/a'}`)
+        for (const f of fs) print(clip(findingLine(f)))
       }
       return
     }
@@ -313,7 +402,10 @@ async function main(argv) {
       const status = _[2]
       if (!id || !status) throw new loop.LoopError('ql mark <id> fixed|wontfix --reason R')
       const f = loop.mark(root, id, /** @type {'fixed'} */ (status), str(flags.reason) ?? '')
-      return print(`${f.id} → ${f.status}`)
+      print(`${f.id} → ${f.status}`)
+      const s = loop.loadState(root)
+      if (phaseOf(s) !== before) printNext(s, before)
+      return
     }
     case 'status': {
       const s = loop.syncState(root)
@@ -322,14 +414,22 @@ async function main(argv) {
       if (s?.statusReasons?.length) print(s.statusReasons.map((/** @type {string} */ r) => `  - ${r}`).join('\n'))
       return
     }
-    case 'next':
-      return print(nextAction(loop.syncState(root)))
+    case 'next': {
+      const s = loop.syncState(root)
+      print(nextAction(s))
+      const step = stepFile(s)
+      if (step) print(`step: ${join(STEP_DIR, step)}`)
+      return
+    }
+    case 'brief':
+      return briefCommand(root, sub, _.slice(2), flags)
     case 'pause':
       loop.pause(root, str(flags.reason) ?? '')
       return print('paused')
     case 'resume':
       loop.resume(root)
-      return print(`resumed · next: ${nextAction(loop.loadState(root))}`)
+      print('resumed')
+      return printNext(loop.loadState(root), before, { always: true })
     case 'abort':
       loop.abort(root, str(flags.reason) ?? '')
       return print('aborted')
@@ -338,7 +438,8 @@ async function main(argv) {
       return print('review finished')
     case 'extend': {
       const s = loop.extend(root, int(flags.rounds, 1))
-      return print(`extended to ${s.config.loop.maxRounds} rounds · next: ${nextAction(s)}`)
+      print(`extended to ${s.config.loop.maxRounds} rounds`)
+      return printNext(s, before, { always: true })
     }
     case 'report': {
       const s = loop.loadState(root)
@@ -359,6 +460,40 @@ async function main(argv) {
       return evalCommand(root, sub, _.slice(2), flags)
     default:
       throw new loop.LoopError(`unknown command "${cmd}"\n\n${USAGE}`)
+  }
+}
+
+/**
+ * Writes agent briefs to files and prints one `<agent> <brief> -> <output>`
+ * line per brief: the Agent prompt is then just "Brief: <brief>".
+ *
+ * @param {string} root
+ * @param {string | undefined} sub
+ * @param {string[]} rest
+ * @param {Record<string, string | true>} flags
+ */
+function briefCommand(root, sub, rest, flags) {
+  const intent = str(flags.intent)
+  const show = (/** @type {import('./lib/brief.mjs').Brief[]} */ bs, /** @type {string} */ none) => print(bs.length ? bs.map(briefLine).join('\n') : none)
+  switch (sub) {
+    case 'hunters': {
+      const out = hunterBriefs(root, { intent })
+      if (out.empty) return print('scope is empty: nothing to review (record with `ql ingest --none --lens scope`; in debug, apply the fix first)')
+      return show(out.briefs, '')
+    }
+    case 'verifiers':
+      return show(verifierBriefs(root, { intent }), 'no candidates awaiting votes')
+    case 'fix': {
+      const bugClass = rest[0]
+      if (!bugClass && !flags.all) throw new loop.LoopError('ql brief fix <bugClass>|--all')
+      return show(fixBriefs(root, { bugClass: flags.all ? undefined : bugClass, intent }), 'nothing open')
+    }
+    case 'investigate': {
+      const k = flags.k === undefined ? undefined : int(flags.k, 1)
+      return show([investigateBrief(root, { hypothesis: str(flags.hypothesis) ?? '', k, intent })], '')
+    }
+    default:
+      throw new loop.LoopError('ql brief hunters|verifiers|fix <bugClass>|--all|investigate --hypothesis "<h>"')
   }
 }
 

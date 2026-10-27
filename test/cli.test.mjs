@@ -103,7 +103,7 @@ test('full review loop: hallucination rejected, finding confirmed, fixed, done',
   assert.match(qlOk(root, ['next']), /round begin/)
 
   const begun = qlOk(root, ['round', 'begin'])
-  assert.match(begun, /src\/cart\.js/)
+  assert.match(begun, /1 file\(s\) · diff \.quality-loop\/work\/round-1\/scope\.diff/)
   assert.match(readFileSync(join(root, '.quality-loop/work/round-1/scope.diff'), 'utf8'), /i <= items\.length/)
 
   const out = ingest(root, [FINDING, { ...FINDING, quote: 'items.reduce((a, b) => a + b)', bugClass: 'invented', title: 'Invented' }], 'correctness')
@@ -358,16 +358,18 @@ test('harvest drafts cases from a revert and a fix, plus clean cases', () => {
   assert.match(qlOk(root, ['eval', 'cases']), /0 confirmed/)
 })
 
-test('--depth picks the preset lenses and voting; round begin prints each lens focus', () => {
+test('--depth picks the preset lenses and voting; the hunter briefs carry each lens focus', () => {
   const root = buggyProject()
   qlOk(root, ['start', '--mode', 'review', '--depth', 'deep'])
   const s = state(root)
   assert.equal(s.config.review.lenses.length, 6)
   assert.equal(s.config.review.verifiers, 5)
   assert.equal(s.config.review.quorum, 3)
-  const begun = qlOk(root, ['round', 'begin'])
-  assert.match(begun, /security: Injection/)
-  assert.match(begun, /concurrency-and-resources: Races/)
+  assert.match(qlOk(root, ['round', 'begin']), /concurrency-and-resources/)
+  const briefs = qlOk(root, ['brief', 'hunters'])
+  const brief = (/** @type {string} */ lens) => readFileSync(join(root, /** @type {string} */ (new RegExp(`^bug-hunter (\\S+${lens}\\.md)`, 'm').exec(briefs)?.[1])), 'utf8')
+  assert.match(brief('security'), /\*\*security\*\*: Injection/)
+  assert.match(brief('concurrency-and-resources'), /\*\*concurrency-and-resources\*\*: Races/)
   assert.equal(ql(root, ['start', '--mode', 'review', '--depth', 'huge', '--force']).code, 1)
 })
 
