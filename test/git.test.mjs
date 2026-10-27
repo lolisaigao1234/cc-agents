@@ -275,10 +275,16 @@ async function loopWithStatusCheck(committed, untracked = {}) {
   return root
 }
 
+/** Records every lens as reviewed with nothing found, so the round can end. */
+function reviewed(/** @type {string} */ root) {
+  for (const lens of loop.loadState(root).config.review.lenses) loop.ingest(root, null, lens)
+}
+
 test('round end: a reverted round that un-ignored .env leaves the secret file in place', async () => {
   const root = await loopWithStatusCheck({ '.gitignore': '.env\n' }, { '.env': 'SECRET=1\n' })
   writeFileSync(`${root}/status.txt`, 'bad\n')
   writeFileSync(`${root}/.gitignore`, '')
+  reviewed(root)
   const out = await loop.endRound(root)
   assert.equal(out.decision.revert, true)
   assert.equal(readFileSync(`${root}/.env`, 'utf8'), 'SECRET=1\n')
@@ -290,6 +296,7 @@ test('round end: a revert that cannot undo the round (HEAD moved) pauses the loo
   const root = await loopWithStatusCheck({})
   writeFileSync(`${root}/status.txt`, 'bad\n')
   git(['commit', '-qam', 'fixer commit'], { cwd: root })
+  reviewed(root)
   const out = await loop.endRound(root)
   assert.equal(out.decision.revert, true)
   assert.equal(readFileSync(`${root}/status.txt`, 'utf8'), 'good\n')

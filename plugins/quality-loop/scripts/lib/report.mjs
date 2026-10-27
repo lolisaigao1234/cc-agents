@@ -41,8 +41,10 @@ export function phaseOf(s) {
 }
 
 /**
- * Configured lenses whose hunters have not been ingested this round. A
- * `--none` ingest under the lens `scope` (an empty scope) closes the review.
+ * Configured lenses whose hunters have not been ingested this round, by
+ * name: another lens (a typo, the default "general") never stands in for a
+ * configured one. A `--none` ingest under the lens `scope`, which `ql`
+ * accepts only for an empty scope, closes the review.
  *
  * @param {LoopState} s
  * @returns {string[]}
@@ -52,7 +54,6 @@ export function missingLenses(s) {
   const done = new Set(r?.lensesDone ?? [])
   if (!r || done.has('scope')) return []
   const lenses = /** @type {string[]} */ (s.config?.review?.lenses ?? [])
-  if (done.size >= lenses.length) return []
   return lenses.filter(l => !done.has(l))
 }
 
@@ -107,19 +108,22 @@ export function nextAction(s) {
   if (!s) return 'No loop. Start one with `ql start --mode review|debug --goal "..."`.'
   switch (phaseOf(s)) {
     case 'terminal':
+      if (s.status === 'paused' && s.reproPassedAtStart) {
+        return 'Paused: the repro passes before any fix, so the bug does not reproduce and there is nothing to resume. Build a repro that fails while the bug exists, then `ql start --mode debug --repro "<command>"` again.'
+      }
       return s.status === 'paused'
         ? 'Paused for the user. Resume with `ql resume` once they have answered.'
         : `Loop finished (${s.status}). Write the final report with \`ql report\` and present it.`
     case 'begin':
       return 'Start the next round: `ql round begin`.'
     case 'investigate':
-      return 'Debug round: reproduce with the repro command, investigate hypotheses in parallel, apply the smallest root-cause fix, then review the fix (`ql scope`, bug hunters, `ql ingest`). If the fix needs no review findings, run `ql ingest --none`.'
+      return `Debug round: reproduce with the repro command, investigate hypotheses in parallel, apply the smallest root-cause fix, then review the fix: \`ql scope\`, one bug hunter per lens (${(s.config?.review?.lenses ?? []).join(', ')}), and \`ql ingest <file> --lens <lens>\` for each (\`ql ingest --none --lens <lens>\` for a lens that found nothing; \`ql ingest --none --lens scope\` only when the scope is empty). \`ql round end\` once every lens is in and verified.`
     case 'review': {
       const missing = missingLenses(s)
       const r = currentRound(s)
       if (r?.ingests && missing.length) {
         const total = s.config.review.lenses.length
-        return `Review: ${total - missing.length} of ${total} lenses ingested; still to come: ${missing.join(', ')}. Ingest each as its hunter reports (\`ql ingest <file> --lens <lens>\`, or \`--none\` when it found nothing). Verifying candidates already in (\`ql pending\`) meanwhile is fine.`
+        return `Review: ${total - missing.length} of ${total} lenses ingested; still to come: ${missing.join(', ')}. Ingest each as its hunter reports (\`ql ingest <file> --lens <lens>\`, or \`ql ingest --none --lens <lens>\` when it found nothing). Verifying candidates already in (\`ql pending\`) meanwhile is fine.`
       }
       return 'Review: run `ql scope` for the diff, give each lens to its own bug-hunter subagent in parallel, then `ql ingest <file> --lens <lens>` for each (use `ql ingest --none --lens scope` if the scope is empty).'
     }

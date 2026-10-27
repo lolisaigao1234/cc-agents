@@ -209,7 +209,8 @@ test('debug mode: refuses a repro that already passes; done once the repro passe
   assert.match(qlOk(root, ['round', 'begin']), /round 1/)
   assert.match(qlOk(root, ['next']), /Debug round/)
   writeFiles(root, { 'src/cart.js': CART })
-  qlOk(root, ['ingest', '--none', '--lens', 'correctness'])
+  // the fix is reviewed by every lens before the round can end
+  finishReview(root)
   const end = qlOk(root, ['round', 'end'])
   assert.match(end, /PASS repro/)
   assert.match(end, /decision: DONE/)
