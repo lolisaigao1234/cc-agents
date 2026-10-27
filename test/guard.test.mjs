@@ -255,3 +255,71 @@ test('a symlinked root and its real path are the same place (n23)', () => {
   symlinkSync(join(real, '.quality-loop'), join(real, 'ql-dir'))
   assert.ok(g({ tool: 'Write', input: { file_path: join(real, 'ql-dir/state.json') }, root: real, cwd: real }))
 })
+
+// --- n16 / n22 follow-up: deleting the state to dodge the cap ----------------
+
+test('a capped, stalled, paused or aborted loop cannot have its state deleted by globs, git or find (n16, n22)', () => {
+  for (const status of ['capped', 'stalled', 'paused', 'aborted', 'active']) {
+    for (const c of [
+      'git clean -fdX .quality-loop',
+      'git clean -fdX',
+      'git clean -fdx',
+      'git -C .quality-loop clean -fX',
+      'cd .quality-loop && git clean -ffX .',
+      'rm .quality-loop/state*',
+      'rm -f .quality-loop/*.json',
+      'rm .quality-loop/s?ate.json',
+      'rm .quality-loop/[s]tate.json',
+      'rm -rf .q*',
+      'cd .quality-loop && rm -f state*',
+      'mv .quality-loop/*.json /tmp/',
+      ': > .quality-loop/st*',
+      'git stash -u --all',
+      'git stash push --all',
+      'git stash -a -- .quality-loop',
+      'find .quality-loop -name state.json -delete',
+      'find . -name state.json -exec rm {} +',
+      `find .quality-loop -type f -exec sh -c 'rm "$1"' _ {} \\;`,
+      'find . -name state.json | xargs rm -f',
+      'echo .quality-loop/state.json | xargs rm',
+    ]) {
+      assert.ok(bash(c, { loopStatus: status }), `${status}: ${c}`)
+    }
+  }
+})
+
+test('cleaning up near the loop state is still allowed once a loop stopped (n16, n22)', () => {
+  for (const status of ['capped', 'aborted']) {
+    for (const c of [
+      'rm .quality-loop/work/*.json',
+      'rm -f src/*.tmp',
+      'rm -rf *',
+      'find . -name "*.js" -exec grep -n foo {} +',
+      'find .quality-loop -name "*.json"',
+      'find .quality-loop/work -name "*.json" -delete',
+      'git clean -n',
+      'git clean -fdX build',
+      'git stash',
+      'git stash list',
+      'git stash -u -- src',
+      'ls .quality-loop/*.json',
+      'find . -name "*.tmp" | xargs rm',
+    ]) {
+      assert.equal(bash(c, { loopStatus: status }), null, `${status}: ${c}`)
+    }
+  }
+})
+
+test('config.json is protected only while the loop runs; the state until it finishes (n16, n22)', () => {
+  const cfg = { tool: 'Write', input: { file_path: '/repo/.quality-loop/config.json' } }
+  assert.ok(g({ ...cfg, loopStatus: 'active' }))
+  for (const status of ['capped', 'stalled', 'paused', 'aborted', 'done', null]) {
+    assert.equal(g({ ...cfg, loopStatus: status }), null, String(status))
+    assert.equal(bash(`echo '{}' > .quality-loop/config.json`, { loopStatus: status }), null, String(status))
+  }
+  const why = g({ tool: 'Write', input: { file_path: '/repo/.quality-loop/state.json' }, loopStatus: 'aborted' })
+  assert.doesNotMatch(why ?? '', /while the loop runs/)
+  assert.match(why ?? '', /aborted/)
+  // a configured list without the state file is respected
+  assert.equal(g({ tool: 'Write', input: { file_path: '/repo/.quality-loop/state.json' }, loopStatus: 'capped', protectedPaths: [] }), null)
+})

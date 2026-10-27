@@ -2,15 +2,15 @@
 // stdin and answers on stdout. Every handler fails open: a hook that cannot
 // read its state says nothing rather than breaking the session.
 
-import { existsSync, readFileSync, rmSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 
 import { DEFAULTS, resolveConfig } from './config.mjs'
-import { LOOP_DIR, repoRoot } from './git.mjs'
+import { LOOP_DIR } from './git.mjs'
 import { evaluateGuard, qlInvocations } from './guard.mjs'
 import { restartRefusal, saveState } from './loop.mjs'
 import { isActive, nextAction, statusLine } from './report.mjs'
-import { paths, readJson, writeJson } from './store.mjs'
+import { paths, readJson } from './store.mjs'
 
 /**
  * The nearest directory at or above `start` that holds `.quality-loop/`.
@@ -36,8 +36,61 @@ const CLAIM_WINDOW_MS = 10 * 60 * 1000
 // ql commands that drive a loop: the session running them is the one running the loop.
 const DRIVING = new Set(['round', 'ingest', 'vote', 'mark', 'resume', 'pause', 'finish'])
 
-/** @param {ReturnType<typeof paths>} p */
-const claimFile = p => join(p.work, 'session-claim.json')
+/**
+ * Where a session's claim on the loop it is starting is kept: in the git
+ * directory, so a `ql start` that never runs leaves nothing in the working
+ * tree. Found without running git: the nearest `.git` directory, or the one
+ * a `.git` file (a worktree, a submodule) points to.
+ *
+ * @param {string} start
+ */
+export function claimFile(start) {
+  for (let dir = start; ; dir = dirname(dir)) {
+    const dotGit = join(dir, '.git')
+    try {
+      if (statSync(dotGit).isDirectory()) return join(dotGit, 'quality-loop-claim.json')
+      const to = /^gitdir:\s*(.+)$/m.exec(readFileSync(dotGit, 'utf8'))?.[1]?.trim()
+      return to ? join(resolve(dir, to), 'quality-loop-claim.json') : null
+    } catch {
+      if (dirname(dir) === dir) return null
+    }
+  }
+}
+
+/** @param {string | null} file */
+const readClaim = file => {
+  try {
+    return file ? readJson(file) : null
+  } catch {
+    return null
+  }
+}
+
+// A claim is a hint: failing to keep one only means the loop binds to the
+// first session that reports in, so it never stops a hook (or the guard).
+
+/** @param {string | null} file @param {string} sid */
+const writeClaim = (file, sid) => {
+  try {
+    if (file) writeFileSync(file, JSON.stringify({ sessionId: sid, at: new Date().toISOString() }))
+  } catch {}
+}
+
+/** @param {string | null} file */
+const dropClaim = file => {
+  try {
+    if (file) rmSync(file, { force: true })
+  } catch {}
+}
+
+/**
+ * A `ql start` that would create or replace a loop (the agent's own: not
+ * --help, and not one ql will refuse).
+ *
+ * @param {ReturnType<typeof qlInvocations>[number]} q
+ * @param {any} state
+ */
+const claimsLoop = (q, state) => q.sub === 'start' && !q.flags.has('help') && (q.flags.has('force') || !restartRefusal(state))
 
 /** @param {any} input */
 const sessionOf = input => (typeof input?.session_id === 'string' && input.session_id ? input.session_id : null)
@@ -55,16 +108,32 @@ const sessionOf = input => (typeof input?.session_id === 'string' && input.sessi
 function ownsLoop(root, state, sid) {
   if (!sid) return true
   if (!state.sessionId) {
-    const p = paths(root)
-    const claim = readJson(claimFile(p))
+    const file = claimFile(root)
+    const claim = readClaim(file)
     const at = Date.parse(claim?.at ?? '')
     const started = Date.parse(state.startedAt ?? '')
     const fresh = typeof claim?.sessionId === 'string' && started >= at && started - at <= CLAIM_WINDOW_MS
     state.sessionId = fresh ? claim.sessionId : sid
     saveState(root, state)
-    if (claim) rmSync(claimFile(p), { force: true })
+    if (claim) dropClaim(file)
   }
   return state.sessionId === sid
+}
+
+/**
+ * Drops `sid`'s claim once that session has moved on and no loop started
+ * after it: the `ql start` was declined, failed or only printed help, and
+ * must not bind a loop someone starts later.
+ *
+ * @param {string} cwd
+ * @param {any} state
+ * @param {string} sid
+ */
+function settleClaim(cwd, state, sid) {
+  const file = claimFile(cwd)
+  const claim = readClaim(file)
+  if (!claim || claim.sessionId !== sid) return
+  if (!(Date.parse(state?.startedAt ?? '') >= Date.parse(claim.at ?? ''))) dropClaim(file)
 }
 
 /** @param {unknown} v the configured limit, which may be anything after a hand edit */
@@ -84,19 +153,18 @@ const elsewhere = (root, state) => `A quality loop is running in another session
 export function handleHook(event, input) {
   const cwd = input?.cwd || process.cwd()
   const root = findLoopRoot(cwd)
-  if (!root) {
-    // The first `ql start` in a repository creates `.quality-loop/`: claim it at the git root.
-    const sid = sessionOf(input)
-    const command = input?.tool_name === 'Bash' ? String(input.tool_input?.command ?? '') : ''
-    if (event === 'pre-tool-use' && sid && qlInvocations(command).some(q => q.sub === 'start')) {
-      const top = repoRoot(cwd)
-      if (top) writeJson(claimFile(paths(top)), { sessionId: sid, at: new Date().toISOString() })
-    }
+  const sid = sessionOf(input)
+  const command = event === 'pre-tool-use' && input?.tool_name === 'Bash' ? String(input.tool_input?.command ?? '') : ''
+  const p = root ? paths(root) : null
+  const state = p ? readJson(p.state) : null
+  const starts = sid ? qlInvocations(command).filter(q => claimsLoop(q, state)) : []
+  if (sid && !starts.length) settleClaim(root ?? cwd, state, sid)
+
+  if (!root || !p) {
+    // The first `ql start` in a repository creates `.quality-loop/`: claim the loop it will start.
+    if (starts.length && sid) writeClaim(claimFile(cwd), sid)
     return { stdout: '' }
   }
-  const p = paths(root)
-  const state = readJson(p.state)
-  const sid = sessionOf(input)
 
   if (event === 'pre-tool-use') {
     const config = state?.config ?? resolveConfig(readJson(p.config))
@@ -123,9 +191,9 @@ export function handleHook(event, input) {
       if (isActive(state)) ownsLoop(root, state, sid)
       if (tool === 'Bash') {
         for (const q of qlInvocations(String(input.tool_input?.command ?? ''))) {
-          if (q.sub === 'start' && (q.flags.has('force') || !restartRefusal(state))) {
+          if (claimsLoop(q, state)) {
             // The new loop does not exist yet: leave a claim for it.
-            writeJson(claimFile(p), { sessionId: sid, at: new Date().toISOString() })
+            writeClaim(claimFile(root), sid)
           } else if (q.sub && DRIVING.has(q.sub) && state && state.status !== 'done' && state.sessionId !== sid) {
             state.sessionId = sid
             saveState(root, state)

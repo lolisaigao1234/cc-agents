@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 
 import { handleHook } from '../plugins/quality-loop/scripts/lib/hooks.mjs'
 import * as loop from '../plugins/quality-loop/scripts/lib/loop.mjs'
@@ -128,6 +129,42 @@ test('the session that runs `ql start` owns the loop; other sessions are not hel
   assert.equal(state(root).sessionId, 'C')
   assert.equal(hook('stop', { cwd: root, session_id: 'A' }), null)
   assert.equal(hook('stop', { cwd: root, session_id: 'C' })?.decision, 'block')
+})
+
+/** @param {string} root */
+const untracked = root => spawnSync('git', ['status', '--porcelain', '--untracked-files=all', '--ignored'], { cwd: root, encoding: 'utf8' }).stdout
+
+test('a `ql start` seen in a repository without .quality-loop leaves nothing in the working tree (n25)', () => {
+  const root = makeRepo({ 'README.md': 'x\n' })
+  for (const c of ['ql start --help', '"$P/bin/ql" start --mode review', 'ql start --mode nonsense']) {
+    assert.equal(bash(root, c, 'A'), null, c)
+    assert.equal(untracked(root), '', c)
+  }
+})
+
+test('a `ql start` that never ran (declined, failed, --help) does not bind a later loop to its session (n25)', async () => {
+  for (const command of ['ql start --mode review', 'ql start --help']) {
+    const root = makeRepo({ 'README.md': 'x\n' })
+    assert.equal(bash(root, command, 'A'), null)
+    // A's start is declined or fails, and A moves on
+    assert.equal(bash(root, 'ls', 'A'), null)
+    // the user then starts a loop by hand and works on it in session B
+    await loop.start(root, { mode: 'review' })
+    hook('user-prompt-submit', { cwd: root, session_id: 'B', prompt: 'go' })
+    assert.equal(state(root).sessionId, 'B', command)
+    assert.equal(hook('stop', { cwd: root, session_id: 'A' }), null, command)
+  }
+})
+
+test('a capped loop: the state cannot be wiped through the hook, its config can be edited (n16, n22)', async () => {
+  const root = await started()
+  patchState(root, { status: 'capped', round: 3 })
+  const decision = (/** @type {string} */ command) => bash(root, command, 'A')?.hookSpecificOutput.permissionDecision
+  for (const c of ['git clean -fdX .quality-loop', 'rm .quality-loop/state*', 'rm -f .quality-loop/*.json', 'git stash -u --all', 'find .quality-loop -name state.json -delete']) {
+    assert.equal(decision(c), 'deny', c)
+  }
+  const edit = hook('pre-tool-use', { cwd: root, session_id: 'A', tool_name: 'Edit', tool_input: { file_path: join(root, '.quality-loop/config.json') } })
+  assert.equal(edit, null)
 })
 
 test('a loop started outside any hook is bound to the first session that reports in (n25)', async () => {

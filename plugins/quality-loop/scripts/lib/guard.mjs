@@ -16,9 +16,10 @@ import { matchesAny, normalizePath } from './glob.mjs'
 /**
  * One simple command: its name (basename of the command word, after
  * assignments and wrappers such as `sudo`, `env`, `xargs`), its arguments
- * with quotes removed, and the files it redirects output into.
+ * with quotes removed, and the files it redirects output into. `xargs` marks
+ * a command run by xargs, whose operands come from its input.
  *
- * @typedef {{ name: string, args: string[], writes: string[] }} SimpleCommand
+ * @typedef {{ name: string, args: string[], writes: string[], xargs?: boolean }} SimpleCommand
  */
 
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh'])
@@ -147,7 +148,8 @@ export function parseCommands(src, depth = 0) {
       const w = unwrap(words)
       const name = base(w[0])
       const args = w.slice(1)
-      out.push({ name, args, writes })
+      const xargs = words.slice(0, words.length - w.length).some(x => base(x) === 'xargs')
+      out.push(xargs ? { name, args, writes, xargs } : { name, args, writes })
       if (SHELLS.has(name)) {
         const c = args.findIndex(a => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a))
         if (c >= 0 && args[c + 1] !== undefined) nested(/** @type {string} */ (args[c + 1]))
@@ -377,25 +379,37 @@ function operands(args, valueOpts = []) {
 
 const GIT_VALUE_OPTS = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--super-prefix', '--config-env'])
 
-/** @param {string[]} args */
-function gitDestructive(args) {
+/**
+ * A git invocation split into its global options (the `-c` settings and the
+ * `-C` directories), its subcommand and the subcommand's arguments.
+ *
+ * @param {string[]} args
+ */
+function gitParts(args) {
   /** @type {string[]} */
   const config = []
+  /** @type {string[]} */
+  const dirs = []
   let i = 0
   while (i < args.length && /** @type {string} */ (args[i]).startsWith('-')) {
     const a = /** @type {string} */ (args[i])
     if (GIT_VALUE_OPTS.has(a)) {
       if (a === '-c' || a === '--config-env') config.push(args[i + 1] ?? '')
+      if (a === '-C') dirs.push(args[i + 1] ?? '.')
       i += 2
     } else {
       if (a.startsWith('--config-env=')) config.push(a.slice('--config-env='.length))
       i++
     }
   }
-  const sub = args[i]
   const rest = args.slice(i + 1)
   const opts = beforeDashDash(rest)
-  const long = (/** @type {string} */ f) => opts.some(x => x === f || x.startsWith(`${f}=`))
+  return { config, dirs, sub: args[i], rest, opts, long: (/** @type {string} */ f) => opts.some(x => x === f || x.startsWith(`${f}=`)) }
+}
+
+/** @param {string[]} args */
+function gitDestructive(args) {
+  const { config, sub, rest, opts, long } = gitParts(args)
 
   if (['commit', 'push', 'merge', 'rebase', 'am', 'cherry-pick', 'revert'].includes(sub ?? '')) {
     if (long('--no-verify')) return '--no-verify skips the checks the loop relies on'
@@ -475,6 +489,77 @@ function destructive(c) {
 const SCRIPT_WRITE =
   /\b(?:writeFileSync|writeFile|appendFileSync|appendFile|rmSync|unlinkSync|renameSync|copyFileSync|write_text|write_bytes|os\.remove|os\.unlink|shutil\.\w+|File\.write)\b|\bopen\([^)]*,\s*["'][wax]/
 const INTERPRETER = /^(?:node|nodejs|python[\d.]*|ruby|perl|deno|bun|php)$/
+// Commands that delete or move away the files they are given.
+const DELETERS = new Set(['rm', 'unlink', 'shred', 'truncate', 'rmdir', 'mv'])
+
+/**
+ * Whether the command `find -exec` runs deletes or moves files (or may: a
+ * shell or interpreter script that does).
+ *
+ * @param {string[]} words
+ * @returns {boolean}
+ */
+function execDeletes(words) {
+  const w = unwrap(words)
+  const name = base(w[0])
+  if (DELETERS.has(name)) return true
+  if (SHELLS.has(name)) {
+    const c = w.findIndex(a => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a))
+    return c < 0 || parseCommands(w[c + 1] ?? '').some(x => DELETERS.has(x.name) || execDeletes([x.name, ...x.args]))
+  }
+  return INTERPRETER.test(name) && SCRIPT_WRITE.test(w.join(' '))
+}
+
+/**
+ * The files `find` deletes: its starting points, when an action removes
+ * what it finds.
+ *
+ * @param {string[]} args
+ */
+function findDeletes(args) {
+  let i = 0
+  while (/^-(?:[HLP]|O\d*)$/.test(args[i] ?? '') || args[i] === '-D') i += args[i] === '-D' ? 2 : 1
+  const starts = []
+  while (i < args.length && !/^[-(!]/.test(/** @type {string} */ (args[i]))) starts.push(/** @type {string} */ (args[i++]))
+  const expr = args.slice(i)
+  let deletes = expr.includes('-delete')
+  for (let k = 0; k < expr.length; k++) {
+    if (!['-exec', '-execdir', '-ok', '-okdir'].includes(/** @type {string} */ (expr[k]))) continue
+    const end = expr.findIndex((x, j) => j > k && (x === ';' || x === '+'))
+    if (execDeletes(expr.slice(k + 1, end < 0 ? undefined : end))) deletes = true
+  }
+  return deletes ? (starts.length ? starts : ['.']) : []
+}
+
+/**
+ * The paths a git command deletes from the working tree that no checkpoint
+ * holds: `git clean -f` and `git stash -u/-a` remove untracked (and with
+ * -x, -X or -a ignored) files, the loop's state among them.
+ *
+ * @param {string[]} args
+ */
+function gitDeletes(args) {
+  const { dirs, sub, rest, opts, long } = gitParts(args)
+  // Pathspecs are relative to the last `-C` directories.
+  const at = (/** @type {string[]} */ ps) =>
+    (ps.length ? ps : ['.']).map(x => [...dirs, x].reduce((acc, d) => (d.startsWith('/') || !acc ? d : `${acc}/${d}`), ''))
+  if (sub === 'clean') {
+    const s = shortFlags(opts, 'e')
+    if ((s.has('f') || long('--force')) && !(s.has('n') || long('--dry-run'))) return at(operands(rest, ['-e', '--exclude']))
+  }
+  if (sub === 'stash') {
+    const verb = rest[0] !== undefined && !rest[0].startsWith('-') ? rest[0] : 'push'
+    if (verb !== 'push' && verb !== 'save') return []
+    const a = verb === rest[0] ? rest.slice(1) : rest
+    const o = beforeDashDash(a)
+    const s = shortFlags(o, 'm')
+    const has = (/** @type {string} */ f) => o.some(x => x === f || x.startsWith(`${f}=`))
+    if (s.has('u') || s.has('a') || has('--include-untracked') || has('--all')) {
+      return at(verb === 'push' ? operands(a, ['-m', '--message', '--pathspec-from-file']) : [])
+    }
+  }
+  return []
+}
 
 /**
  * The paths a command writes to: its redirects, and the file arguments of
@@ -526,6 +611,12 @@ function writeTargets(c) {
     case 'dd':
       add(c.args.filter(a => a.startsWith('of=')).map(a => a.slice(3)))
       break
+    case 'find':
+      add(findDeletes(c.args), true)
+      break
+    case 'git':
+      add(gitDeletes(c.args), true)
+      break
   }
   return targets
 }
@@ -560,10 +651,54 @@ function realish(abs) {
   return cur
 }
 
+const GLOB = /[*?[]/
+
+/** @param {string} seg one path segment of a shell glob */
+function segmentRegExp(seg) {
+  let re = ''
+  for (let i = 0; i < seg.length; i++) {
+    const c = /** @type {string} */ (seg[i])
+    const close = c === '[' ? seg.indexOf(']', i + 2) : -1
+    if (c === '*') re += '.*'
+    else if (c === '?') re += '.'
+    else if (close > 0) {
+      const cls = seg.slice(i + 1, close).replace(/^!/, '^').replace(/\\/g, '\\\\')
+      re += `[${cls}]`
+      i = close
+    } else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+  }
+  return new RegExp(`^${re}$`)
+}
+
+/**
+ * Whether the shell would expand `pattern` to `path` (both root-relative):
+ * wildcards stay within a segment and match a leading dot only when the
+ * pattern spells it.
+ *
+ * @param {string} pattern
+ * @param {string} path
+ */
+function globNames(pattern, path) {
+  const ps = pattern.split('/')
+  const xs = path.split('/')
+  return (
+    ps.length === xs.length &&
+    ps.every((p, i) => {
+      const x = /** @type {string} */ (xs[i])
+      if (!GLOB.test(p)) return p === x
+      return !(x.startsWith('.') && !p.startsWith('.')) && segmentRegExp(p).test(x)
+    })
+  )
+}
+
+/** @param {string} p a root-relative path, and every directory above it */
+const withAncestors = p => p.split('/').map((_, i, a) => a.slice(0, i + 1).join('/'))
+
 /**
  * Answers whether a path is protected, comparing paths the way the file
  * system does: `..`, `//` and symlinks resolved, and case folded on
- * case-insensitive systems.
+ * case-insensitive systems. A target with wildcards is protected when the
+ * shell could expand it to a protected path.
  *
  * @param {{ root: string, cwd?: string, caseInsensitive?: boolean }} g
  * @param {string[]} globs
@@ -576,9 +711,19 @@ function protectedMatcher(g, globs) {
   // Directories that hold a protected path: deleting or moving one deletes it.
   const literals = folded.map(x => x.replace(/\/?\*\*.*$/, '').replace(/\*.*$/, '').replace(/\/+$/, '')).filter(Boolean)
 
+  // The protected paths a wildcard could name: the literal files, and the
+  // directories that hold any protected path (whose deletion deletes it).
+  const files = folded.filter(x => !GLOB.test(x))
+
   /** @param {string} rel root-relative, folded */
-  const hit = (rel, deletes = false) =>
-    matchesAny(rel, folded) || (deletes && literals.some(l => rel === '' || rel === '.' || l === rel || l.startsWith(`${rel}/`)))
+  const hit = (rel, deletes = false) => {
+    if (GLOB.test(rel)) {
+      const names = deletes ? [...files, ...literals].flatMap(withAncestors) : files
+      // A wildcard inside a protected tree (`evals/cases/*/expected.json`).
+      return names.some(x => globNames(rel, x)) || matchesAny(rel.replace(/\[[^\]]*\]|[*?]/g, 'x'), folded.filter(x => GLOB.test(x)))
+    }
+    return matchesAny(rel, folded) || (deletes && literals.some(l => rel === '' || rel === '.' || l === rel || l.startsWith(`${rel}/`)))
+  }
 
   /** @param {string} abs */
   const relOf = abs => {
@@ -630,6 +775,7 @@ function protectedMatcher(g, globs) {
  * }} GuardInput
  */
 
+const STATE_FILE = '.quality-loop/state.json'
 const EXTEND =
   'quality-loop: only the user may extend a capped or stalled loop. Report to the user and let them run `! ql extend` themselves.'
 const RESTART =
@@ -641,12 +787,23 @@ const RESTART =
  */
 export function evaluateGuard(g) {
   const isLoopActive = g.loopStatus === 'active'
-  // A loop that has not finished (active, paused, capped, stalled, aborted)
-  // keeps its limits and state out of the agent's hands.
   const loopUnfinished = !!g.loopStatus && g.loopStatus !== 'done'
-  const protectFiles = loopUnfinished || g.hillclimbActive
-  const protectedPaths = [...g.protectedPaths]
+  // While a loop runs, every protected path. Once it stops without finishing
+  // (paused, capped, stalled, aborted), only the state: it holds the round
+  // count that keeps a plain `ql start` from resetting the cap, while the
+  // config is free to edit again (its limits apply to the next loop).
+  const protectedPaths = isLoopActive
+    ? [...g.protectedPaths]
+    : loopUnfinished
+      ? g.protectedPaths.filter(x => matchesAny(STATE_FILE, [x]))
+      : []
   if (g.hillclimbActive) protectedPaths.push('.quality-loop/evals/**')
+  const protectFiles = protectedPaths.length > 0
+  const when = isLoopActive
+    ? 'while the loop runs'
+    : loopUnfinished
+      ? `while the loop is ${g.loopStatus} (only the user may start it over)`
+      : 'while hill climbing'
 
   if (g.tool === 'Bash') {
     const raw = String(g.input.command ?? '')
@@ -675,13 +832,15 @@ export function evaluateGuard(g) {
         }
         for (const t of writeTargets(c)) {
           if (m.isProtected(t.path, { deletes: t.deletes, cwd })) {
-            return `quality-loop: ${t.path} is protected while the loop runs; change it only through \`ql\` commands or ask the user.`
+            return `quality-loop: ${t.path} is protected ${when}; change it only through \`ql\` commands or ask the user.`
           }
         }
-        if (INTERPRETER.test(c.name) && SCRIPT_WRITE.test(raw)) {
-          const lit = m.literals.find(l => m.fold(raw).includes(l))
-          if (lit) return `quality-loop: ${lit} is protected while the loop runs; change it only through \`ql\` commands or ask the user.`
-        }
+        // A script, or xargs, gets its paths from text the guard cannot follow: judge it by what the command line names.
+        const named =
+          (INTERPRETER.test(c.name) && SCRIPT_WRITE.test(raw)) || (c.xargs && DELETERS.has(c.name))
+            ? m.literals.find(l => m.fold(raw).includes(l) || (c.xargs && m.fold(raw).includes(base(l))))
+            : undefined
+        if (named) return `quality-loop: ${named} is protected ${when}; change it only through \`ql\` commands or ask the user.`
       }
     }
     return null
@@ -690,7 +849,7 @@ export function evaluateGuard(g) {
   if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(g.tool) && protectFiles) {
     const file = String(g.input.file_path ?? g.input.notebook_path ?? '')
     if (file && protectedMatcher(g, protectedPaths).isProtected(file)) {
-      return `quality-loop: ${file} is protected while the loop runs (loop limits, state and eval answer keys are not the agent's to change). Use \`ql\` commands or ask the user.`
+      return `quality-loop: ${file} is protected ${when} (loop limits, state and eval answer keys are not the agent's to change). Use \`ql\` commands or ask the user.`
     }
   }
   return null
