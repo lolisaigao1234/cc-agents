@@ -10,7 +10,7 @@ import { detectChecks, lensFocus, resolveConfig, validateConfig } from './config
 import { decideRound, scoreOf } from './decide.mjs'
 import { parseUnifiedDiff } from './diff.mjs'
 import { ingestFindings, newLedger, recordVotes } from './findings.mjs'
-import { diffTrees, resolveBase, restoreTree, snapshotTree } from './git.mjs'
+import { checkpointTree, diffTrees, resolveBase, restoreTree, snapshotTree } from './git.mjs'
 import { counts, currentRound, inScope, phaseOf, renderLoopMd } from './report.mjs'
 import { GITIGNORE, paths, readJson, writeJson, writeText } from './store.mjs'
 import { scanWeakening } from './weakening.mjs'
@@ -204,7 +204,7 @@ export function beginRound(root) {
   s.round += 1
   s.rounds.push({
     n: s.round,
-    startCheckpoint: snapshotTree(root),
+    startCheckpoint: checkpointTree(root),
     startedAt: new Date().toISOString(),
     ingests: 0,
     fixedIds: [],
@@ -398,7 +398,7 @@ export async function endRound(root, opts = {}) {
     }
   }
   const c = counts(s)
-  const decision = decideRound({
+  const decided = decideRound({
     mode: s.mode,
     round: s.round,
     limits: { maxRounds: s.config.loop.maxRounds, stallRounds: s.config.loop.stallRounds },
@@ -415,6 +415,17 @@ export async function endRound(root, opts = {}) {
     startScore,
     found: all.filter(f => f.confirmedRound === r.n).length,
   })
+  // What a revert could not undo (a moved HEAD, nested repositories, write
+  // failures) needs a human before another round builds on it: the decision
+  // itself says paused, so nothing reads it as "the edits are gone".
+  const incomplete = restored?.problems ?? []
+  const decision = incomplete.length
+    ? {
+        ...decided,
+        status: decided.status === 'continue' ? /** @type {const} */ ('paused') : decided.status,
+        reasons: [...decided.reasons, ...incomplete.map(p => `revert incomplete: ${p}`)],
+      }
+    : decided
 
   Object.assign(r, {
     ended: true,
