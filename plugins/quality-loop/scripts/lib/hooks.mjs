@@ -161,17 +161,21 @@ function nudgeLimit(v) {
 }
 
 /**
- * Why the guard denies a tool call made in `cwd`, or null. It asks for the
- * loop of every repository whose working tree holds `cwd`, not only the
- * nearest: a `.git` made below the loop (empty, junk, or a nested `git
- * init`) must not hide it. The tombstone outlives `.quality-loop/`, so a
+ * Why the guard denies a tool call made in `cwd`, or null. The loop of the
+ * git top level the call runs in, as ql resolves it, is guarded in full; a
+ * `.quality-loop/` deeper down is not a loop and cannot hide it. A
+ * repository enclosing that top level (a linked worktree under
+ * `.claude/worktrees/`, a nested repository) has its own loop, if any: the
+ * enclosing loop guards only its own files from there (`enclosing`), so a
+ * `git init` below it cannot unguard them, and the inner repository's own
+ * work is not held by it. The tombstone outlives `.quality-loop/`, so a
  * repository with only a tombstone is guarded too.
  *
  * @param {string} cwd
  * @param {any} input the hook's stdin JSON
  */
 function guardReason(cwd, input) {
-  for (const l of gitLayouts(cwd)) {
+  for (const [i, l] of gitLayouts(cwd).entries()) {
     const top = l.top
     const loopDir = existsSync(join(top, LOOP_DIR))
     const tomb = tombstoneDir(top)
@@ -192,6 +196,7 @@ function guardReason(cwd, input) {
       tombstone: tomb,
       restartLocked: !!startRefusal(top, state),
       gitStatus: gitStatusIn(top),
+      enclosing: i > 0,
     })
     if (reason) return reason
   }

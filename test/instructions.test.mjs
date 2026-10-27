@@ -159,3 +159,19 @@ test('improve flow: after DONE the loop takes no more rounds, and `ql export --a
   const again = spawnSync(process.execPath, [QL, 'round', 'begin'], { cwd: root, encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } })
   assert.notEqual(again.status, 0, 'a DONE loop takes no further round')
 })
+
+test('the rules for every step reach the orchestrator of every entry skill, from one file (verifier r2: rules only in step 1)', () => {
+  const rules = read('references/round/rules.md')
+  assert.match(rules, /single writer/i)
+  assert.match(rules, /Brief: <brief path>/)
+  assert.match(rules, /`step: <path>`/)
+  assert.match(rules, /LOOP\.md/)
+  for (const skill of ['improve', 'review', 'debug']) {
+    const md = read(`skills/${skill}/SKILL.md`)
+    const preamble = md.split(/^## /m)[0] ?? ''
+    assert.match(preamble, /\$\{CLAUDE_PLUGIN_ROOT\}\/references\/round\/rules\.md/, `${skill}: read before step 1`)
+  }
+  for (const step of ['1-begin.md', '2-review.md', '3-verify.md', '4-fix.md', '5-validate.md', 'decisions.md']) {
+    assert.doesNotMatch(read(`references/round/${step}`), /single writer/i, `${step} does not repeat the rules`)
+  }
+})

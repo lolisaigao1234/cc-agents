@@ -118,7 +118,9 @@ function merge(base, over) {
  * @returns {Config & { review: { lenses: string[], verifiers: number, quorum: number } }}
  */
 export function resolveConfig(fileConfig) {
-  const c = merge(DEFAULTS, fileConfig ?? {})
+  // A copy: the merge shares DEFAULTS' nested objects, and a loop's config is
+  // changed in place (a review-only start sets loop.maxRounds).
+  const c = structuredClone(merge(DEFAULTS, fileConfig ?? {}))
   const preset = DEPTHS[/** @type {'quick'} */ (c.review.depth)] ?? DEPTHS.standard
   c.review.lenses = c.review.lenses ?? preset.lenses
   c.review.verifiers = c.review.verifiers ?? preset.verifiers
@@ -150,11 +152,22 @@ export function validateConfig(c) {
   if (cap !== null && !(Number.isInteger(cap) && cap >= MIN_WINDOW && cap <= MAX_WINDOW)) {
     errors.push(`loop.maxContextTokens must be an integer from ${MIN_WINDOW} to ${MAX_WINDOW}, or null`)
   }
+  /** @type {Map<string, string>} */ const files = new Map()
   for (const lens of c.review?.lenses ?? []) {
-    if (typeof lens !== 'string') errors.push('review.lenses must be strings')
+    if (typeof lens !== 'string') {
+      errors.push('review.lenses must be strings')
+      continue
+    }
+    // A lens's brief and output files are named after it.
+    const other = files.get(slug(lens))
+    if (other !== undefined) errors.push(`review.lenses "${other}" and "${lens}" share the file name "${slug(lens)}": rename one`)
+    else files.set(slug(lens), lens)
   }
   return errors
 }
+
+/** The file-name form of a lens, finding id or bug class. @param {string} s */
+export const slug = s => s.replace(/[^\w.-]+/g, '_').slice(0, 80) || '_'
 
 /** @param {string} p */
 function readText(p) {

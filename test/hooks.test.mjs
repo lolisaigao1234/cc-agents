@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 
 import { handleHook } from '../plugins/quality-loop/scripts/lib/hooks.mjs'
 import * as loop from '../plugins/quality-loop/scripts/lib/loop.mjs'
+import { tombstoneFile } from '../plugins/quality-loop/scripts/lib/tombstone.mjs'
 import { makeRepo } from './helpers.mjs'
 
 /** @param {string} root */
@@ -198,8 +199,8 @@ test('a non-numeric loop.maxStopNudges cannot make Stop block forever (n27)', as
 
 // --- round 2: the round cap survives `.quality-loop/` being deleted
 
-/** @param {string} root @param {Record<string, any>} patch saved the way ql saves it */
-const saveAs = (root, patch) => loop.saveState(root, { ...state(root), ...patch })
+/** @param {string} root @param {Record<string, any>} patch saved the way ql saves it (a status `ql round end` or `ql finish` decided, for done) */
+const saveAs = (root, patch) => loop.saveState(root, { ...state(root), ...patch }, patch.status === 'done' ? 'end' : undefined)
 
 /** @param {string} cwd @param {string[]} args */
 const gitIn = (cwd, args) => {
@@ -235,8 +236,9 @@ test('a replaced state file does not hide the tombstone of the loop it replaced 
 })
 
 test('deleting the state of a loop with no cap to dodge still lets ql start (n16, n22)', async () => {
-  for (const patch of [{ status: 'done', round: 2 }, { status: 'aborted', round: 0 }, { status: 'capped', round: 1, reviewOnly: true }]) {
-    const root = await started()
+  for (const [opts, patch] of [[{}, { status: 'done', round: 2 }], [{}, { status: 'aborted', round: 0 }], [{ reviewOnly: true }, { status: 'capped', round: 1 }]]) {
+    // a review-only loop is one from its start: a later save cannot make it one
+    const root = await started(opts)
     saveAs(root, patch)
     rmSync(join(root, '.quality-loop'), { recursive: true, force: true })
     assert.equal((await loop.start(root, { mode: 'review' })).status, 'active', JSON.stringify(patch))
@@ -385,4 +387,132 @@ test('ql init --force cannot reset a protected config (verifier r2: init --force
   assert.equal(decision('ql init --force'), undefined, "no loop running and no hill climb: the config is the user's")
   const active = await started()
   assert.equal(bash(active, 'ql init --force', 'A')?.hookSpecificOutput.permissionDecision, 'deny', 'while a loop runs')
+})
+
+// --- round 3: the verifier's findings on round 2
+
+/** The tombstone ql keeps for the loop in `root`. @param {string} root */
+const tombstoneOf = root => JSON.parse(readFileSync(/** @type {string} */ (tombstoneFile(root)), 'utf8'))
+
+/** Edits the state file in place, the way a hand edit that got past the guard would. @param {string} root @param {Record<string, any>} patch */
+const handEdit = (root, patch) => writeFileSync(join(root, '.quality-loop/state.json'), JSON.stringify({ ...state(root), ...patch }))
+
+test('a hand edit of the state that ql then saves does not lift the cap (verifier r2: tombstone laundering)', async () => {
+  for (const [status, round] of [['capped', 3], ['stalled', 2], ['aborted', 1]]) {
+    for (const patch of [{ round: 0 }, { reviewOnly: true }, { status: 'done' }, { status: 'aborted', round: 0 }, { id: 'forged', status: 'done', round: 0 }]) {
+      const what = `${status} r${round} + ${JSON.stringify(patch)}`
+      const root = await started()
+      saveAs(root, { status, round })
+      handEdit(root, patch)
+      // any command that saves the state: abort, or the hook binding a session
+      if (status === 'aborted' && patch.status === 'done') bash(root, 'ql round begin', 'B')
+      else loop.abort(root, 'x')
+      const t = tombstoneOf(root)
+      assert.equal(t.status, status, what)
+      assert.equal(t.round, round, what)
+      assert.equal(t.reviewOnly, false, what)
+      await assert.rejects(loop.start(root, { mode: 'review' }), /only the user/, what)
+      // the user still can
+      assert.equal((await loop.start(root, { mode: 'review', force: true })).status, 'active', what)
+    }
+  }
+})
+
+test('the tombstone keeps the round budget: only `ql extend` raises it (verifier r2: tombstone laundering)', async () => {
+  // a debug loop whose repro stays red: every round continues until the cap
+  const root = await started({ mode: 'debug', repro: 'false' })
+  loop.beginRound(root)
+  handEdit(root, { config: { ...state(root).config, loop: { ...state(root).config.loop, maxRounds: 10, stallRounds: 10 } } })
+  loop.ingest(root, null, 'scope')
+  assert.equal((await loop.endRound(root)).decision.status, 'continue')
+  assert.equal(tombstoneOf(root).maxRounds, 3, 'the hand-raised budget is not recorded')
+  for (let n = 2; n <= 3; n++) {
+    loop.beginRound(root)
+    loop.ingest(root, null, 'scope')
+    const end = await loop.endRound(root)
+    assert.equal(end.decision.status, n < 3 ? 'continue' : 'capped', `round ${n}`)
+  }
+  // the user's extend raises it, and the loop runs on
+  loop.extend(root, 2)
+  assert.equal(tombstoneOf(root).status, 'active')
+  assert.equal(tombstoneOf(root).maxRounds, 5)
+  loop.beginRound(root)
+  loop.ingest(root, null, 'scope')
+  assert.equal((await loop.endRound(root)).decision.status, 'continue')
+})
+
+test("a linked worktree inside the main checkout is not held by the main checkout's loop (verifier r2: worktree over-blocking)", async () => {
+  const root = makeRepo({ 'README.md': 'x\n' })
+  loop.init(root)
+  gitIn(root, ['add', '-A', '.quality-loop'])
+  gitIn(root, ['commit', '-qm', 'cfg'])
+  await loop.start(root, { mode: 'review' })
+  loop.beginRound(root)
+  const wt = join(root, '.claude/worktrees/x')
+  gitIn(root, ['worktree', 'add', '-q', wt])
+  mkdirSync(join(wt, 'build'))
+  const decision = (/** @type {string} */ c) => bash(wt, c, 'B')?.hookSpecificOutput.permissionDecision
+  for (const c of ['rm -rf build', 'git reset --hard', 'git clean -fd', 'git checkout -- .', 'ql init --force', 'echo {} > .quality-loop/config.json']) {
+    assert.equal(decision(c), undefined, c)
+  }
+  const write = hook('pre-tool-use', { cwd: wt, session_id: 'B', tool_name: 'Write', tool_input: { file_path: join(wt, '.quality-loop/config.json') } })
+  assert.equal(write, null)
+  // the main checkout's own loop files stay out of reach from there
+  for (const c of [
+    'rm ../../../.quality-loop/state.json',
+    `rm -rf ${root}/.quality-loop`,
+    'echo {} > ../../../.quality-loop/config.json',
+    'cd ../../.. && ql init --force',
+    `git -C ${root} reset --hard`,
+  ]) {
+    assert.equal(decision(c), 'deny', c)
+  }
+  const outer = hook('pre-tool-use', { cwd: wt, session_id: 'B', tool_name: 'Write', tool_input: { file_path: join(root, '.quality-loop/state.json') } })
+  assert.equal(outer?.hookSpecificOutput.permissionDecision, 'deny')
+  // and in the main checkout itself the loop is guarded as before
+  assert.equal(bash(root, 'git reset --hard', 'A')?.hookSpecificOutput.permissionDecision, 'deny')
+})
+
+test('a review-only loop does not change the defaults of a loop started later in the same process', async () => {
+  await started({ reviewOnly: true })
+  const root = await started()
+  assert.equal(state(root).config.loop.maxRounds, 3)
+})
+
+test('a running loop edited to look done is not recorded done by the next save, and a replaced state cannot run rounds (verifier r2: tombstone laundering)', async () => {
+  // a debug loop whose repro stays red, mid-round 2 with an empty scope recorded
+  const root = await started({ mode: 'debug', repro: 'false' })
+  for (let n = 1; n <= 2; n++) {
+    loop.beginRound(root)
+    loop.ingest(root, null, 'scope')
+    if (n === 1) await loop.endRound(root)
+  }
+  handEdit(root, { status: 'done' })
+  // an edit makes the empty-scope record stale: `ql next` drops it and saves the state
+  writeFileSync(join(root, 'new.txt'), 'x\n')
+  loop.syncState(root)
+  assert.equal(tombstoneOf(root).status, 'active')
+  await assert.rejects(loop.start(root, { mode: 'review' }), /only the user/)
+
+  // the state swapped for a forged loop with a bigger budget: ql will not run its rounds
+  const root2 = await started({ mode: 'debug', repro: 'false' })
+  loop.beginRound(root2)
+  loop.ingest(root2, null, 'scope')
+  await loop.endRound(root2)
+  handEdit(root2, { id: 'forged', config: { ...state(root2).config, loop: { ...state(root2).config.loop, maxRounds: 10 } } })
+  loop.beginRound(root2)
+  loop.ingest(root2, null, 'scope')
+  await assert.rejects(loop.endRound(root2), /replaced outside ql/)
+
+  // a fixing loop edited into a review-only one and closed with `ql finish`
+  const root3 = await started({ mode: 'debug', repro: 'false' })
+  loop.beginRound(root3)
+  loop.ingest(root3, null, 'scope')
+  await loop.endRound(root3)
+  loop.beginRound(root3)
+  loop.ingest(root3, null, 'scope')
+  handEdit(root3, { reviewOnly: true })
+  loop.finish(root3)
+  assert.equal(tombstoneOf(root3).status, 'active')
+  await assert.rejects(loop.start(root3, { mode: 'review' }), /only the user/)
 })

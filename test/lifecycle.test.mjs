@@ -617,3 +617,106 @@ test('an empty scope kept for the fix step goes stale again once nothing is left
   assert.equal(end.code, 1)
   assert.match(end.err, /phase "review"/, "`ql next` already dropped the stale record")
 })
+
+// --- round 3: the verifier's findings on round 2
+
+/** A debug project with `a.js` and a passing suite. @param {string} bug @param {Record<string, unknown>} [review] */
+function debugProject(bug, review = {}) {
+  const root = makeRepo({
+    'package.json': JSON.stringify({ type: 'module', scripts: { test: 'node --test' } }),
+    'test/ok.test.js': `import { test } from 'node:test'\nimport assert from 'node:assert/strict'\ntest('ok', () => assert.equal(1, 1))\n`,
+    'a.js': bug,
+  })
+  qlOk(root, ['init'])
+  const cfgPath = join(root, '.quality-loop/config.json')
+  const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'))
+  writeFileSync(cfgPath, JSON.stringify({ ...cfg, loop: { maxAttemptsPerFinding: 5, maxRounds: 6 }, review: { ...cfg.review, ...review } }))
+  return root
+}
+
+test('`ql next` after an empty scope recorded before a debug fix says the fix is reviewed before `round end` (verifier r2: debugFixToCome)', () => {
+  const BUG = 'export function add(a, b) {\n  return a - b\n}\nexport function mul(a, b) {\n  return a * b + 0\n}\n'
+  const root = debugProject(BUG, { fixPreExisting: true })
+  qlOk(root, ['start', '--mode', 'debug', '--repro', ADD_REPRO, '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  writeFiles(root, { 'a.js': BUG.replace('a - b', 'a + b') })
+  ingest(root, [{ ...FINDING, title: 'mul adds 0', file: 'a.js', line: 5, quote: 'return a * b + 0', bugClass: 'mul' }], 'correctness')
+  finishReview(root)
+  voteAll(root, 'F1')
+  writeFiles(root, { 'test/broken.test.js': BROKEN_TEST })
+  assert.match(qlOk(root, ['round', 'end']), /REVERTED/)
+
+  qlOk(root, ['round', 'begin'])
+  const recorded = qlOk(root, ['ingest', '--none', '--lens', 'scope'])
+  const next = qlOk(root, ['next'])
+  for (const text of [recorded, next]) {
+    assert.doesNotMatch(text, /Then `ql round end`\./, 'it does not ask for a fix that `round end` will refuse')
+    assert.match(text, /`ql brief hunters`/, 'it names the review the edit will need')
+  }
+  // following it: the fix, then the review it named, then round end
+  writeFiles(root, { 'a.js': BUG.replace('a - b', 'a + b').replace('a * b + 0', 'a * b') })
+  qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'dropped + 0'])
+  assert.match(qlOk(root, ['next']), /^Review/)
+  finishReview(root)
+  assert.match(qlOk(root, ['round', 'end']), /decision: DONE/)
+})
+
+test('a fixed finding reopened on code the reverted round added goes back to fixed (verifier r2: reopened on own code)', () => {
+  const REPRO2 = `node -e "import('./a.js').then(m=>process.exit(m.add(1,1)===2&&m.mul(2,3)===6?0:1))"`
+  const BUG = 'export function add(a, b) {\n  return a - b\n}\nexport function mul(a, b) {\n  return a + b\n}\n'
+  const root = debugProject(BUG)
+  const LEFT = { ...FINDING, title: 'leftover tmp comment', file: 'a.js', line: 2, quote: 'return a + b // tmp', bugClass: 'leftover', category: 'conventions' }
+  qlOk(root, ['start', '--mode', 'debug', '--repro', REPRO2, '--depth', 'quick'])
+  // round 1, kept: the add fix with a leftover comment, flagged, then cleaned up
+  qlOk(root, ['round', 'begin'])
+  writeFiles(root, { 'a.js': BUG.replace('a - b', 'a + b // tmp') })
+  ingest(root, [LEFT], 'conventions')
+  finishReview(root)
+  voteAll(root, 'F1')
+  writeFiles(root, { 'a.js': BUG.replace('a - b', 'a + b') })
+  qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'comment removed'])
+  assert.match(qlOk(root, ['round', 'end']), /decision: CONTINUE/)
+  const before = state(root).ledger.findings.F1
+  assert.equal(before.status, 'fixed')
+
+  // round 2: the next attempt re-adds the comment, the review reopens F1, then a test breaks
+  qlOk(root, ['round', 'begin'])
+  writeFiles(root, { 'a.js': 'export function add(a, b) {\n  return a + b // tmp\n}\nexport function mul(a, b) {\n  return a * b\n}\n' })
+  ingest(root, [LEFT], 'conventions')
+  finishReview(root)
+  voteAll(root, 'F1')
+  assert.equal(state(root).ledger.findings.F1.status, 'confirmed')
+  writeFiles(root, { 'test/broken.test.js': BROKEN_TEST })
+  const end = qlOk(root, ['round', 'end'])
+  assert.match(end, /REVERTED/)
+  assert.doesNotMatch(end, /important finding\(s\) open/)
+  const after = state(root).ledger.findings.F1
+  assert.equal(after.status, 'fixed', 'its reopening was on code the revert removed')
+  assert.equal(after.line, before.line)
+  assert.equal(after.reopens, before.reopens)
+
+  // round 3: a clean fix finishes the loop
+  qlOk(root, ['round', 'begin'])
+  writeFiles(root, { 'a.js': 'export function add(a, b) {\n  return a + b\n}\nexport function mul(a, b) {\n  return a * b\n}\n' })
+  finishReview(root)
+  assert.match(qlOk(root, ['round', 'end']), /decision: DONE/)
+})
+
+test('an open nit does not keep the fix-step exemption once no important finding is open (verifier r2: nit keeps exemption)', () => {
+  const root = reviewedProject([FINDING, NIT])
+  assert.match(qlOk(root, ['round', 'end']), /decision: CONTINUE/)
+  qlOk(root, ['round', 'begin'])
+  qlOk(root, ['ingest', '--none', '--lens', 'scope'])
+  assert.match(qlOk(root, ['next']), /^Fix/)
+  writeFiles(root, { 'src/cart.js': BUGGY.replace('i <= items.length', 'i < items.length') })
+  qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'bound is < again'])
+  // the nit is still open, so `ql next` still asks for fixes, and says an edit from now on is reviewed
+  const next = qlOk(root, ['next'])
+  assert.match(next, /^Fix/)
+  assert.match(next, /`ql brief hunters`/)
+  writeFiles(root, { 'b.js': 'export const token = "hunter2"\n' })
+  assert.match(qlOk(root, ['next']), /^Review/, 'an edit after the last important fix is unreviewed')
+  const end = ql(root, ['round', 'end'])
+  assert.equal(end.code, 1)
+  assert.match(end.err, /phase "review"/)
+})

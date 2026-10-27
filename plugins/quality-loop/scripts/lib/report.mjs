@@ -57,6 +57,20 @@ export function missingLenses(s) {
   return lenses.filter(l => !done.has(l))
 }
 
+/**
+ * Whether an edit made now must still be reviewed this round: the review
+ * was closed by an empty-scope record that does not cover the fix step
+ * (recorded before a debug fix, or with no important finding open, or the
+ * fix step it covered has ended). `ql` drops such a record once the tree
+ * changes, so `round end` asks for the review.
+ *
+ * @param {LoopState} s
+ */
+export function editsNeedReview(s) {
+  const r = currentRound(s)
+  return !!r?.lensesDone?.includes('scope') && !(r.scopeEmptyBeforeFix && !r.fixEndTree)
+}
+
 /** @param {LoopState} s @param {Finding} f */
 export function inScope(s, f) {
   return f.origin === 'introduced' || !!s.config?.review?.fixPreExisting
@@ -129,8 +143,17 @@ export function nextAction(s) {
     }
     case 'verify':
       return 'Verify: `ql brief verifiers`, then one finding-verifier subagent per printed line, all in one message, each prompted "Brief: <brief path>"; then `ql vote <output files>`.'
-    case 'fix':
-      return 'Fix: `ql brief fix --all`, one fixer subagent per printed line (a wave in parallel, waves in order); check each fixer\'s evidence, then `ql mark <id> fixed --reason "<evidence>"` or `ql mark <id> wontfix --reason "..."`. Then `ql round end`.'
+    case 'fix': {
+      const fix =
+        'Fix: `ql brief fix --all`, one fixer subagent per printed line (a wave in parallel, waves in order); check each fixer\'s evidence, then `ql mark <id> fixed --reason "<evidence>"` or `ql mark <id> wontfix --reason "..."`.'
+      if (!editsNeedReview(s)) return `${fix} Then \`ql round end\`.`
+      const debugFix = s.repro && !s.lastRun?.results?.find((/** @type {any} */ x) => x.name === 'repro')?.ok
+      return (
+        `${fix}${debugFix ? ' The repro still fails, so this round\'s root-cause fix is still to come.' : ''} ` +
+        'The scope was recorded empty, and that record does not cover an edit made now: once the tree changes, review it before `ql round end` ' +
+        '(`ql brief hunters`, one bug-hunter per printed line, `ql ingest <output> --lens <lens>` for each; `ql next` says when).'
+      )
+    }
     case 'end':
       return 'Validate: `ql round end` (runs the checks, compares against the round start, reverts on regression, decides).'
     case 'report':

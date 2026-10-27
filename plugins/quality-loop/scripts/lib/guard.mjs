@@ -1112,6 +1112,7 @@ function protectedMatcher(g, globs, wholeDirs) {
  *   tombstone?: string | null,
  *   restartLocked?: boolean,
  *   gitStatus?: GitStatus,
+ *   enclosing?: boolean,
  * }} GuardInput
  *
  * `tombstone`: the directory in the git common dir that records each loop's
@@ -1120,7 +1121,11 @@ function protectedMatcher(g, globs, wholeDirs) {
  * loop (its state, or its tombstone when the state is gone), so only the
  * user may force it. `gitStatus`: how git sees a root-relative path, for
  * judging `git clean` and `git stash -u`; guessed from the loop's own
- * .gitignore when not given.
+ * .gitignore when not given. `enclosing`: the loop belongs to a repository
+ * that encloses the one the command runs in (a linked worktree or a nested
+ * repository inside it): only that loop's own files are guarded, not
+ * destructive commands or `ql init --force`, which act on the inner
+ * repository, unless the command changes directory or points git elsewhere.
  */
 
 const LOOP_DIR = '.quality-loop'
@@ -1172,15 +1177,22 @@ export function evaluateGuard(g) {
   if (g.tool === 'Bash') {
     const raw = String(g.input.command ?? '')
     const commands = parseCommands(raw)
+    // Whether the command can act on the loop's repository as a whole: it
+    // changes directory, or points git elsewhere.
+    const reaches =
+      !g.enclosing ||
+      commands.some(
+        c => c.name === 'cd' || c.name === 'pushd' || (c.name === 'git' && c.args.some(a => a === '-C' || /^--(git-dir|work-tree)\b/.test(a))),
+      )
     for (const q of qlInvocations(raw)) {
       if (q.sub === 'extend') return EXTEND
       if (q.sub === 'start' && q.flags.has('force') && locked) return RESTART
       // It rewrites the config with defaults.
-      if (q.sub === 'init' && q.flags.has('force') && !q.flags.has('help') && matchesAny(CONFIG_FILE, protectedPaths)) {
+      if (q.sub === 'init' && q.flags.has('force') && !q.flags.has('help') && reaches && matchesAny(CONFIG_FILE, protectedPaths)) {
         return `quality-loop: \`ql init --force\` rewrites ${CONFIG_FILE}, which is protected ${when}. Ask the user.`
       }
     }
-    if ((isLoopActive || g.hillclimbActive) && g.blockDestructive) {
+    if ((isLoopActive || g.hillclimbActive) && g.blockDestructive && reaches) {
       for (const c of commands) {
         const why = destructive(c)
         if (why) {

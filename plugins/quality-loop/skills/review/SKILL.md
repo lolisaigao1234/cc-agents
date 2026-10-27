@@ -8,6 +8,8 @@ argument-hint: "[--base REF] [--depth quick|standard|deep] [--out FILE] [intent 
 
 `ql` in this skill means `"${CLAUDE_PLUGIN_ROOT}/bin/ql"`: write that full path in every command (a shell variable holding it is lost between commands and does not split under zsh). Run it from the repository root.
 
+Before step 1, read `${CLAUDE_PLUGIN_ROOT}/references/round/rules.md`: the rules every step follows (single writer, briefs as files, when to read a step file, what to read after a compaction).
+
 Arguments: `$ARGUMENTS`
 
 This review changes no source file. It runs one round of the quality loop in review-only mode: no checks, no fixes.

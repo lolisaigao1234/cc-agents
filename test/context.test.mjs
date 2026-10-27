@@ -365,7 +365,7 @@ test('the protocol is split into small step files and the skills read a step onl
   assert.equal(existsSync(join(PLUGIN, 'references/round-protocol.md')), false, 'no monolithic protocol to read up front')
   const dir = join(PLUGIN, 'references/round')
   const files = readdirSync(dir).sort()
-  assert.deepEqual(files, ['1-begin.md', '2-review.md', '3-verify.md', '4-fix.md', '5-validate.md', 'decisions.md'])
+  assert.deepEqual(files, ['1-begin.md', '2-review.md', '3-verify.md', '4-fix.md', '5-validate.md', 'decisions.md', 'rules.md'])
   for (const f of files) {
     const size = readFileSync(join(dir, f), 'utf8').length
     assert.ok(size <= 2600, `${f} is ${size} chars`)
@@ -490,4 +490,21 @@ test('`ql next` after an abort or a pause names a step file whose table has a ro
     const rows = readFileSync(step, 'utf8').split('\n').filter(l => l.startsWith('| `'))
     assert.ok(rows.some(l => l.startsWith(`| \`${status}\``)), `${step} has a ${status} row`)
   }
+})
+
+// --- round 3: the verifier's findings on round 2
+
+test('lens names that share a brief file name are rejected, so no hunter brief or output is overwritten (verifier r2: lens slugs)', () => {
+  const root = project(2, { review: { lenses: ['api/io', 'api io', 'correctness'], customLenses: { 'api/io': 'slash', 'api io': 'space' } } })
+  const r = ql(root, ['start', '--mode', 'review'])
+  assert.equal(r.code, 1)
+  assert.match(r.err, /"api\/io" and "api io"/)
+  assert.match(r.err, /api_io/)
+  // distinct names still work, one brief and one output each
+  const ok = project(2, { review: { lenses: ['api/io', 'api-io'], customLenses: { 'api/io': 'slash', 'api-io': 'dash' } } })
+  qlOk(ok, ['start', '--mode', 'review'])
+  qlOk(ok, ['round', 'begin'])
+  const briefs = briefLines(qlOk(ok, ['brief', 'hunters']))
+  assert.equal(new Set(briefs.map(b => b.brief)).size, 2)
+  assert.equal(new Set(briefs.map(b => b.output)).size, 2)
 })

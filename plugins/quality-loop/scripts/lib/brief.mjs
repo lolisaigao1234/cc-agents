@@ -8,6 +8,7 @@
 import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
+import { slug } from './config.mjs'
 import * as loop from './loop.mjs'
 import { currentRound } from './report.mjs'
 import { paths, readJson, writeJson, writeText } from './store.mjs'
@@ -26,8 +27,9 @@ export const STANCES = {
 
 const MAX_FILES_LISTED = 40
 
-/** The file-name form of a lens, finding id or bug class. @param {string} s */
-export const slug = s => s.replace(/[^\w.-]+/g, '_').slice(0, 80) || '_'
+// The file-name form of a lens, finding id or bug class; config validation
+// keeps two lenses from sharing one.
+export { slug }
 
 /**
  * Removes every round's work files (briefs, agents' outputs, scope diffs).
