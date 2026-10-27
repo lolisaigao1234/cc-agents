@@ -28,7 +28,7 @@ ql start --mode review [--goal "<finish line>"] [--base <ref>] [--depth <depth>]
 
 Follow `${CLAUDE_PLUGIN_ROOT}/references/round-protocol.md` — read it now, in full. Each round: begin, review with one bug hunter per lens in parallel, verify each candidate by independent voters, fix one bug class per fixer, then `ql round end`, which validates, reverts on regression and decides.
 
-A custom finish line that asks for more than ql's criterion (nits fixed, a coverage target) widens each round's fix step to cover it.
+A custom finish line that asks for more than ql's criterion (nits fixed, a coverage target) widens each round's fix step: do that work inside the round, before `ql round end`, because a `DONE` ends the loop and takes no further round.
 
 Keep going round after round without asking: put a one-line status note in the same message as your next action. The loop itself enforces the limits (round cap, stall and oscillation detection, attempts per finding), so you never need to judge whether to stop early. Stop and ask the user only when you cannot continue without them, and first record it: `ql pause --reason "<what you need>"`.
 
@@ -38,14 +38,10 @@ Done when: `ql round end` reports `DONE`, `CAPPED` or `STALLED` and you have don
 
 `CAPPED` or `STALLED` leaves any finish line unmet, and `DONE` meets the default one: go to step 4.
 
-With a custom finish line and `DONE`, check each of its criteria against evidence you can cite (`ql status`, `ql export --all`, check output, a command you run):
-
-- All met: step 4.
-- Unmet, and more rounds can close the gap (open nits, a check to make pass): save `ql report --out .quality-loop/work/loop-1-report.md`, then start one follow-up loop with `ql start --mode review --goal "<the same finish line>"` and run step 2 again. It starts a fresh ledger and round count from the current tree.
-- Unmet after a follow-up loop, or beyond what rounds can do: step 4, with each unmet criterion first under **Blocked on me**.
+With a custom finish line and `DONE`, check each of its criteria against evidence you can cite (`ql status`, `ql export --all`, check output, a command you run). Put each unmet criterion first under **Blocked on me**, with the open findings that keep it unmet (from `ql export --all`) and what would close it. Another loop spends a new round budget, which only the user grants: offer it as their decision, naming the arguments to rerun with (`/quality-loop:improve` with the same finish line, `--base` and `--depth`).
 
 Done when: every criterion of the finish line is recorded as met or unmet, each with its evidence.
 
 ## 4. Report
 
-Run `ql report` and present it as written: the count line, then **Blocked on me**, **Changed**, **Found**. Include the saved report of a first loop when a follow-up ran. Add the verification you did of the fixers' evidence and the finish-line check from step 3, and mark anything you could not confirm as unconfirmed, saying where you looked.
+Run `ql report` and present it as written: the count line, then **Blocked on me**, **Changed**, **Found**. Add the verification you did of the fixers' evidence and the finish-line check from step 3, and mark anything you could not confirm as unconfirmed, saying where you looked.

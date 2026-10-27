@@ -111,5 +111,45 @@ test('improve skill: a custom finish line is checked by the orchestrator, not as
   const check = section(improve, /Check the finish line/i)
   assert.match(check, /`DONE`/)
   assert.match(check, /unmet/i, 'the skill says what to do when the custom finish line is unmet')
+  assert.match(check, /`ql export --all`/, 'an unmet criterion is reported with the open findings behind it')
   assert.match(improve, /Blocked on me/)
+})
+
+test('improve skill: work toward a custom finish line happens inside a round, before `ql round end`', () => {
+  const rounds = section(read('skills/improve/SKILL.md'), /Run rounds/)
+  const widen = rounds.split(/\n\n+/).find(p => /custom finish line/i.test(p))
+  assert.ok(widen, 'step 2 says how a custom finish line shapes each round')
+  assert.match(widen, /before `ql round end`/, 'a DONE ends the loop, so the extra work comes before it')
+})
+
+test('improve skill: the agent starts one loop; a further loop and its round budget are the user\'s call', () => {
+  const improve = read('skills/improve/SKILL.md')
+  const parts = improve.split(/^(?=## )/m)
+  const starts = parts.filter(p => /`?ql start\b/.test(p.replace(/`ql start` (creates|refuses)/g, '')) && /^## /.test(p))
+  assert.deepEqual(starts.map(p => p.split('\n')[0]), ['## 1. Set the finish line'], 'only step 1 runs `ql start`')
+  const check = section(improve, /Check the finish line/i)
+  assert.match(check, /user/i, 'the check step hands a further loop to the user')
+  assert.doesNotMatch(improve, /follow-up loop/i)
+})
+
+test('improve flow: after DONE the loop takes no more rounds, and `ql export --all` still lists the open nit', () => {
+  const root = makeRepo({
+    'a.js': 'export const x = 1\n',
+    '.quality-loop/config.json': JSON.stringify({ checks: [{ name: 'ok', cmd: 'node -e ""', required: true }] }),
+  })
+  writeFileSync(join(root, 'a.js'), 'export const x = 1 // TODO\n')
+  ql(root, ['start', '--mode', 'review', '--goal', 'every finding fixed, nits included'])
+  ql(root, ['round', 'begin'])
+  const nit = { title: 'Stray TODO', file: 'a.js', line: 1, quote: 'export const x = 1 // TODO', category: 'conventions', severity: 'nit', bugClass: 'stray-todo', explanation: 'Leftover marker.', failureScenario: 'The TODO ships.' }
+  writeFileSync(join(root, 'hunter.json'), JSON.stringify([nit]))
+  ql(root, ['ingest', 'hunter.json', '--lens', 'conventions'])
+  for (const lens of ['correctness', 'security', 'regressions-and-edge-cases']) ql(root, ['ingest', '--none', '--lens', lens])
+  const votes = ['a', 'b', 'c'].map(v => ({ id: 'F1', verdict: 'confirm', voter: v, reason: 'seen', severity: 'nit' }))
+  writeFileSync(join(root, 'votes.json'), JSON.stringify(votes))
+  ql(root, ['vote', 'votes.json'])
+  assert.match(ql(root, ['round', 'end']), /DONE/, 'ql DONE ignores the open nit the finish line names')
+  const open = JSON.parse(ql(root, ['export', '--all'])).filter((/** @type {any} */ f) => f.status === 'confirmed')
+  assert.deepEqual(open.map((/** @type {any} */ f) => f.title), ['Stray TODO'])
+  const again = spawnSync(process.execPath, [QL, 'round', 'begin'], { cwd: root, encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } })
+  assert.notEqual(again.status, 0, 'a DONE loop takes no further round')
 })
