@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 import { makeRepo, writeFiles } from './helpers.mjs'
@@ -343,6 +343,10 @@ test('`ql next` notices an empty-scope record gone stale before round end does',
   qlOk(clean, ['ingest', '--none', '--lens', 'scope'])
   assert.match(qlOk(clean, ['next']), /^Validate/)
   writeFiles(clean, { 'a.txt': 'y\n' })
+  // A same-size edit within the second of the commit is git's racy case
+  // (git.test.mjs covers it); a distinct mtime keeps this test about `next`.
+  const past = new Date('2001-01-01T00:00:00Z')
+  utimesSync(join(clean, 'a.txt'), past, past)
   assert.match(qlOk(clean, ['next']), /^Review/)
   assert.match(qlOk(clean, ['status']), /phase review/)
 })
@@ -368,4 +372,248 @@ test('a reverted round keeps a confirmed finding whose code survives the revert,
   assert.ok(f, 'the bug is still in the tree, so the finding stays')
   assert.equal(f.line, 4, 'relocated to where the code is after the revert')
   assert.match(qlOk(root, ['open']), /F1/)
+})
+
+const BROKEN_TEST = `import { test } from 'node:test'\nimport assert from 'node:assert/strict'\ntest('x', () => assert.equal(1, 2))\n`
+const ADD_REPRO = `node -e "import('./a.js').then(m => process.exit(m.add(1, 1) === 2 ? 0 : 1))"`
+const MUL = 'export function mul(a, b) {\n  if (!a) return 0\n  return a * b\n}\n'
+
+/** A debug project whose committed add() subtracts; mul() already holds `if (!a) return 0`. */
+function addProject() {
+  return makeRepo({
+    'package.json': JSON.stringify({ type: 'module', scripts: { test: 'node --test' } }),
+    'test/ok.test.js': `import { test } from 'node:test'\nimport assert from 'node:assert/strict'\ntest('ok', () => assert.equal(1, 1))\n`,
+    'a.js': 'export function add(a, b) {\n  return a - b\n}\n' + MUL,
+  })
+}
+
+test('a reverted round drops a finding on its own added code even when the same text survives elsewhere', () => {
+  const root = addProject()
+  qlOk(root, ['start', '--mode', 'debug', '--repro', ADD_REPRO, '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  // the fix adds a guard to add() that mul() already has, word for word
+  writeFiles(root, { 'a.js': 'export function add(a, b) {\n  if (!a) return 0\n  return a + b\n}\n' + MUL })
+  ingest(
+    root,
+    [{ ...FINDING, title: 'add(0, 5) returns 0 instead of 5', file: 'a.js', line: 2, quote: 'if (!a) return 0', bugClass: 'zero-guard' }],
+    'correctness',
+  )
+  finishReview(root)
+  voteAll(root, 'F1')
+  writeFiles(root, { 'test/broken.test.js': BROKEN_TEST })
+  const end = qlOk(root, ['round', 'end'])
+  assert.match(end, /REVERTED/)
+  assert.equal(state(root).ledger.findings.F1, undefined, 'the guard it describes was the reverted fix, not mul()')
+  assert.equal(state(root).rounds[0].discarded[0]?.id, 'F1')
+
+  // a clean fix in round 2 finishes the loop
+  qlOk(root, ['round', 'begin'])
+  writeFiles(root, { 'a.js': 'export function add(a, b) {\n  return a + b\n}\n' + MUL })
+  finishReview(root)
+  assert.match(qlOk(root, ['round', 'end']), /decision: DONE/)
+})
+
+test('a finding on reverted code the fixer then removed is not moved onto an unrelated copy of its text', () => {
+  const root = addProject()
+  qlOk(root, ['start', '--mode', 'debug', '--repro', ADD_REPRO, '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  writeFiles(root, { 'a.js': 'export function add(a, b) {\n  if (!a) return 0\n  return a + b\n}\n' + MUL })
+  ingest(
+    root,
+    [{ ...FINDING, title: 'add(0, 5) returns 0 instead of 5', file: 'a.js', line: 2, quote: 'if (!a) return 0', bugClass: 'zero-guard' }],
+    'correctness',
+  )
+  finishReview(root)
+  voteAll(root, 'F1')
+  // the fixer drops the guard (only mul's copy is left), then breaks a test
+  writeFiles(root, { 'a.js': 'export function add(a, b) {\n  return a + b\n}\n' + MUL, 'test/broken.test.js': BROKEN_TEST })
+  qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'guard removed'])
+  assert.match(qlOk(root, ['round', 'end']), /REVERTED/)
+  assert.equal(state(root).ledger.findings.F1, undefined, 'mul() is not the code it described')
+})
+
+test('a finding kept across a revert has its origin recomputed against the restored tree', () => {
+  // the bug is committed: only the round's own fix makes the change
+  const root = makeRepo({
+    'package.json': JSON.stringify({ type: 'module', scripts: { test: 'node --test' } }),
+    'src/cart.js': BUGGY,
+    'test/cart.test.js': CART_TEST,
+  })
+  const repro = `node -e "if (/<=/.test(require('fs').readFileSync('src/cart.js','utf8'))) process.exit(1)"`
+  qlOk(root, ['start', '--mode', 'debug', '--repro', repro, '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  writeFiles(root, { 'src/cart.js': BUGGY.replace('i <= items.length', 'i < items.length') })
+  // committed code next to the fixed line: introduced while the fix stands
+  ingest(root, [{ ...NIT, severity: 'important', title: 'A missing price is summed as 0' }], 'correctness')
+  finishReview(root)
+  voteAll(root, 'F1')
+  assert.equal(state(root).ledger.findings.F1.origin, 'introduced')
+  writeFiles(root, { 'test/broken.test.js': BROKEN_TEST })
+  assert.match(qlOk(root, ['round', 'end']), /REVERTED/)
+  const f = state(root).ledger.findings.F1
+  assert.ok(f, 'its code is committed and survives the revert')
+  assert.equal(f.line, 4)
+  assert.equal(f.origin, 'pre-existing', 'with the fix reverted the change no longer touches it')
+  assert.match(qlOk(root, ['open']), /nothing open/)
+})
+
+test('a reverted round brings back a finding the round fixed on code that predates the round', () => {
+  const root = buggyProject()
+  qlOk(root, ['start', '--mode', 'review', '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  ingest(root, [FINDING], 'correctness')
+  finishReview(root)
+  voteAll(root, 'F1')
+  // the fixer fixes it and adds a doc block above, but breaks a test
+  const pad = Array.from({ length: 30 }, (_, i) => `// doc ${i}`).join('\n') + '\n'
+  writeFiles(root, { 'src/cart.js': pad + BUGGY.replace('i <= items.length', 'i < items.length'), 'test/broken.test.js': BROKEN_TEST })
+  qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'bound is < again'])
+  assert.match(qlOk(root, ['round', 'end']), /REVERTED/)
+  const f = state(root).ledger.findings.F1
+  assert.ok(f, 'the bug is back with the revert')
+  assert.equal(f.status, 'confirmed')
+  assert.equal(f.line, 3)
+  assert.equal(f.origin, 'introduced')
+})
+
+test("an empty scope recorded while findings are open stays valid for that round's fix step", () => {
+  const root = buggyProject()
+  configure(root, { maxAttemptsPerFinding: 3, maxRounds: 5 })
+  qlOk(root, ['start', '--mode', 'review', '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  ingest(root, [FINDING], 'correctness')
+  finishReview(root)
+  voteAll(root, 'F1')
+  // the fixer could not fix it this round
+  assert.match(qlOk(root, ['round', 'end']), /decision: CONTINUE/)
+
+  qlOk(root, ['round', 'begin'])
+  qlOk(root, ['ingest', '--none', '--lens', 'scope'])
+  assert.match(qlOk(root, ['next']), /^Fix/)
+  writeFiles(root, { 'src/cart.js': BUGGY.replace('i <= items.length', 'i < items.length') })
+  assert.match(qlOk(root, ['next']), /^Fix/, 'the fix it asked for does not reopen the review')
+  qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'bound is < again'])
+  assert.match(qlOk(root, ['next']), /^Validate/)
+  const end = ql(root, ['round', 'end'])
+  assert.equal(end.code, 0, end.err)
+  assert.match(end.out, /decision: DONE/)
+})
+
+/**
+ * Review mode, round 1: `findings` ingested and confirmed on the
+ * uncommitted change, before any fix.
+ *
+ * @param {object[]} findings
+ */
+function reviewedProject(findings) {
+  const root = buggyProject()
+  configure(root, { maxAttemptsPerFinding: 3, maxRounds: 5 })
+  qlOk(root, ['start', '--mode', 'review', '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  ingest(root, findings, 'correctness')
+  finishReview(root)
+  for (const id of Object.keys(state(root).ledger.findings)) voteAll(root, id)
+  return root
+}
+
+const PAD = Array.from({ length: 30 }, (_, i) => `// doc ${i}`).join('\n') + '\n'
+
+test('a reverted review round keeps a finding left unfixed when the fixer moved its code far away', () => {
+  const root = reviewedProject([FINDING])
+  // the fixer leaves F1 alone, prepends a doc block and breaks a test
+  writeFiles(root, { 'src/cart.js': PAD + BUGGY, 'test/broken.test.js': BROKEN_TEST })
+  const end = qlOk(root, ['round', 'end'])
+  assert.match(end, /REVERTED/)
+  assert.doesNotMatch(end, /discarded/)
+  assert.equal(readFileSync(join(root, 'src/cart.js'), 'utf8'), BUGGY)
+  const f = state(root).ledger.findings.F1
+  assert.ok(f, 'the bug predates the round and is still in the restored code')
+  assert.equal(f.status, 'confirmed')
+  assert.equal(f.line, 3)
+  assert.equal(f.origin, 'introduced')
+  assert.equal(f.attempts, 1)
+})
+
+test('a reverted review round keeps a finding whose line the fixer re-indented without fixing it', () => {
+  const root = reviewedProject([FINDING])
+  const wrapped = `export function total(items) {
+  let sum = 0
+  if (items) {
+    for (let i = 0; i <= items.length; i++) {
+      sum += items[i]?.price ?? 0
+    }
+  }
+  return sum
+}
+`
+  writeFiles(root, { 'src/cart.js': wrapped, 'test/broken.test.js': BROKEN_TEST })
+  const end = qlOk(root, ['round', 'end'])
+  assert.match(end, /REVERTED/)
+  assert.doesNotMatch(end, /discarded/)
+  const f = state(root).ledger.findings.F1
+  assert.ok(f, 'the bug predates the round and is still in the restored code')
+  assert.equal(f.status, 'confirmed')
+  assert.equal(f.line, 3)
+})
+
+test('a reverted review round keeps an untouched finding next to one it fixed', () => {
+  const root = reviewedProject([FINDING, { ...NIT, severity: 'important', title: 'A missing price is summed as 0' }])
+  writeFiles(root, { 'src/cart.js': PAD + BUGGY.replace('i <= items.length', 'i < items.length'), 'test/broken.test.js': BROKEN_TEST })
+  qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'bound is < again'])
+  const end = qlOk(root, ['round', 'end'])
+  assert.match(end, /REVERTED/)
+  assert.doesNotMatch(end, /discarded/)
+  assert.match(end, /2 important finding\(s\) open/)
+  const s = state(root)
+  assert.equal(s.ledger.findings.F1.status, 'confirmed')
+  assert.equal(s.ledger.findings.F1.line, 3)
+  assert.equal(s.ledger.findings.F2?.status, 'confirmed')
+  assert.equal(s.ledger.findings.F2?.line, 4)
+})
+
+test('an empty scope recorded before a debug fix, with a finding open, does not let the fix skip review', () => {
+  const BUG = 'export function add(a, b) {\n  return a - b\n}\nexport function mul(a, b) {\n  return a * b + 0\n}\n'
+  const root = makeRepo({
+    'package.json': JSON.stringify({ type: 'module', scripts: { test: 'node --test' } }),
+    'test/ok.test.js': `import { test } from 'node:test'\nimport assert from 'node:assert/strict'\ntest('ok', () => assert.equal(1, 1))\n`,
+    'a.js': BUG,
+  })
+  qlOk(root, ['init'])
+  const cfgPath = join(root, '.quality-loop/config.json')
+  const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'))
+  writeFileSync(cfgPath, JSON.stringify({ ...cfg, loop: { maxAttemptsPerFinding: 5, maxRounds: 5 }, review: { ...cfg.review, fixPreExisting: true } }))
+  qlOk(root, ['start', '--mode', 'debug', '--repro', ADD_REPRO, '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  writeFiles(root, { 'a.js': BUG.replace('a - b', 'a + b') })
+  ingest(root, [{ ...FINDING, title: 'mul adds 0', file: 'a.js', line: 5, quote: 'return a * b + 0', bugClass: 'mul' }], 'correctness')
+  finishReview(root)
+  voteAll(root, 'F1')
+  writeFiles(root, { 'test/broken.test.js': BROKEN_TEST })
+  assert.match(qlOk(root, ['round', 'end']), /REVERTED/)
+  assert.equal(state(root).ledger.findings.F1.status, 'confirmed', 'a pre-existing finding, in scope')
+
+  // round 2: the repro still fails, so the debug fix is still to come
+  qlOk(root, ['round', 'begin'])
+  qlOk(root, ['ingest', '--none', '--lens', 'scope'])
+  writeFiles(root, { 'a.js': BUG.replace('a - b', 'a + b').replace('a * b + 0', 'a * b') + 'export const token = "hunter2"\n' })
+  qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'dropped + 0'])
+  assert.doesNotMatch(qlOk(root, ['next']), /^Validate/)
+  const end = ql(root, ['round', 'end'])
+  assert.equal(end.code, 1, 'round end refuses the unreviewed debug fix')
+  assert.match(end.err, /phase "review"/, "`ql next` already dropped the stale record")
+})
+
+test('an empty scope kept for the fix step goes stale again once nothing is left to fix', () => {
+  const root = reviewedProject([FINDING])
+  assert.match(qlOk(root, ['round', 'end']), /decision: CONTINUE/)
+  qlOk(root, ['round', 'begin'])
+  qlOk(root, ['ingest', '--none', '--lens', 'scope'])
+  assert.match(qlOk(root, ['next']), /^Fix/)
+  qlOk(root, ['mark', 'F1', 'wontfix', '--reason', 'intended per the user'])
+  assert.match(qlOk(root, ['next']), /^Validate/)
+  writeFiles(root, { 'b.js': 'export const token = "hunter2"\n' })
+  assert.match(qlOk(root, ['next']), /^Review/, 'an edit after the fix step is unreviewed')
+  const end = ql(root, ['round', 'end'])
+  assert.equal(end.code, 1)
+  assert.match(end.err, /phase "review"/, "`ql next` already dropped the stale record")
 })
