@@ -270,7 +270,8 @@ export function beginRound(root) {
       `ql records the loop here (${t.id}) as ${t.status} at round ${t.round}; the state in .quality-loop/ says otherwise, so it was edited outside ql. Only the user may extend it (\`! ql extend\`) or start over (\`! ql start --force ...\`). Report to the user.`,
     )
   }
-  s.round += 1
+  // Rounds count on from the record, so a state round lowered by hand buys none.
+  s.round = Math.max(s.round, t && t.id === s.id ? Number(t.round) || 0 : 0) + 1
   s.rounds.push({
     n: s.round,
     startCheckpoint: checkpointTree(root),

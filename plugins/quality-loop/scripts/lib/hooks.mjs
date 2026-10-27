@@ -3,12 +3,12 @@
 // read its state says nothing rather than breaking the session.
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
 
 import { DEFAULTS, resolveConfig } from './config.mjs'
 import { LOOP_DIR } from './git.mjs'
-import { evaluateGuard, qlInvocations } from './guard.mjs'
+import { evaluateAgentGuard, evaluateGuard, pluginAgent, qlInvocations } from './guard.mjs'
 import { saveState, startRefusal } from './loop.mjs'
 import { isActive, nextAction, statusLine } from './report.mjs'
 import { paths, readJson } from './store.mjs'
@@ -223,6 +223,21 @@ function guardReason(cwd, input) {
   return null
 }
 
+/**
+ * Appends a plugin agent's call and the guard's decision to the file
+ * QL_GUARD_LOG names, so a live run can show the guard saw its agents.
+ *
+ * @param {string} agent @param {string} tool @param {string | null} denied
+ */
+function logAgentCall(agent, tool, denied) {
+  const file = process.env.QL_GUARD_LOG
+  if (!file) return
+  try {
+    mkdirSync(dirname(file), { recursive: true })
+    appendFileSync(file, `${JSON.stringify({ agent, tool, denied, at: new Date().toISOString() })}\n`)
+  } catch {}
+}
+
 /** @param {string} root @param {any} state */
 const elsewhere =(root, state) => `A quality loop is running in another session in ${root} (${statusLine(state)}); it is not this session's task.`
 
@@ -245,7 +260,10 @@ export function handleHook(event, input) {
   if (sid && event !== 'pre-tool-use') settleClaim(top ?? cwd, state, sid)
 
   if (event === 'pre-tool-use') {
-    const reason = guardReason(cwd, input)
+    const name = pluginAgent(input?.agent_type)
+    const agent = top ? evaluateAgentGuard({ agent: name, tool, input: input?.tool_input ?? {}, root: top, cwd }) : null
+    const reason = agent ?? guardReason(cwd, input)
+    if (name) logAgentCall(name, tool, reason)
     if (reason) {
       return {
         stdout: JSON.stringify({

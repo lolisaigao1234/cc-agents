@@ -27,9 +27,23 @@ function claude(cwd, prompt, name) {
   const argv = ['-p', '--plugin-dir', PLUGIN, TOOLS, '--output-format', 'stream-json', '--verbose']
   if (model) argv.push('--model', model)
   argv.push(prompt)
-  const r = spawnSync('claude', argv, { cwd, encoding: 'utf8', input: '', maxBuffer: 512 * 1024 * 1024, env: { ...process.env, CLAUDE_CODE_AUTO_COMPACT_WINDOW: '300000' } })
+  const r = spawnSync('claude', argv, { cwd, encoding: 'utf8', input: '', maxBuffer: 512 * 1024 * 1024, env: { ...process.env, CLAUDE_CODE_AUTO_COMPACT_WINDOW: '300000', QL_GUARD_LOG: guardLog(name) } })
   writeFileSync(join(work, `${name}.jsonl`), r.stdout)
   return r.status
+}
+
+/** Where the guard logs each plugin agent's calls in scenario `name`. @param {string} name */
+const guardLog = name => join(work, `${name}.guard.jsonl`)
+/**
+ * Problems when the guard did not see each of `agents` make calls: a guard
+ * that never sees the agents never holds them. Prints its denials.
+ *
+ * @param {string} name @param {string[]} agents
+ */
+function guardSaw(name, agents) {
+  const calls = existsSync(guardLog(name)) ? readFileSync(guardLog(name), 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)) : []
+  for (const c of calls.filter(c => c.denied)) console.log(`  guard denied ${c.agent} ${c.tool}: ${c.denied}`)
+  return agents.filter(a => !calls.some(c => c.agent === a)).map(a => `the guard saw no call by ${a}`)
 }
 
 /** @param {string} cwd @param {string[]} a */
@@ -56,7 +70,7 @@ const SCENARIOS = {
       if (!findings.some((/** @type {any} */ f) => f.file === 'src/pricing.js' && Math.abs(f.line - line) <= 2)) problems.push(`missed the bug at line ${line}`)
     }
     if (spawnSync('git', ['status', '--porcelain', '--', 'src', 'test'], { cwd: root, encoding: 'utf8' }).stdout.trim()) problems.push('review edited source files')
-    return problems
+    return [...problems, ...guardSaw('review', ['bug-hunter', 'finding-verifier'])]
   },
   improve() {
     const root = makeFixture(join(work, 'improve'))
@@ -67,7 +81,7 @@ const SCENARIOS = {
     if (!fixedBoth(root)) problems.push('a seeded bug is still in src/pricing.js')
     if (!tests(root)) problems.push('npm test fails')
     if (!/bulkDiscount/.test(readFileSync(join(root, 'test/pricing.test.js'), 'utf8').split('small orders')[1] ?? '')) problems.push('no regression test added')
-    return problems
+    return [...problems, ...guardSaw('improve', ['bug-hunter', 'finding-verifier', 'fixer'])]
   },
   debug() {
     const root = makeFixture(join(work, 'debug'))

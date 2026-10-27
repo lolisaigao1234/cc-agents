@@ -381,6 +381,8 @@ export function ingestFindings(ledger, raws, ctx) {
   const claims = matchKnown(Object.values(ledger.findings), reports, ctx, occurrences)
   /** @type {Finding[]} */
   const fresh = []
+  /** Each report taken, with the finding it went into: every claim, and each fresh one so far. */
+  const taken = [...claims].map(([report, m]) => ({ report, into: m.finding }))
   for (const f of reports) {
     const match = claims.get(f)
     if (match) {
@@ -420,13 +422,14 @@ export function ingestFindings(ledger, raws, ctx) {
       seenNow(existing)
       continue
     }
-    // The same report twice in one batch: the nearest earlier one at the same
-    // place. The same code elsewhere is another instance.
+    // The same report twice in one batch: it goes where the nearest earlier
+    // one at the same place went, a known finding or a fresh one. The same
+    // code elsewhere is another instance.
     let dup = null
     let dist = Infinity
-    for (const g of fresh) {
+    for (const { report: g, into } of taken) {
       if (g.file !== f.file || matchRank(g, g.line, f) === null) continue
-      if (Math.abs(g.line - f.line) < dist) [dup, dist] = [g, Math.abs(g.line - f.line)]
+      if (Math.abs(g.line - f.line) < dist) [dup, dist] = [into, Math.abs(g.line - f.line)]
     }
     if (dup) {
       if (!dup.lenses.includes(ctx.lens)) dup.lenses.push(ctx.lens)
@@ -434,6 +437,7 @@ export function ingestFindings(ledger, raws, ctx) {
     }
     seenNow(f)
     fresh.push(f)
+    taken.push({ report: f, into: f })
   }
 
   const maxNits = ctx.config.maxNitsPerRound ?? Infinity

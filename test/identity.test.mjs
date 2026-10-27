@@ -335,6 +335,23 @@ test('identity: one batch: the same quote at different lines is distinct instanc
   assert.equal(s2.ledger.findings.F2?.line, 12)
 })
 
+test('identity: one batch: the same report twice at a known finding is absorbed by it, not a new candidate', () => {
+  const L = [...pad(5, 'p'), Q, ...pad(5, 'q')]
+  for (const [status, want] of /** @type {const} */ ([['rejected', 'rep'], ['fixed', 'reo'], ['confirmed', 'mer']])) {
+    const s = scenario()
+    s.step(L, [mk({ line: 6 })])
+    s.settle('F1', status)
+    const got = s.step(L, [mk({ line: 6, title: 'a' }), mk({ line: 6, title: 'b' })], 'd')
+    assert.deepEqual(got, { ...none, [want]: ['F1'] }, status)
+    assert.deepEqual(Object.keys(s.ledger.findings), ['F1'], status)
+  }
+  // The duplicate before the report that claims the finding, a line off it.
+  const s = scenario()
+  s.step(L, [mk({ line: 6 })])
+  s.settle('F1', 'rejected')
+  assert.deepEqual(s.step(L, [mk({ line: 7, quote: 'cap = order.total' }), mk({ line: 6 })], 'd'), { ...none, rep: ['F1'] })
+})
+
 test('identity: a ledger from before line tracking relocates only a quote that is unique in the file', () => {
   const s = scenario()
   const L = ['function a(order) {', Q, '}', ...pad(5, 'p'), 'function b(order) {', '  const t = order.tax', '}']

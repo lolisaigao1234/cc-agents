@@ -500,6 +500,10 @@ test('lens names that share a brief file name are rejected, so no hunter brief o
   assert.equal(r.code, 1)
   assert.match(r.err, /"api\/io" and "api io"/)
   assert.match(r.err, /api_io/)
+  // names that differ only in case share one file on a case-insensitive file system
+  const cased = ql(project(2, { review: { lenses: ['Security', 'security'], customLenses: { Security: 'upper' } } }), ['start', '--mode', 'review'])
+  assert.equal(cased.code, 1)
+  assert.match(cased.err, /"Security" and "security"/)
   // distinct names still work, one brief and one output each
   const ok = project(2, { review: { lenses: ['api/io', 'api-io'], customLenses: { 'api/io': 'slash', 'api-io': 'dash' } } })
   qlOk(ok, ['start', '--mode', 'review'])

@@ -158,10 +158,12 @@ export function validateConfig(c) {
       errors.push('review.lenses must be strings')
       continue
     }
-    // A lens's brief and output files are named after it.
-    const other = files.get(slug(lens))
+    // A lens's brief and output files are named after it, and a file system
+    // may ignore case.
+    const key = slug(lens).toLowerCase()
+    const other = files.get(key)
     if (other !== undefined) errors.push(`review.lenses "${other}" and "${lens}" share the file name "${slug(lens)}": rename one`)
-    else files.set(slug(lens), lens)
+    else files.set(key, lens)
   }
   return errors
 }

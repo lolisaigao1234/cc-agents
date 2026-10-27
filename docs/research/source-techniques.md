@@ -26,7 +26,7 @@ Sources, read 2026-10-27:
 | Convergence: **round cap** (3), then ask the author to reconsider | `loop.maxRounds`; `decideRound` returns `capped` with "reconsider the approach" |
 | **Diff-only re-review** after the first passes | `scope()` in `loop.mjs`, `loop.diffOnlyAfterRound` |
 | **Flag the bug class** so every instance gets fixed | `bugClass` on findings; `ql open` groups by class; one fixer per class |
-| **No repeats** of already-posted findings | Line-insensitive fingerprints; rejected/wontfix findings are never re-raised (`ingestFindings`) |
+| **No repeats** of already-posted findings | Known findings are tracked through the diff to where their code is now (ADR 0002); rejected/wontfix findings are never re-raised (`ingestFindings`) |
 | Agent approval never counts as a person's; humans own risky decisions | The loop posts findings and fixes, never approves; only the user can `extend` a capped loop (guard) |
 | Incidents become evals; rescore on every prompt/tool/model change | `ql eval harvest` (reverts and blamed fixes); `skills/tune-reviewer` |
 | Measure noise: run on known-clean changes | Should-not-fire `clean` cases; false positives counted by `gradeCase` |

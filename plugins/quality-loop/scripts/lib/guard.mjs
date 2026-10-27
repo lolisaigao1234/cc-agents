@@ -1289,3 +1289,121 @@ export function evaluateGuard(g) {
   }
   return null
 }
+
+// The plugin's own agents, as a hook payload's agent_type names them.
+const AGENT_PREFIX = 'quality-loop:'
+// They report what they find and change nothing in the repository.
+const READ_ONLY_AGENTS = new Set(['bug-hunter', 'finding-verifier', 'root-cause-investigator'])
+const FIXER = 'fixer'
+// Where an agent's brief and output files live, and its scratch files may.
+const WORK_DIR = `${LOOP_DIR}/work`
+// git subcommands that move HEAD, a branch, a tag or the stash: the loop
+// checkpoints and reverts rounds itself, and cannot undo these.
+const GIT_MOVES = new Set(['commit', 'merge', 'rebase', 'cherry-pick', 'revert', 'reset', 'switch', 'stash', 'push', 'pull', 'am', 'bisect', 'update-ref'])
+// Also changing the shared working tree or index, for a read-only agent.
+const GIT_CHANGES = new Set([...GIT_MOVES, 'checkout', 'restore', 'add', 'rm', 'mv', 'clean', 'apply'])
+
+/**
+ * The plugin agent making a call, from the hook payload's agent_type
+ * (`quality-loop:<name>`), or null for the main session and other agents.
+ *
+ * @param {unknown} agentType
+ */
+export function pluginAgent(agentType) {
+  return typeof agentType === 'string' && agentType.startsWith(AGENT_PREFIX) ? agentType.slice(AGENT_PREFIX.length) : null
+}
+
+/**
+ * What a git command does to refs or the working tree that the agent may not:
+ * 'moves' (HEAD, a branch, a tag or the stash), 'changes' (the working tree or
+ * index), or null. Listing branches, tags and stashes is neither.
+ *
+ * @param {string[]} args
+ * @returns {'moves' | 'changes' | null}
+ */
+function gitEffect(args) {
+  const { sub, rest, opts } = gitParts(args)
+  if (!sub) return null
+  if (sub === 'stash') return ['list', 'show'].includes(rest[0] ?? '') ? null : 'moves'
+  if (sub === 'branch' || sub === 'tag') {
+    const listing = opts.every(o => o.startsWith('-') && !/^-(?:[dDmMcCf]|-delete|-move|-copy|-force)/.test(o))
+    return listing && !operands(rest).length ? null : 'moves'
+  }
+  // `git checkout <branch>` moves HEAD; `git checkout -- <path>` only rewrites files.
+  if (sub === 'checkout') return rest.includes('--') ? 'changes' : 'moves'
+  if (sub === 'apply' && opts.some(o => ['--check', '--stat', '--numstat', '--summary'].includes(o)) && !opts.includes('--index') && !opts.includes('--apply')) return null
+  if (GIT_MOVES.has(sub)) return 'moves'
+  return GIT_CHANGES.has(sub) ? 'changes' : null
+}
+
+/**
+ * Why the guard denies a call by one of the plugin's agents, or null. The
+ * reviewers (hunter, verifier, investigator) are read-only in the
+ * repository `root`: they write only under `.quality-loop/work/` and outside
+ * the repository. The fixer edits code, but leaves the rest of
+ * `.quality-loop/` to the orchestrator, the one writer of loop state, and
+ * makes no commits, branch switches or stashes. Paths behind a variable or
+ * an unresolvable `cd` are not judged (a seatbelt, as for evaluateGuard).
+ *
+ * @param {{ agent: string | null, tool: string, input: Record<string, any>, root: string, cwd?: string }} g
+ * @returns {string | null}
+ */
+export function evaluateAgentGuard(g) {
+  const name = g.agent
+  if (!name || (!READ_ONLY_AGENTS.has(name) && name !== FIXER)) return null
+  const readOnly = READ_ONLY_AGENTS.has(name)
+  const root = realish(resolve(g.root))
+  const work = join(root, WORK_DIR)
+  const loopDir = join(root, LOOP_DIR)
+  const within = (/** @type {string} */ p, /** @type {string} */ dir) => p === dir || p.startsWith(`${dir}/`)
+  /** Why writing `path` (from `cwd`) is denied, or null. @param {string} path @param {string | null} cwd */
+  const writeDenied = (path, cwd) => {
+    if (/[$`~]/.test(path) || (cwd === null && !path.startsWith('/'))) return null
+    const abs = realish(resolve(cwd ?? root, path))
+    if (!within(abs, root) || within(abs, work)) return null
+    if (readOnly) {
+      return `quality-loop: the ${name} agent is read-only in the repository, and ${path} is in it. Put scratch files in a temporary directory outside the repository or under ${WORK_DIR}/, and report what you found instead of changing code.`
+    }
+    return within(abs, loopDir)
+      ? `quality-loop: the fixer writes only its output under ${WORK_DIR}/; ${path} belongs to the orchestrator, the one writer of loop state.`
+      : null
+  }
+  /** @param {string} sub @param {'moves' | 'changes'} effect */
+  const gitDenied = (sub, effect) => {
+    if (readOnly) {
+      return `quality-loop: the ${name} agent is read-only in the repository: \`git ${sub}\` changes the shared checkout. For a copy of your own, \`git worktree add\` one under a temporary directory and work there.`
+    }
+    return effect === 'moves'
+      ? `quality-loop: the fixer makes no commits, branch switches or stashes (\`git ${sub}\`): the loop checkpoints and reverts rounds itself. Leave the change in the working tree.`
+      : null
+  }
+
+  if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(g.tool)) {
+    const file = String(g.input.file_path ?? g.input.notebook_path ?? '')
+    return file ? writeDenied(file, g.cwd ?? root) : null
+  }
+  if (g.tool !== 'Bash') return null
+  /** @type {string | null} */
+  let cwd = g.cwd ?? root
+  for (const c of parseCommands(String(g.input.command ?? ''))) {
+    if (c.name === 'cd') {
+      const to = operands(c.args)[0]
+      cwd = to === undefined || to === '-' || /[$`~]/.test(to) || cwd === null ? null : resolve(cwd, to)
+      continue
+    }
+    for (const t of writeTargets(c, guessGitStatus)) {
+      const why = writeDenied(t.path, cwd)
+      if (why) return why
+    }
+    if (c.name === 'git') {
+      const effect = gitEffect(c.args)
+      if (!effect) continue
+      // `git -C <dir>` runs in <dir>: an agent's own worktree outside the repository is its own.
+      const at = gitParts(c.args).dirs.reduce((/** @type {string | null} */ acc, d) => (acc === null || /[$`~]/.test(d) ? null : resolve(acc, d)), cwd)
+      if (at !== null && !within(realish(at), root)) continue
+      const why = gitDenied(gitParts(c.args).sub ?? '', effect)
+      if (why) return why
+    }
+  }
+  return null
+}

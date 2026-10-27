@@ -1,1 +1,3 @@
 node_modules/
+/trs-plugin/
+.DS_Store
