@@ -225,7 +225,7 @@ const OPEN = ['candidate', 'confirmed']
  * @param {string[] | null} lines
  * @returns {Span | null}
  */
-function locate(f, lines) {
+export function locate(f, lines) {
   if (!lines || f.line > lines.length + RELOCATE_WINDOW) return null
   const startsAt = quoteMatcher(f.quote, lines)
   /** @type {number[]} nearest first */
