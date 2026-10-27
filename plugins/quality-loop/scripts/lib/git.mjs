@@ -162,27 +162,43 @@ function withTempIndex(root, fn) {
 
 /**
  * Stages the whole working tree (minus ignored files and the loop's own
- * directory) into the index named by `env`.
+ * directory) into the index named by `env`. Returns the raw paths git could
+ * not read (an unreadable file, a nested repo with no commit): they are left
+ * out of the index, so a tracked file the round made unreadable shows up as
+ * removed instead of silently keeping its old content.
  *
  * @param {string} root
  * @param {Record<string, string>} env
+ * @returns {string[]}
  */
 function stageWorktree(root, env) {
-  // --ignore-errors: a path git cannot index (an unreadable file, a nested repo
-  // with no commit) is skipped rather than failing the snapshot; it is still
-  // recorded as on disk through the checkpoint's list of paths outside the tree.
-  // Exit 1 means "some files skipped"; anything else is a real failure.
+  // --ignore-errors: skip what cannot be indexed rather than failing the
+  // snapshot. Exit 1 means "some files skipped"; anything else is a failure.
   const add = git(['add', '-A', '--ignore-errors', '--', '.', EXCLUDE], { cwd: root, env, allowFail: true })
   if (!add.ok && add.status !== 1) throw new Error(`git add -A failed (${add.status}): ${add.stderr.trim()}`)
   // Drop loop files that a copied real index may already hold.
   git(['rm', '-r', '-q', '--cached', '--ignore-unmatch', '--', LOOP_DIR], { cwd: root, env })
+  if (add.ok) return []
+  // A skipped tracked file keeps the copied index entry (its old content):
+  // after `add` refreshed everything else, those are the entries still stale.
+  const stale = nulList(gitRaw(['diff-files', '-z', '--name-only', '--ignore-submodules', '--', '.', EXCLUDE], { cwd: root, env }).stdout)
+  if (stale.length) {
+    gitRaw(['update-index', '-z', '--force-remove', '--stdin'], { cwd: root, env, input: stale.map(p => `${p}\0`).join('') })
+  }
+  const untracked = nulList(gitRaw(['ls-files', '-z', '-o', '--exclude-standard', '--', '.', EXCLUDE], { cwd: root, env }).stdout)
+  return [...new Set([...stale, ...untracked])]
 }
 
-/** @param {string} root */
+/** @param {string} out NUL-separated list */
+function nulList(out) {
+  return out.split('\0').filter(Boolean)
+}
+
+/** @param {string} root @returns {{ tree: string, skipped: string[] }} */
 function worktreeTree(root) {
   return withTempIndex(root, env => {
-    stageWorktree(root, env)
-    return git(['write-tree'], { cwd: root, env }).stdout.trim()
+    const skipped = stageWorktree(root, env)
+    return { tree: git(['write-tree'], { cwd: root, env }).stdout.trim(), skipped }
   })
 }
 
@@ -282,7 +298,7 @@ function nestedState(root, p) {
   const dir = join(root, text)
   if (!existsSync(join(dir, '.git'))) return 'absent'
   try {
-    return `${revParse(dir, 'HEAD') ?? ''} ${worktreeTree(dir)}`
+    return `${revParse(dir, 'HEAD') ?? ''} ${worktreeTree(dir).tree}`
   } catch {
     return 'unknown'
   }
@@ -306,9 +322,40 @@ function converts(a, autocrlf) {
 }
 
 /**
+ * The raw bytes' blob id of each file (no clean filter, no eol conversion).
+ * A file that cannot be read is left out of the result.
+ *
+ * @param {string} root
+ * @param {string[]} paths raw repo-relative paths
+ * @param {boolean} write store the blobs in the object database
+ * @returns {Map<string, string>}
+ */
+function hashRaw(root, paths, write) {
+  /** @type {Map<string, string>} */ const out = new Map()
+  if (!paths.length) return out
+  const args = ['hash-object', ...(write ? ['-w'] : []), '--no-filters', '--stdin-paths']
+  // --stdin-paths reads lines and C-unquotes a line that starts with '"', so
+  // quoting every path keeps a leading quote, a newline or a CR intact.
+  const line = (/** @type {string} */ p) => `"${p.replace(/["\\]/g, '\\$&').replace(/\n/g, '\\n').replace(/\r/g, '\\r')}"\n`
+  const all = gitRaw(args, { cwd: root, input: paths.map(line).join(''), allowFail: true })
+  if (all.ok) {
+    const shas = all.stdout.split('\n')
+    paths.forEach((p, i) => shas[i] && out.set(p, String(shas[i])))
+    return out
+  }
+  // One unreadable file stops the batch: hash one by one, skipping failures.
+  for (const p of paths) {
+    const r = gitRaw(args, { cwd: root, input: line(p), allowFail: true })
+    if (r.ok && r.stdout.trim()) out.set(p, r.stdout.trim())
+  }
+  return out
+}
+
+/**
  * `git add` runs clean filters and eol conversion, so the staged blob of such a
- * file is not its bytes on disk. For those files the checkpoint also records
- * the raw bytes, which is what a revert writes back.
+ * file is not its bytes on disk, and a change to only the bytes it strips does
+ * not show in a tree diff. For every such file the checkpoint also records the
+ * raw bytes: a revert compares against and writes back those.
  *
  * @param {string} root
  * @param {Record<string, string>} env
@@ -316,8 +363,7 @@ function converts(a, autocrlf) {
  * @returns {string[]} index-info records
  */
 function rawOverrides(root, env, entries) {
-  // hash-object --stdin-paths reads lines and unquotes a leading '"'
-  const files = entries.filter(e => (e.mode === '100644' || e.mode === EXECUTABLE) && !e.path.includes('\n') && !e.path.startsWith('"'))
+  const files = entries.filter(e => e.mode === '100644' || e.mode === EXECUTABLE)
   if (!files.length) return []
   const autocrlf = autocrlfOn(root)
   const attrOut = gitRaw(['check-attr', '-z', '--stdin', ...CONVERSION_ATTRS], {
@@ -333,48 +379,101 @@ function rawOverrides(root, env, entries) {
     attrs.set(path, rec)
   }
   const candidates = files.filter(f => converts(attrs.get(f.path) ?? {}, autocrlf))
-  if (!candidates.length) return []
-  const hashed = gitRaw(['hash-object', '-w', '--no-filters', '--stdin-paths'], {
-    cwd: root,
-    input: candidates.map(c => `${c.path}\n`).join(''),
-    allowFail: true,
+  const raw = hashRaw(root, candidates.map(c => c.path), true)
+  return candidates.flatMap(c => {
+    const sha = raw.get(c.path)
+    return sha ? [`${c.mode} ${sha}\t${META}/raw/${c.path}\0`] : []
   })
-  if (!hashed.ok) return []
-  const shas = hashed.stdout.split('\n')
-  return candidates.flatMap((c, i) => {
-    const raw = shas[i]
-    return raw && raw !== c.sha ? [`${c.mode} ${raw}\t${META}/raw/${c.path}\0`] : []
-  })
+}
+
+// Markers of a git operation in progress, and how to forget each one while
+// leaving HEAD, the index and the working tree as they are.
+/** @type {[string, string[]][]} */
+const IN_PROGRESS = [
+  ['MERGE_HEAD', ['merge', '--quit']],
+  ['CHERRY_PICK_HEAD', ['cherry-pick', '--quit']],
+  ['REVERT_HEAD', ['revert', '--quit']],
+  ['sequencer', ['cherry-pick', '--quit']],
+  ['rebase-merge', ['rebase', '--quit']],
+  ['rebase-apply', ['rebase', '--quit']],
+  ['rebase-apply/applying', ['am', '--quit']],
+]
+
+/** Which in-progress markers exist now. @param {string} root */
+function inProgress(root) {
+  const args = IN_PROGRESS.flatMap(([m]) => ['--git-path', m])
+  const at = git(['rev-parse', '--path-format=absolute', ...args], { cwd: root }).stdout.split('\n')
+  return IN_PROGRESS.filter((_, i) => at[i] && existsSync(String(at[i]))).map(([m]) => m)
+}
+
+/**
+ * Parses `git status --porcelain=v2 -z` for untracked (`?`) and ignored (`!`)
+ * paths.
+ *
+ * @param {string} out
+ */
+function untrackedAndIgnored(out) {
+  const recs = out.split('\0')
+  /** @type {string[]} */ const paths = []
+  for (let i = 0; i < recs.length; i++) {
+    const rec = String(recs[i])
+    if (rec.startsWith('? ') || rec.startsWith('! ')) paths.push(rec.slice(2))
+    else if (rec.startsWith('2 ')) i++ // a rename record carries its source path next
+  }
+  return paths
 }
 
 /**
  * Writes the whole working tree (tracked and untracked, minus ignored files
  * and the loop's own directory) as a git tree object and returns its id. The
- * user's index, HEAD and stash are untouched.
- *
- * Under `.quality-loop/checkpoint/` (never part of a diff) the tree also
- * records what a faithful revert needs: HEAD, the real index as a tree, the
- * paths on disk that the tree does not hold (ignored or unindexable), the
- * state of nested repositories and the raw bytes of filtered files.
+ * user's index, HEAD and stash are untouched. This is the cheap snapshot for
+ * diffs; a round's revert target comes from `checkpointTree`.
  *
  * @param {string} root
  */
 export function snapshotTree(root) {
+  return worktreeTree(root).tree
+}
+
+/**
+ * A snapshot a round can be reverted to. Under `.quality-loop/checkpoint/`
+ * (never part of a diff) the tree also records what a faithful revert needs:
+ * the time, HEAD, the real index as a tree, git operations in progress, the
+ * paths on disk that the tree does not hold (ignored as matched by an ignore
+ * rule, or unreadable), the state of nested repositories and the raw bytes of
+ * files that a filter or eol conversion changes on the way in.
+ *
+ * @param {string} root
+ */
+export function checkpointTree(root) {
+  const time = Date.now()
   const head = revParse(root, 'HEAD') ?? ''
   const indexTree = realIndexTree(root)
+  const ops = inProgress(root)
   return withTempIndex(root, env => {
     stageWorktree(root, env)
     const entries = listIndex(root, env)
-    const offTree = gitRaw(['ls-files', '-z', '-o', '--directory', '--', '.', EXCLUDE], { cwd: root, env }).stdout
+    // After staging, what is still untracked could not be read; `matching`
+    // lists an ignored directory only when a rule ignores it as a whole, and
+    // otherwise the ignored files in it, so an empty directory or one holding
+    // only ignored files does not cover files created in it later.
+    const offTree = untrackedAndIgnored(
+      gitRaw(
+        ['status', '--porcelain=v2', '-z', '--no-renames', '--ignored=matching', '--untracked-files=all', '--ignore-submodules=all', '--', '.', EXCLUDE],
+        { cwd: root, env },
+      ).stdout,
+    )
     const nested = entries
       .filter(e => e.mode === GITLINK)
       .map(e => `${e.path}\0${nestedState(root, e.path)}\0`)
       .join('')
     /** @type {[string, string][]} */
     const blobs = [
+      ['time', String(time)],
       ['head', head],
       ['index', indexTree],
-      ['off-tree', offTree],
+      ['ops', ops.map(o => `${o}\0`).join('')],
+      ['off-tree', offTree.map(p => `${p}\0`).join('')],
       ['nested', nested],
     ]
     const records = [
@@ -388,8 +487,10 @@ export function snapshotTree(root) {
 
 /**
  * @typedef {{
+ *   time: number,
  *   head: string,
  *   index: string,
+ *   ops: string[] | null,
  *   offTree: Set<string>,
  *   nested: Map<string, string>,
  *   raw: Map<string, { mode: string, sha: string }>,
@@ -417,9 +518,12 @@ function readCheckpoint(root, tree) {
   /** @type {Map<string, string>} */ const nested = new Map()
   for (let i = 0; i + 1 < nestedParts.length; i += 2) nested.set(String(nestedParts[i]), String(nestedParts[i + 1]))
   return {
+    // no record (an older checkpoint): every kept file counts as touched
+    time: Number(text('time')) || 0,
     head: text('head'),
     index: text('index'),
-    offTree: new Set(text('off-tree').split('\0').filter(Boolean)),
+    ops: files.has('ops') ? nulList(text('ops')) : null,
+    offTree: new Set(nulList(text('off-tree'))),
     nested,
     raw,
   }
@@ -427,7 +531,7 @@ function readCheckpoint(root, tree) {
 
 /**
  * Was `p` on disk at the checkpoint without being in its tree (ignored,
- * unindexable, or inside such a directory)?
+ * unreadable, or inside a directory ignored as a whole)?
  *
  * @param {Set<string>} offTree
  * @param {string} p
@@ -451,6 +555,18 @@ function moveAside(root, p, trash) {
   const dest = `${trash}/${p}`
   mkdirSync(onDisk(root, parentOf(dest)), { recursive: true })
   renameSync(onDisk(root, p), onDisk(root, dest))
+}
+
+/**
+ * Did `p` change on disk (content, mode or creation) at or after `time`?
+ * ctime moves on every such change and cannot be set back by the round.
+ *
+ * @param {string} root @param {string} p @param {number} time ms since the epoch
+ */
+function touchedSince(root, p, time) {
+  const st = lstatOrNull(onDisk(root, p))
+  // whole milliseconds: a file written just before the checkpoint, in the same ms, is not "since"
+  return !st || st.ctimeMs >= time + 1
 }
 
 /** @param {Buffer} at */
@@ -530,6 +646,37 @@ function restoreIndex(root, meta, problems) {
 }
 
 /**
+ * Forgets a merge, cherry-pick, revert, rebase or am that the round started,
+ * leaving HEAD, index and working tree alone: otherwise a later plain
+ * `git commit` would record, say, a merge whose changes the revert dropped.
+ *
+ * @param {string} root
+ * @param {CheckpointMeta} meta
+ * @param {string[]} problems
+ */
+function quitOperations(root, meta, problems) {
+  if (!meta.ops) return
+  const before = new Set(meta.ops)
+  const started = () => inProgress(root).filter(m => !before.has(m))
+  const now = started()
+  if (!now.length) return
+  // `git am` keeps its state in rebase-apply too; it must be quit as an am
+  const am = now.includes('rebase-apply/applying')
+  const commands = new Set(
+    IN_PROGRESS.filter(([m]) => now.includes(m) && !(am && m === 'rebase-apply')).map(([, cmd]) => cmd.join(' ')),
+  )
+  /** @type {string[]} */ const errors = []
+  for (const cmd of commands) {
+    const r = git(cmd.split(' '), { cwd: root, allowFail: true })
+    if (!r.ok) errors.push(`git ${cmd}: ${r.stderr.trim()}`)
+  }
+  const left = started()
+  if (left.length) {
+    problems.push(`a git operation the round started is still in progress (${left.join(', ')}); ${errors.join('; ') || 'quitting it had no effect'}`)
+  }
+}
+
+/**
  * Makes the working tree and index match a checkpoint: files changed since are
  * rewritten byte for byte, files created since are moved to
  * `.quality-loop/trash/`. Paths that were on disk at the checkpoint but not in
@@ -544,7 +691,7 @@ function restoreIndex(root, meta, problems) {
  */
 export function restoreTree(root, tree) {
   const meta = readCheckpoint(root, tree)
-  const current = worktreeTree(root)
+  const { tree: current, skipped } = worktreeTree(root)
   const changes = parseRawDiff(
     gitRaw(['diff-tree', '-r', '-z', '--no-renames', current, tree, '--', '.', EXCLUDE], { cwd: root }).stdout,
   )
@@ -575,6 +722,14 @@ export function restoreTree(root, tree) {
     }
     if (wasOffTree(meta.offTree, c.path)) {
       kept.push(c.path)
+      // It was on disk then, but the round may have created or changed it
+      // (inside a directory ignored as a whole, say): nothing to restore it from.
+      if (touchedSince(root, c.path, meta.time)) {
+        problems.push(
+          `${shown(c.path)} was left in place: it was outside the checkpoint (ignored or unreadable), ` +
+            'so a version the round created or changed cannot be told apart from the original',
+        )
+      }
       continue
     }
     try {
@@ -583,6 +738,24 @@ export function restoreTree(root, tree) {
     } catch (e) {
       if (/** @type {NodeJS.ErrnoException} */ (e).code !== 'ENOENT') problems.push(`could not remove ${shown(c.path)}: ${/** @type {Error} */ (e).message}`)
     }
+  }
+
+  // A change to only the bytes a clean filter or eol conversion strips leaves
+  // the tree unchanged: compare the raw bytes of every such file.
+  const pending = new Set(writes.map(w => w.path))
+  const rawPaths = [...meta.raw.keys()].filter(p => !pending.has(p))
+  const rawNow = hashRaw(root, rawPaths, false)
+  for (const p of rawPaths) {
+    const was = meta.raw.get(p)
+    const now = rawNow.get(p)
+    if (was && now && now !== was.sha) writes.push({ path: p, ...was })
+  }
+
+  // What git could not read now: a checkpoint version is written over it
+  // below; anything else the round made unreadable stays and is reported.
+  for (const p of skipped) {
+    if (pending.has(p) || wasOffTree(meta.offTree, p)) continue
+    problems.push(`${shown(p)} could not be read (unreadable, or a repository with no commit), so it was not reverted`)
   }
 
   const blobs = readBlobs(root, writes.map(w => w.sha))
@@ -604,6 +777,7 @@ export function restoreTree(root, tree) {
   }
 
   restoreIndex(root, meta, problems)
+  quitOperations(root, meta, problems)
   return { restored: restored.map(shown), deleted: deleted.map(shown), kept: kept.map(shown), problems }
 }
 

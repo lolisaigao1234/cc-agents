@@ -58,6 +58,7 @@ Done when: every confirmed finding is marked or explicitly left for the next att
 |---|---|
 | `CONTINUE` | Next round from step 1. |
 | `REVERTED` (with `CONTINUE`) | The round's edits are gone. Read the reasons; the next attempt takes a different approach — the same fix reverts again. |
+| `REVERTED` (with `PAUSED`) | The revert could not undo everything: the `revert incomplete:` reasons say what is still on disk (commits, nested repositories, unreadable files). Make no edits. Show the user those reasons and wait for them. |
 | `DONE` | The finish line is met. `ql report`, present it. |
 | `CAPPED` | Stop. Report, and ask the user to reconsider the approach. Only the user can extend (`! ql extend`). |
 | `STALLED` | Stall analysis: read every remaining open or stuck finding and bucket it by root cause (wrong approach, ambiguous requirement, flaky check, finding that is really a false positive, needs a design decision). Make no edits. Report the buckets. |
