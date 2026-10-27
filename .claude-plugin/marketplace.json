@@ -1,0 +1,12 @@
+{
+  "name": "cc-agents",
+  "owner": { "name": "Rocky Wu" },
+  "description": "Claude Code agents and mods for code quality.",
+  "plugins": [
+    {
+      "name": "quality-loop",
+      "source": "./plugins/quality-loop",
+      "description": "Review → verify → fix → validate loop with parallel subagents, quorum verification, regression-safe reverts and a reviewer eval harness."
+    }
+  ]
+}

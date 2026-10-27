@@ -1,0 +1,4 @@
+#!/bin/sh
+# ql: the quality-loop core. Claude Code puts this plugin's bin/ on the Bash
+# tool's PATH; skills call it by absolute path.
+exec node "$(dirname "$0")/../scripts/ql.mjs" "$@"

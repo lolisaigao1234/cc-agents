@@ -1,0 +1,9 @@
+{
+  "name": "quality-loop",
+  "version": "0.1.0",
+  "description": "Repository-agnostic review → verify → fix → validate loop: parallel bug-hunter subagents, quorum verification, regression-safe fixes with automatic revert, convergence limits, and a reviewer eval harness for hill climbing.",
+  "author": { "name": "Rocky Wu" },
+  "license": "MIT",
+  "keywords": ["code-review", "debugging", "evals", "hill-climbing", "subagents", "mods"],
+  "types": "./types/index.d.ts"
+}

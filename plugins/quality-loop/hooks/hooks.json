@@ -1,0 +1,23 @@
+{
+  "modules": ["./quality-loop.tsx"],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/ql.mjs\" hook pre-tool-use", "timeout": 10 }]
+      }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/ql.mjs\" hook stop", "timeout": 10 }] }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact|resume",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/ql.mjs\" hook session-start", "timeout": 10 }]
+      }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/ql.mjs\" hook user-prompt-submit", "timeout": 10 }] }
+    ]
+  }
+}

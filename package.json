@@ -1,0 +1,21 @@
+{
+  "name": "cc-agents",
+  "private": true,
+  "type": "module",
+  "description": "Development tooling for the quality-loop Claude Code plugin",
+  "scripts": {
+    "test": "node --test 'test/*.test.mjs'",
+    "typecheck": "tsc -p tsconfig.json",
+    "typecheck:mod": "tsc -p plugins/quality-loop/tsconfig.json",
+    "test:mod": "claude plugin test plugins/quality-loop",
+    "validate": "claude plugin validate plugins/quality-loop && claude plugin validate .",
+    "check": "npm run typecheck && npm test && npm run validate && npm run test:mod"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
