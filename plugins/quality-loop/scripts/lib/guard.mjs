@@ -164,7 +164,7 @@ export function parseCommands(src, depth = 0) {
   let writes = []
   /** @type {string | null} */
   let word = null
-  /** @type {'write' | 'read' | null} */
+  /** `dup`: after `>&`, where a descriptor number or `-` names no file. @type {'write' | 'dup' | 'read' | null} */
   let redirect = null
   /** @type {{ delim: string, strip: boolean, words: string[] }[]} */
   let heredocs = []
@@ -175,8 +175,8 @@ export function parseCommands(src, depth = 0) {
   const endWord = () => {
     if (word === null) return
     const expanded = expandBraces(word)
-    if (redirect === 'write') writes.push(...expanded)
-    else if (redirect !== 'read') words.push(...expanded)
+    if (redirect === 'write' || (redirect === 'dup' && !/^(?:\d+-?|-)$/.test(word))) writes.push(...expanded)
+    else if (redirect !== 'read' && redirect !== 'dup') words.push(...expanded)
     redirect = null
     word = null
   }
@@ -303,8 +303,8 @@ export function parseCommands(src, depth = 0) {
       } else {
         let k = i + 1
         if (src[k] === '>' || src[k] === '|') k++
+        redirect = src[k] === '&' ? 'dup' : 'write'
         if (src[k] === '&') k++
-        redirect = 'write'
         i = k
       }
     } else {
@@ -754,8 +754,16 @@ function writeTargets(c, gitStatus) {
   const ops = operands(c.args)
   switch (c.name) {
     case 'tee':
+    case 'touch':
+    case 'mkdir':
       add(ops)
       break
+    case 'patch': {
+      // It patches the files the diff names, under -d <dir> or the working directory.
+      const d = c.args.findIndex(a => a === '-d' || a === '--directory')
+      add([d >= 0 ? (c.args[d + 1] ?? '.') : '.'])
+      break
+    }
     case 'sed':
     case 'gsed':
     case 'perl':
@@ -1326,14 +1334,34 @@ function gitEffect(args) {
   if (!sub) return null
   if (sub === 'stash') return ['list', 'show'].includes(rest[0] ?? '') ? null : 'moves'
   if (sub === 'branch' || sub === 'tag') {
-    const listing = opts.every(o => o.startsWith('-') && !/^-(?:[dDmMcCf]|-delete|-move|-copy|-force)/.test(o))
-    return listing && !operands(rest).length ? null : 'moves'
+    if (opts.some(o => /^-(?:[dDmMcCf]+|-delete|-move|-copy|-force)$/.test(o))) return 'moves'
+    // Listing options take patterns or commits as operands.
+    const list = sub === 'branch' ? /^(?:-[lavr]+|--(?:list|contains|no-contains|merged|no-merged|points-at|show-current|all|remotes|verbose|format|sort))(?:=|$)/ : /^(?:-l|-n\d*|--(?:list|contains|no-contains|merged|no-merged|points-at|format|sort))(?:=|$)/
+    return opts.some(o => list.test(o)) || !operands(rest).length ? null : 'moves'
   }
-  // `git checkout <branch>` moves HEAD; `git checkout -- <path>` only rewrites files.
-  if (sub === 'checkout') return rest.includes('--') ? 'changes' : 'moves'
+  // `git checkout <branch>` moves HEAD; `git checkout [<rev>] -- <path>` and `git checkout <rev> <path>` only rewrite files.
+  if (sub === 'checkout') return rest.includes('--') || operands(rest).length > 1 ? 'changes' : 'moves'
   if (sub === 'apply' && opts.some(o => ['--check', '--stat', '--numstat', '--summary'].includes(o)) && !opts.includes('--index') && !opts.includes('--apply')) return null
   if (GIT_MOVES.has(sub)) return 'moves'
   return GIT_CHANGES.has(sub) ? 'changes' : null
+}
+
+const INSTALLERS = new Set(['npm', 'pnpm', 'yarn', 'bun'])
+const INSTALL = new Set(['install', 'i', 'ci', 'add', 'remove', 'rm', 'uninstall', 'update', 'up', 'upgrade', 'link'])
+
+/**
+ * The tool a command runs that rewrites files in its working directory as
+ * a whole (a package install, a formatter or linter fixing in place, a test
+ * runner updating snapshots), or null.
+ *
+ * @param {SimpleCommand} c
+ */
+function inPlaceWriter(c) {
+  const words = [c.name, ...c.args]
+  if (INSTALLERS.has(c.name) && (INSTALL.has(c.args[0] ?? '') || (c.name === 'yarn' && !c.args.length))) return `${c.name} ${c.args[0] ?? ''}`.trim()
+  if (c.args.some(a => a === '--write' || a === '--fix' || a.startsWith('--fix='))) return words.slice(0, 3).join(' ')
+  if (words.some(w => /(?:^|\/)(?:jest|vitest)$/.test(w)) && c.args.some(a => a === '-u' || a === '--updateSnapshot' || a === '--update')) return words.slice(0, 3).join(' ')
+  return null
 }
 
 /**
@@ -1355,7 +1383,6 @@ export function evaluateAgentGuard(g) {
   const root = realish(resolve(g.root))
   const work = join(root, WORK_DIR)
   const loopDir = join(root, LOOP_DIR)
-  const within = (/** @type {string} */ p, /** @type {string} */ dir) => p === dir || p.startsWith(`${dir}/`)
   /** Why writing `path` (from `cwd`) is denied, or null. @param {string} path @param {string | null} cwd */
   const writeDenied = (path, cwd) => {
     if (/[$`~]/.test(path) || (cwd === null && !path.startsWith('/'))) return null
@@ -1386,6 +1413,8 @@ export function evaluateAgentGuard(g) {
   /** @type {string | null} */
   let cwd = g.cwd ?? root
   for (const c of parseCommands(String(g.input.command ?? ''))) {
+    const tool = readOnly && cwd !== null && within(realish(cwd), root) ? inPlaceWriter(c) : null
+    if (tool) return `quality-loop: the ${name} agent is read-only in the repository, and \`${tool}\` rewrites files in it. Run it in a worktree of your own under a temporary directory, or report what you found instead.`
     if (c.name === 'cd') {
       const to = operands(c.args)[0]
       cwd = to === undefined || to === '-' || /[$`~]/.test(to) || cwd === null ? null : resolve(cwd, to)
@@ -1393,6 +1422,13 @@ export function evaluateAgentGuard(g) {
     }
     for (const t of writeTargets(c, guessGitStatus)) {
       const why = writeDenied(t.path, cwd)
+      if (why) return why
+    }
+    if (c.name === 'git' && readOnly) {
+      // A worktree of its own is fine anywhere but inside the repository.
+      const { sub, rest } = gitParts(c.args)
+      const path = sub === 'worktree' && rest[0] === 'add' ? operands(rest.slice(1), ['-b', '-B', '--reason'])[0] : undefined
+      const why = path === undefined ? null : writeDenied(path, cwd)
       if (why) return why
     }
     if (c.name === 'git') {

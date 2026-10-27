@@ -82,3 +82,33 @@ test('agent guard: with QL_GUARD_LOG set, each plugin agent call is logged with 
   const lines = readFileSync(log, 'utf8').trim().split('\n').map(l => JSON.parse(l))
   assert.deepEqual(lines.map(l => [l.agent, l.tool, !!l.denied]), [['bug-hunter', 'Edit', true], ['bug-hunter', 'Bash', false]])
 })
+
+test('agent guard: duplicating a file descriptor (2>&1, >&2, >&-) writes no file (live e2e: every `npm test 2>&1` was denied)', () => {
+  const root = repo()
+  const v = 'quality-loop:finding-verifier'
+  for (const cmd of ['npm test 2>&1 | tail -5', 'node x.mjs >/dev/null 2>&1', 'echo oops >&2', 'cmd 1>&-', 'cmd 2>&1 1>/dev/null']) {
+    assert.equal(denial(v, 'Bash', { command: cmd }, root), null, cmd)
+  }
+  // `>&word` with a file name is a redirect of both streams into that file
+  assert.match(denial(v, 'Bash', { command: 'npm test >&out.txt' }, root) ?? '', /read-only.*out\.txt/)
+})
+
+test('agent guard: a read-only agent is denied the ordinary commands that write files in place (spec review)', () => {
+  const root = repo()
+  const h = 'quality-loop:bug-hunter'
+  for (const cmd of ['touch src/new.js', 'mkdir src/tmp', 'patch -p1 < /tmp/x.diff', 'npm install', 'pnpm add left-pad', 'npx prettier --write src', 'npx eslint --fix src', 'npx jest -u', 'npx vitest run --update', 'git worktree add .wt HEAD']) {
+    assert.match(denial(h, 'Bash', { command: cmd }, root) ?? '', /read-only/, cmd)
+  }
+  for (const cmd of ['touch /tmp/x', 'mkdir -p .quality-loop/work/s', 'npx prettier --check src', 'npx eslint src', 'npx jest', 'cd /tmp && npm install', 'git worktree add /tmp/wt HEAD']) {
+    assert.equal(denial(h, 'Bash', { command: cmd }, root), null, cmd)
+  }
+})
+
+test('agent guard: listing branches and tags, and checking a path out of a revision, are not ref moves (spec review)', () => {
+  const root = repo()
+  for (const cmd of ['git branch --contains HEAD', "git branch --list 'fix*'", "git tag -l 'v*'", 'git branch -a', 'git branch --show-current']) {
+    assert.equal(denial('quality-loop:finding-verifier', 'Bash', { command: cmd }, root), null, cmd)
+  }
+  assert.equal(denial('quality-loop:fixer', 'Bash', { command: 'git checkout HEAD~1 src/a.js' }, root), null)
+  assert.match(denial('quality-loop:fixer', 'Bash', { command: 'git branch -D old' }, root) ?? '', /no commits/)
+})

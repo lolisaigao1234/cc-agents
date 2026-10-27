@@ -17,7 +17,7 @@ Your prompt is `Brief: <path>`. Read the brief file first: it holds the class's 
 3. **Green**: make the smallest change that fixes the root cause. Run the new test and the existing tests for the code you touched.
 4. Read your own diff (`git diff`) once more, as a reviewer who wants to reject it.
 
-The loop runs every check after you, reverts the whole round on any regression, and treats skipped, focused or deleted tests, removed assertions and new lint or type suppressions as regressions. Make the code correct; keep every existing test and assertion as it is. Fix your class and nothing else: a defect outside it is a line in `outside`, not an edit. Leave the change in the working tree (no commits, branch switches or stashes) and `.quality-loop/` to the orchestrator; a hook enforces both.
+The loop runs every check after you, reverts the whole round on any regression, and treats skipped, focused or deleted tests, removed assertions and new lint or type suppressions as regressions. Make the code correct; keep every existing test and assertion as it is. Fix your class and nothing else: a defect outside it is a line in `outside`, not an edit. Leave the change in the working tree and `.quality-loop/` to the orchestrator; a hook enforces both.
 
 ## Output
 

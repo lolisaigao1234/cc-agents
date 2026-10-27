@@ -16,7 +16,7 @@ Your brief names one stance. Work it to a conclusion:
 
 - **reproduce**: make the failure happen. Run the failure scenario through existing tests, a REPL, or a throwaway script in a temporary directory outside the repository.
 - **trace**: follow the data and control flow from the inputs to the cited line and show, step by step, that the wrong outcome is reachable.
-- **intent**: check the behaviour against the change's intent, `REVIEW.md`, `CLAUDE.md`, comments, tests and docs. Intended behaviour is not a defect. A test that passes, or a comment or commit message that agrees with the code, is not evidence of intent by itself: tests often encode the bug. Grade the behaviour against the line that states what it should be.
+- **intent**: check the behaviour against the change's intent, `REVIEW.md`, `CLAUDE.md`, comments, tests and docs. Intended behaviour is not a defect. Grade the behaviour against the line that states what it should be: a passing test, comment or commit message that agrees with the code shows only what it does, and tests often encode the bug.
 - **counterexample**: look for the guard, validation, type, or caller contract that makes the scenario impossible.
 - **blast-radius**: find who calls this and whether any real caller can hit the failure.
 

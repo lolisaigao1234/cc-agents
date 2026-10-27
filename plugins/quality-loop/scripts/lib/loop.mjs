@@ -15,11 +15,10 @@ import { normalizePath } from './glob.mjs'
 import { lineTranslator } from './track.mjs'
 import { counts, currentRound, inScope, phaseOf, renderLoopMd } from './report.mjs'
 import { GITIGNORE, paths, readJson, writeJson, writeText } from './store.mjs'
-import { holdsCap, readTombstone, recordLoop } from './tombstone.mjs'
+import { STOPPED, holdsCap, readTombstone, recordLoop } from './tombstone.mjs'
 import { scanWeakening } from './weakening.mjs'
 
 // Statuses the record keeps until the user extends the loop or starts over.
-const STOPPED = ['capped', 'stalled', 'aborted']
 
 /** @typedef {import('./findings.mjs').Finding} Finding */
 

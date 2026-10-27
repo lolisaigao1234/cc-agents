@@ -7,6 +7,6 @@
 - `ql mark <id> fixed --reason "<what changed; regression test name; command and result>"`
 - `ql mark <id> wontfix --reason "<why>"` only when the behaviour is intended (REVIEW.md, CLAUDE.md or the user says so) or out of the change's scope. Getting to green is never a reason.
 
-A finding the fixer could not fix stays confirmed; the loop counts its attempts and escalates it as stuck. A fixer's `outside` lines are defects beyond its class that it left alone: pass them on to the user with the report.
+A finding the fixer could not fix stays confirmed; the loop counts its attempts and escalates it as stuck. Pass a fixer's `outside` lines on to the user with the report: they are defects beyond its class that it left alone.
 
 Done when: every confirmed finding is marked or explicitly left for the next attempt.

@@ -42,6 +42,7 @@ const guardLog = name => join(work, `${name}.guard.jsonl`)
  */
 function guardSaw(name, agents) {
   const calls = existsSync(guardLog(name)) ? readFileSync(guardLog(name), 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)) : []
+  console.log(`  guard saw: ${[...new Set(calls.map(c => c.agent))].join(', ') || 'no plugin agent'} (${calls.length} calls)`)
   for (const c of calls.filter(c => c.denied)) console.log(`  guard denied ${c.agent} ${c.tool}: ${c.denied}`)
   return agents.filter(a => !calls.some(c => c.agent === a)).map(a => `the guard saw no call by ${a}`)
 }
@@ -92,7 +93,7 @@ const SCENARIOS = {
     if (s.status !== 'done') problems.push(`loop ended ${s.status}: ${s.statusReasons.join('; ')}`)
     if (!fixedBoth(root)) problems.push('root cause not fully fixed')
     if (!tests(root)) problems.push('npm test fails')
-    return problems
+    return [...problems, ...guardSaw('debug', [])]
   },
   eval() {
     // The fixture's bug commit as an eval case, plus its clean base commit.

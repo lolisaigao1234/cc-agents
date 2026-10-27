@@ -142,7 +142,8 @@ export function tombstoneFile(root) {
 
 // Statuses a loop leaves only by the user's hand: `ql extend` (capped,
 // stalled) or a forced restart, which records a new loop.
-const STICKY = ['capped', 'stalled', 'aborted']
+/** The statuses only the user clears (`ql extend`, `ql start --force`). */
+export const STOPPED = ['capped', 'stalled', 'aborted']
 
 /**
  * Whether a recorded loop keeps `ql start` from starting over: it spent
@@ -179,7 +180,7 @@ export function mergeRecord(prev, next, how) {
   // Done only as ql decided it: by `round end`, or by `finish` for a loop
   // that was review-only from its start.
   const finished = how === 'end' && (!next.reviewOnly || !!prev.reviewOnly)
-  const keep = (STICKY.includes(prev.status) && !lift) || (next.status === 'done' && prev.status !== 'done' && !finished)
+  const keep = (STOPPED.includes(prev.status) && !lift) || (next.status === 'done' && prev.status !== 'done' && !finished)
   return {
     ...next,
     status: keep ? prev.status : next.status,
