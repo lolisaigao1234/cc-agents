@@ -565,7 +565,7 @@ test('an unreadable directory the round created is reported; one that was there 
   }
 })
 
-test('an ignored file that a merge or rebase the round started clobbered, and the abort removed, is reported', () => {
+test('an ignored file that a merge or rebase the round started clobbered is kept as the round left it and reported', () => {
   for (const op of [['merge', 'other'], ['rebase', 'other'], ['cherry-pick', 'other']]) {
     const root = makeRepo({ '.gitignore': '.env\n', 'a.txt': 'base\n' })
     git(['checkout', '-q', '-b', 'other'], { cwd: root })
@@ -583,8 +583,9 @@ test('an ignored file that a merge or rebase the round started clobbered, and th
     const out = restoreTree(root, cp)
     assert.equal(branchOf(root), 'main', op.join(' '))
     assert.equal(readFileSync(`${root}/a.txt`, 'utf8'), 'main\n', op.join(' '))
-    // the original cannot be brought back, but it never disappears silently
+    // the original cannot be brought back, but the revert never removes the file, and says so
     assert.equal(out.problems.filter(p => p.includes('.env')).length, 1, `${op.join(' ')}: ${out.problems.join('\n')}`)
+    assert.equal(readFileSync(`${root}/.env`, 'utf8'), 'FROM_OTHER\n', op.join(' '))
     assert.equal(git(['ls-files', '.env'], { cwd: root }).stdout, '', op.join(' '))
   }
 })
@@ -646,4 +647,85 @@ test('a round that ran `git rebase other feature` and stopped on a conflict is b
   assert.equal(branchOf(root), 'main')
   assert.equal(git(['rev-parse', 'feature'], { cwd: root }).stdout.trim(), feature)
   assert.equal(git(['status', '--porcelain'], { cwd: root }).stdout, '')
+})
+
+// --- round 3: the verifier's findings on round 2
+
+test('an ignored file the round only force-staged during a merge or rebase survives the abort (verifier r2: --abort)', () => {
+  for (const op of [['merge', 'other'], ['rebase', 'other']]) {
+    const root = divergedRepo()
+    writeFileSync(`${root}/.gitignore`, '.env\n')
+    git(['add', '.gitignore'], { cwd: root })
+    git(['commit', '-qm', 'ignore'], { cwd: root })
+    writeFileSync(`${root}/.env`, 'SECRET=1\n')
+    const cp = checkpointTree(root)
+
+    assert.equal(git(op, { cwd: root, allowFail: true }).ok, false, op.join(' '))
+    git(['add', '-f', '.env'], { cwd: root })
+    const out = restoreTree(root, cp)
+    assert.deepEqual(out.problems, [], op.join(' '))
+    assert.equal(readFileSync(`${root}/.env`, 'utf8'), 'SECRET=1\n', op.join(' '))
+    assert.equal(git(['ls-files', '.env'], { cwd: root }).stdout, '', op.join(' '))
+    assert.equal(branchOf(root), 'main', op.join(' '))
+    assert.equal(git(['status', '--porcelain'], { cwd: root }).stdout, '', op.join(' '))
+  }
+})
+
+test('a branch the round moved backwards on a visit is reported, even with no new commits (verifier r2: madeCommits)', () => {
+  const root = makeRepo({ 'a.txt': 'a\n' })
+  git(['checkout', '-q', '-b', 'other'], { cwd: root })
+  for (const n of ['o1', 'o2']) {
+    writeFileSync(`${root}/${n}.txt`, `${n}\n`)
+    git(['add', '-A'], { cwd: root })
+    git(['commit', '-qm', n], { cwd: root })
+  }
+  const o2 = headOf(root)
+  git(['checkout', '-q', 'main'], { cwd: root })
+  const cp = checkpointTree(root)
+
+  git(['switch', '-q', 'other'], { cwd: root })
+  git(['reset', '-q', '--hard', 'HEAD~1'], { cwd: root })
+  const out = restoreTree(root, cp)
+  assert.equal(branchOf(root), 'main')
+  assert.equal(out.problems.length, 1, out.problems.join('\n'))
+  assert.match(out.problems[0] ?? '', /\bother\b/)
+  assert.match(out.problems[0] ?? '', new RegExp(o2))
+
+  // the same while HEAD stays on its branch: another branch moved, or was deleted
+  const root2 = makeRepo({ 'a.txt': 'a\n' })
+  git(['branch', 'keep'], { cwd: root2 })
+  writeFileSync(`${root2}/a.txt`, 'b\n')
+  git(['commit', '-qam', 'b'], { cwd: root2 })
+  git(['branch', 'gone'], { cwd: root2 })
+  const keep = git(['rev-parse', 'keep'], { cwd: root2 }).stdout.trim()
+  const cp2 = checkpointTree(root2)
+  git(['branch', '-f', 'keep', 'HEAD'], { cwd: root2 })
+  git(['branch', '-D', 'gone'], { cwd: root2 })
+  const out2 = restoreTree(root2, cp2)
+  assert.equal(out2.problems.length, 2, out2.problems.join('\n'))
+  assert.ok(out2.problems.some(p => p.includes('keep') && p.includes(keep)), out2.problems.join('\n'))
+  assert.ok(out2.problems.some(p => p.includes('gone')), out2.problems.join('\n'))
+
+  // a branch the round created holding commits it made, while HEAD came back
+  const root3 = makeRepo({ 'a.txt': 'a\n' })
+  const cp3 = checkpointTree(root3)
+  git(['switch', '-q', '-c', 'side'], { cwd: root3 })
+  writeFileSync(`${root3}/a.txt`, 'side\n')
+  git(['commit', '-qam', 'side'], { cwd: root3 })
+  git(['switch', '-q', 'main'], { cwd: root3 })
+  const out3 = restoreTree(root3, cp3)
+  assert.equal(out3.problems.length, 1, out3.problems.join('\n'))
+  assert.match(out3.problems[0] ?? '', /\bside\b/)
+})
+
+test('a branch moved in another worktree during the round is not the round\'s doing', () => {
+  const root = makeRepo({ 'a.txt': 'a\n' })
+  const wt = `${root}-wt`
+  git(['worktree', 'add', '-q', '-b', 'agent', wt], { cwd: root })
+  const cp = checkpointTree(root)
+  writeFileSync(`${wt}/a.txt`, 'theirs\n')
+  git(['commit', '-qam', 'theirs'], { cwd: wt })
+  writeFileSync(`${root}/a.txt`, 'broken\n')
+  const out = restoreTree(root, cp)
+  assert.deepEqual(out.problems, [])
 })

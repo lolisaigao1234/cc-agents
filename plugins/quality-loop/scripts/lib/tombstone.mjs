@@ -140,26 +140,79 @@ export function tombstoneFile(root) {
  * @typedef {{ root: string, id: string, status: string, round: number, maxRounds: number | null, reviewOnly: boolean, at: string }} Tombstone
  */
 
+// Statuses a loop leaves only by the user's hand: `ql extend` (capped,
+// stalled) or a forced restart, which records a new loop.
+const STICKY = ['capped', 'stalled', 'aborted']
+
 /**
- * Records a loop's latest status and round count.
+ * Whether a recorded loop keeps `ql start` from starting over: it spent
+ * rounds (or hit its cap) without finishing.
+ *
+ * @param {Tombstone} t
+ */
+export function holdsCap(t) {
+  if (t.status === 'done' || t.reviewOnly) return false
+  return t.round > 0 || t.status === 'capped' || t.status === 'stalled'
+}
+
+/**
+ * Merges what the state says into the last record of the same loop, so the
+ * record only ever gets stricter: the round never goes down, a capped,
+ * stalled or aborted loop keeps that status, a loop is recorded done only
+ * when ql finishes it, it never becomes review-only afterwards, and the
+ * round budget never goes up. A state edited outside ql therefore cannot
+ * launder the record through the next command that saves it. Only `ql
+ * start` records a new loop over one that holds the cap (the guard keeps
+ * `--force` from the agent), and only `ql extend`, which the guard keeps from
+ * the agent, lifts a capped or stalled record and raises its budget.
+ *
+ * @param {Tombstone | null} prev
+ * @param {Tombstone} next
+ * @param {'start' | 'extend' | 'end'} [how] `end`: `ql round end` or `ql finish` decided the status
+ * @returns {Tombstone | null} the record to write, or null to keep `prev`
+ */
+export function mergeRecord(prev, next, how) {
+  if (!prev || how === 'start') return next
+  if (prev.id !== next.id) return holdsCap(prev) ? null : next
+  const lift = how === 'extend' && (prev.status === 'capped' || prev.status === 'stalled')
+  const budget = [prev.maxRounds, next.maxRounds].filter(n => typeof n === 'number')
+  // Done only as ql decided it: by `round end`, or by `finish` for a loop
+  // that was review-only from its start.
+  const finished = how === 'end' && (!next.reviewOnly || !!prev.reviewOnly)
+  const keep = (STICKY.includes(prev.status) && !lift) || (next.status === 'done' && prev.status !== 'done' && !finished)
+  return {
+    ...next,
+    status: keep ? prev.status : next.status,
+    round: Math.max(Number(prev.round) || 0, next.round),
+    reviewOnly: !!prev.reviewOnly && next.reviewOnly,
+    maxRounds: lift ? next.maxRounds : budget.length ? Math.min(...budget) : null,
+  }
+}
+
+/**
+ * Records a loop's latest status and round count, never less strictly than
+ * the last record of the same loop (`mergeRecord`).
  *
  * @param {string} root
  * @param {any} s the loop's state
+ * @param {'start' | 'extend' | 'end'} [how] the ql command saving it, when it may replace, lift or finish the record
  */
-export function recordLoop(root, s) {
+export function recordLoop(root, s, how) {
   try {
     const file = tombstoneFile(root)
     if (!file) return
     /** @type {Tombstone} */
-    const t = {
+    const next = {
       root,
       id: String(s.id),
       status: String(s.status),
       round: Number(s.round) || 0,
-      maxRounds: s.config?.loop?.maxRounds ?? null,
+      maxRounds: typeof s.config?.loop?.maxRounds === 'number' ? s.config.loop.maxRounds : null,
       reviewOnly: !!s.reviewOnly,
       at: new Date().toISOString(),
     }
+    const t = mergeRecord(readTombstone(root), next, how)
+    if (!t) return
     mkdirSync(dirname(file), { recursive: true })
     const tmp = `${file}.${process.pid}.tmp`
     writeFileSync(tmp, `${JSON.stringify(t, null, 2)}\n`)

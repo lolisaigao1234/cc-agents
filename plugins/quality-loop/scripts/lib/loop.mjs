@@ -15,8 +15,11 @@ import { normalizePath } from './glob.mjs'
 import { lineTranslator } from './track.mjs'
 import { counts, currentRound, inScope, phaseOf, renderLoopMd } from './report.mjs'
 import { GITIGNORE, paths, readJson, writeJson, writeText } from './store.mjs'
-import { readTombstone, recordLoop } from './tombstone.mjs'
+import { holdsCap, readTombstone, recordLoop } from './tombstone.mjs'
 import { scanWeakening } from './weakening.mjs'
+
+// Statuses the record keeps until the user extends the loop or starts over.
+const STOPPED = ['capped', 'stalled', 'aborted']
 
 /** @typedef {import('./findings.mjs').Finding} Finding */
 
@@ -92,12 +95,16 @@ export function loadState(root) {
   return readJson(paths(root).state)
 }
 
-/** @param {string} root @param {any} s */
-export function saveState(root, s) {
+/**
+ * @param {string} root
+ * @param {any} s
+ * @param {'start' | 'extend' | 'end'} [how] `ql start` records a new loop, `ql extend` lifts its cap, `ql round end` and `ql finish` decide its status (see recordLoop)
+ */
+export function saveState(root, s, how) {
   s.updatedAt = new Date().toISOString()
   writeJson(paths(root).state, s)
   writeText(paths(root).loopMd, renderLoopMd(s))
-  recordLoop(root, s)
+  recordLoop(root, s, how)
 }
 
 /** @param {string} root */
@@ -166,8 +173,7 @@ export function startRefusal(root, prev) {
   const own = restartRefusal(prev)
   if (own) return own
   const t = readTombstone(root)
-  if (!t || t.status === 'done' || t.reviewOnly) return null
-  if (!(t.round > 0) && !['capped', 'stalled'].includes(t.status)) return null
+  if (!t || !holdsCap(t)) return null
   const how = t.id === prev?.id ? 'edited outside ql' : prev ? 'replaced' : 'deleted'
   return `the loop ${t.id} was ${t.status} at round ${t.round}${t.maxRounds ? ` of ${t.maxRounds}` : ''} when its state in .quality-loop/ was ${how}. Starting over would reset its round cap, which only the user may do: report to the user, who can run \`! ql start --force ...\`.`
 }
@@ -227,7 +233,7 @@ export async function start(root, opts) {
     s.config.loop.maxRounds = 1
     s.baseline.run = { label: 'baseline', results: [] }
     s.lastRun = s.baseline.run
-    saveState(root, s)
+    saveState(root, s, 'start')
     return s
   }
   const specs = checkSpecs(s)
@@ -246,7 +252,7 @@ export async function start(root, opts) {
       s.statusReasons = ['the repro command passes before any fix: the bug does not reproduce. Fix the repro command, then `ql start` again.']
     }
   }
-  saveState(root, s)
+  saveState(root, s, 'start')
   return s
 }
 
@@ -254,10 +260,24 @@ export async function start(root, opts) {
 export function beginRound(root) {
   const s = requireState(root)
   requirePhase(s, ['begin'], 'begin a round')
+  // The record, not the state, says whether the loop may run on: a state
+  // edited back to active, or put in place of a loop that holds the cap,
+  // runs no rounds (see recordLoop).
+  const t = readTombstone(root)
+  const held = t && (t.id === s.id ? STOPPED.includes(t.status) : holdsCap(t))
+  if (t && held) {
+    throw new LoopError(
+      `ql records the loop here (${t.id}) as ${t.status} at round ${t.round}; the state in .quality-loop/ says otherwise, so it was edited outside ql. Only the user may extend it (\`! ql extend\`) or start over (\`! ql start --force ...\`). Report to the user.`,
+    )
+  }
   s.round += 1
   s.rounds.push({
     n: s.round,
     startCheckpoint: checkpointTree(root),
+    // The ledger as the round found it, for a revert to put back a finding
+    // the round re-reported on code of its own (see endRound). Dropped when
+    // the round ends.
+    preRound: structuredClone(s.ledger.findings),
     startedAt: new Date().toISOString(),
     ingests: 0,
     fixedIds: [],
@@ -302,8 +322,15 @@ function scopeDiff(root, s) {
   return { diffOnly, from, tree, diff: diffTrees(root, from, tree) }
 }
 
-/** @param {any} s whether a confirmed in-scope finding is open, so `ql next` asks for a fix */
-const fixPending = s => /** @type {Finding[]} */ (Object.values(s.ledger.findings)).some(f => f.status === 'confirmed' && inScope(s, f))
+/**
+ * Whether an important confirmed in-scope finding is open: the fix step an
+ * empty-scope record is kept for. An open nit never blocks the finish line,
+ * so it does not keep the fix step (and its exemption from review) going.
+ *
+ * @param {any} s
+ */
+const fixPending = s =>
+  /** @type {Finding[]} */ (Object.values(s.ledger.findings)).some(f => f.status === 'confirmed' && f.severity === 'important' && inScope(s, f))
 
 /**
  * An empty scope recorded with `ingest --none --lens scope` closes the review
@@ -311,11 +338,12 @@ const fixPending = s => /** @type {Finding[]} */ (Object.values(s.ledger.finding
  * begin`; once anything changes, the record no longer holds and every lens
  * must review the change. Returns whether the record was dropped.
  *
- * The one exception is the round's fix step: recorded while findings were
- * open (and no debug fix was still to come), the review closed and `ql next`
- * went on to ask for fixes, which are reviewed next round as in any round.
- * The fix step ends when the last open finding is marked (`fixEndTree`); a
- * change after that is unreviewed again.
+ * The one exception is the round's fix step: recorded while important
+ * findings were open (and no debug fix was still to come), the review closed
+ * and `ql next` went on to ask for fixes, which are reviewed next round as in
+ * any round. The fix step ends when the last open important finding is
+ * marked (`fixEndTree`); a change after that is unreviewed again, and `ql
+ * next` says so (`editsNeedReview`).
  *
  * @param {any} s
  * @param {string} diff the current scope diff
@@ -374,11 +402,12 @@ export function ingest(root, raws, lens) {
     if (scopeNow.trim()) {
       throw new LoopError(`the scope is not empty: review it with one bug hunter per lens (${lenses.join(', ')}) and ingest each`)
     }
-    // With findings open, `ql next` goes on to the fix step, whose changes
-    // must not make the record stale (see dropStaleEmptyScope). With none,
-    // the next step is `round end`, and any change is unreviewed. A debug
-    // round whose repro still fails has its root-cause fix still to come,
-    // and that fix is reviewed this round whatever else is open.
+    // With important findings open, `ql next` goes on to the fix step, whose
+    // changes must not make the record stale (see dropStaleEmptyScope). With
+    // none, any change is unreviewed, and `ql next` says so
+    // (editsNeedReview). A debug round whose repro still fails has its
+    // root-cause fix still to come, and that fix is reviewed this round
+    // whatever else is open.
     const debugFixToCome = !!s.repro && !s.lastRun?.results?.find((/** @type {any} */ x) => x.name === 'repro')?.ok
     r.scopeEmptyBeforeFix = !debugFixToCome && fixPending(s)
     delete r.fixEndTree
@@ -471,9 +500,17 @@ export function mark(root, id, status, reason) {
   f.resolution = reason.trim()
   const r = currentRound(s)
   if (status === 'fixed') r.fixedIds.push(id)
-  // The last open finding marked ends the fix step an empty-scope record
-  // was kept for: from here on, a change is unreviewed (dropStaleEmptyScope).
-  if (r.scopeEmptyBeforeFix && !r.fixEndTree && !fixPending(s)) r.fixEndTree = snapshotTree(root)
+  // The last open important finding marked ends the fix step an empty-scope
+  // record was kept for: from here on, a change is unreviewed
+  // (dropStaleEmptyScope).
+  // Once nothing is left to fix, an empty-scope record that does not cover
+  // the tree as it is now goes, so the `next:` line asks for the review
+  // `round end` would (dropStaleEmptyScope).
+  if (r.lensesDone?.includes('scope') && !fixPending(s)) {
+    const { diff, tree } = scopeDiff(root, s)
+    if (r.scopeEmptyBeforeFix && !r.fixEndTree) r.fixEndTree = tree
+    dropStaleEmptyScope(s, diff, tree)
+  }
   saveState(root, s)
   return f
 }
@@ -548,6 +585,15 @@ export async function endRound(root, opts = {}) {
     )
   }
   requirePhase(s, ['fix', 'end'], 'end the round')
+  // The tombstone holds the round count and budget as ql last saved them
+  // (see the decision below); a state that is not the loop it records was
+  // put in place outside ql, and its rounds count for nothing.
+  const t = readTombstone(root)
+  if (t && t.id !== s.id && holdsCap(t)) {
+    throw new LoopError(
+      `the loop state in .quality-loop/ (${s.id}) is not the loop ql last recorded here (${t.id}, ${t.status} at round ${t.round}): it was replaced outside ql. Report to the user; only they can start over (\`! ql start --force ...\`).`,
+    )
+  }
   const r = currentRound(s)
   const specs = checkSpecs(s)
   const logDir = join(paths(root).runs, s.id, `round-${r.n}`)
@@ -609,6 +655,14 @@ export async function endRound(root, opts = {}) {
       if (!(f.id in startLines) || !['candidate', 'confirmed'].includes(f.status)) continue
       const start = startLines[f.id]
       const lines = readLines(root, f.file)
+      const was = r.preRound?.[f.id]
+      if ((start === null || lines === null) && was) {
+        // An older finding re-reported (or reopened) on the round's own
+        // code: what the round did to it goes with that code, so it is as
+        // the round found it (a fixed one stays fixed).
+        s.ledger.findings[f.id] = was
+        continue
+      }
       if ((start === null || lines === null) && f.firstRound === r.n) {
         // Reported on the round's own code (typically the reverted fix),
         // which no longer exists: keeping it open would block the loop on
@@ -618,8 +672,9 @@ export async function endRound(root, opts = {}) {
         continue
       }
       if (lines === null) continue
-      // Its round-start line; an older finding re-reported on the round's
-      // code has code that predates the round: look near the line it had.
+      // Its round-start line; without a record of the ledger at round start
+      // (a round begun by an older ql), an older finding re-reported on the
+      // round's code is looked for near the line it had.
       const ev = checkEvidence(start === null ? f : { ...f, line: start }, lines)
       const at = ev.ok ? ev.line : start
       if (at === null) continue
@@ -632,6 +687,7 @@ export async function endRound(root, opts = {}) {
       f.origin = df && rangeTouches(df, f.line, f.endLine, 1) ? 'introduced' : 'pre-existing'
     }
   }
+  delete r.preRound
   const live = /** @type {Finding[]} */ (Object.values(s.ledger.findings))
   // An attempt counts against important findings only: nits never block the
   // finish line, so leaving one open is not being stuck on it.
@@ -642,10 +698,15 @@ export async function endRound(root, opts = {}) {
     }
   }
   const c = counts(s)
+  // A state edited outside ql neither winds the round back nor raises the cap.
+  const own = t?.id === s.id ? t : null
   const decided = decideRound({
     mode: s.mode,
-    round: s.round,
-    limits: { maxRounds: s.config.loop.maxRounds, stallRounds: s.config.loop.stallRounds },
+    round: own ? Math.max(s.round, Number(own.round) || 0) : s.round,
+    limits: {
+      maxRounds: typeof own?.maxRounds === 'number' ? Math.min(s.config.loop.maxRounds, own.maxRounds) : s.config.loop.maxRounds,
+      stallRounds: s.config.loop.stallRounds,
+    },
     regressions,
     allowWeakening: !!opts.allowWeakening,
     requiredFailingNow: failingRequired(willRevert ? s.lastRun : run),
@@ -694,7 +755,7 @@ export async function endRound(root, opts = {}) {
   if (decision.status !== 'continue') s.status = decision.status
   s.statusReasons = decision.reasons
   s.stopNudges = 0
-  saveState(root, s)
+  saveState(root, s, 'end')
   return { round: r.n, decision, compare: cmp, flaky, weakening, restored, discarded, run }
 }
 
@@ -735,7 +796,7 @@ export function finish(root) {
   if (r) Object.assign(r, { ended: true, endedAt: new Date().toISOString(), reverted: false, startScore: 0, endScore: 0, found: 0, reasons: [] })
   s.status = 'done'
   s.statusReasons = ['review complete']
-  saveState(root, s)
+  saveState(root, s, 'end')
   return s
 }
 
@@ -783,7 +844,10 @@ export function abort(root, reason) {
  */
 export function extend(root, extra) {
   const s = requireState(root)
-  if (!['capped', 'stalled'].includes(s.status)) throw new LoopError(`loop is ${s.status}; only a capped or stalled loop can be extended`)
+  // A state edited out of capped or stalled is still the loop its record holds.
+  const t = readTombstone(root)
+  const recorded = !!t && t.id === s.id && ['capped', 'stalled'].includes(t.status)
+  if (!['capped', 'stalled'].includes(s.status) && !recorded) throw new LoopError(`loop is ${s.status}; only a capped or stalled loop can be extended`)
   s.config.loop.maxRounds = s.round + Math.max(1, extra)
   // Start the convergence counters afresh, or the stall that led here ends
   // the first granted round: attempts, reopens (oscillation), and the round
@@ -798,6 +862,6 @@ export function extend(root, extra) {
   s.extendedAt = s.round
   s.status = 'active'
   s.statusReasons = []
-  saveState(root, s)
+  saveState(root, s, 'extend')
   return s
 }

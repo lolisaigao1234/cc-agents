@@ -10,6 +10,9 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
@@ -447,14 +450,15 @@ function symbolicHead(root) {
 }
 
 /**
- * The commits every local and remote-tracking branch points at, so a revert
- * can tell commits the round made from ones that were already there.
+ * Every local and remote-tracking branch with the commit it points at, as
+ * `<sha> <ref>` lines, so a revert can tell commits the round made from ones
+ * that were already there, and see a branch the round moved.
  *
  * @param {string} root
  */
 function refTips(root) {
-  const out = git(['for-each-ref', '--format=%(objectname)', 'refs/heads', 'refs/remotes'], { cwd: root }).stdout
-  return [...new Set(out.split('\n').filter(Boolean))]
+  const out = git(['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes'], { cwd: root }).stdout
+  return out.split('\n').filter(Boolean)
 }
 
 /**
@@ -557,11 +561,26 @@ export function checkpointTree(root) {
 }
 
 /**
+ * The local branches in a `refs` record and the commits they pointed at.
+ *
+ * @param {string} text
+ */
+function branchesOf(text) {
+  /** @type {Map<string, string>} */ const out = new Map()
+  for (const line of text.split('\n')) {
+    const m = /^([0-9a-f]+) (refs\/heads\/.+)$/.exec(line)
+    if (m) out.set(String(m[2]), String(m[1]))
+  }
+  return out
+}
+
+/**
  * @typedef {{
  *   time: number,
  *   head: string,
  *   branch: string | null,
  *   refs: string[] | null,
+ *   branches: Map<string, string> | null,
  *   index: string,
  *   ita: Set<string> | null,
  *   ops: string[] | null,
@@ -597,7 +616,9 @@ function readCheckpoint(root, tree) {
     head: text('head'),
     // null: an older checkpoint that did not record it
     branch: files.has('branch') ? text('branch') : null,
-    refs: files.has('refs') ? text('refs').split('\n').filter(Boolean) : null,
+    // `<sha> <ref>` lines; an older checkpoint recorded the shas alone
+    refs: files.has('refs') ? text('refs').split('\n').filter(Boolean).map(l => /** @type {string} */ (l.split(' ')[0])) : null,
+    branches: text('refs').includes(' ') ? branchesOf(text('refs')) : null,
     index: text('index'),
     ita: files.has('ita') ? new Set(nulList(text('ita'))) : null,
     ops: files.has('ops') ? nulList(text('ops')) : null,
@@ -760,20 +781,41 @@ function restoreIntentToAdd(root, meta, problems) {
  * index are restored, since an abort rewrites them. Returns whether none is
  * left in progress.
  *
+ * A file outside the checkpoint (ignored or unreadable) that the index now
+ * tracks, because the operation brought it in or the round staged it (`git
+ * add -f`), would be removed by an abort: its bytes are saved first and put
+ * back after, so the revert never deletes it.
+ *
  * @param {string} root
  * @param {CheckpointMeta} meta
  * @param {string[]} problems
+ * @param {string} trash
  */
-function endOperations(root, meta, problems) {
+function endOperations(root, meta, problems, trash) {
   if (!meta.ops) return true
   const before = new Set(meta.ops)
   const started = () => inProgress(root).filter(m => !before.has(m))
   if (!started().length) return true
-  // A file ignored at the checkpoint that the operation now tracks (the other
-  // side has it) was overwritten by it, and an abort removes it again.
   const offTree = meta.offTree.size
     ? [...new Set(nulList(gitRaw(['ls-files', '-z', '--', '.', EXCLUDE], { cwd: root }).stdout))].filter(p => wasOffTree(meta.offTree, p))
     : []
+  /** @type {{ path: string, mode: string, data: Buffer, touched: boolean }[]} */ const saved = []
+  for (const p of offTree) {
+    const at = onDisk(root, p)
+    const st = lstatOrNull(at)
+    if (!st || !(st.isFile() || st.isSymbolicLink())) continue
+    try {
+      const link = st.isSymbolicLink()
+      saved.push({
+        path: p,
+        mode: link ? SYMLINK : st.mode & 0o111 ? EXECUTABLE : '100644',
+        data: link ? readlinkSync(at, { encoding: 'buffer' }) : readFileSync(at),
+        touched: touchedSince(root, p, meta.time),
+      })
+    } catch (e) {
+      problems.push(`could not save ${shown(p)} before ending a git operation the round started: ${/** @type {Error} */ (e).message}`)
+    }
+  }
   /** @type {string[]} */ const errors = []
   for (const [marker, ...commands] of IN_PROGRESS) {
     for (const cmd of commands) {
@@ -785,16 +827,20 @@ function endOperations(root, meta, problems) {
   }
   // One still tracked and on disk is reported with the rest of the working tree.
   const tracked = offTree.length ? new Set(nulList(gitRaw(['ls-files', '-z', '--', '.', EXCLUDE], { cwd: root }).stdout)) : new Set()
-  for (const p of offTree) {
-    if (!lstatOrNull(onDisk(root, p))) {
+  for (const f of saved) {
+    const gone = !lstatOrNull(onDisk(root, f.path))
+    if (gone) {
+      try {
+        writeEntry(root, f.path, f.mode, f.data, trash)
+      } catch (e) {
+        problems.push(`${shown(f.path)} was outside the checkpoint (ignored or unreadable), and ending a git operation the round started removed it: ${/** @type {Error} */ (e).message}`)
+        continue
+      }
+    }
+    if (f.touched && (gone || !tracked.has(f.path))) {
       problems.push(
-        `${shown(p)} was outside the checkpoint (ignored or unreadable), a git operation the round started overwrote it, ` +
-          'and ending that operation removed it: the original cannot be restored from the checkpoint',
-      )
-    } else if (!tracked.has(p) && touchedSince(root, p, meta.time)) {
-      problems.push(
-        `${shown(p)} was left in place: it was outside the checkpoint (ignored or unreadable), ` +
-          'so a version a git operation the round started wrote cannot be told apart from the original',
+        `${shown(f.path)} was left in place: it was outside the checkpoint (ignored or unreadable), ` +
+          'so a version the round or a git operation it started wrote cannot be told apart from the original',
       )
     }
   }
@@ -826,9 +872,75 @@ function madeCommits(root, meta, head) {
 }
 
 /**
+ * Branches checked out in another worktree of the repository: what moves
+ * them is that worktree's work, not the round's.
+ *
+ * @param {string} root
+ */
+function otherWorktreeBranches(root) {
+  const r = git(['worktree', 'list', '--porcelain'], { cwd: root, allowFail: true })
+  /** @type {Set<string>} */ const out = new Set()
+  if (!r.ok) return out
+  const here = realPath(root)
+  for (const block of r.stdout.split('\n\n')) {
+    const at = /^worktree (.+)$/m.exec(block)?.[1]
+    const branch = /^branch (.+)$/m.exec(block)?.[1]
+    if (at && branch && realPath(at) !== here) out.add(branch)
+  }
+  return out
+}
+
+/** @param {string} p */
+function realPath(p) {
+  try {
+    return realpathSync(p)
+  } catch {
+    return p
+  }
+}
+
+/**
+ * Local branches the round moved, deleted, or created holding commits no
+ * branch held at the checkpoint, except `skip` (already reported) and those
+ * another worktree has checked out. The loop never moves a branch back, so
+ * each is a problem for the user.
+ *
+ * @param {string} root
+ * @param {CheckpointMeta} meta
+ * @param {Set<string>} skip
+ * @returns {string[]}
+ */
+function branchMoves(root, meta, skip) {
+  if (!meta.branches) return []
+  const others = otherWorktreeBranches(root)
+  /** @type {Map<string, string>} */ const now = new Map()
+  for (const line of git(['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads'], { cwd: root }).stdout.split('\n')) {
+    const i = line.indexOf(' ')
+    if (i > 0) now.set(line.slice(i + 1), line.slice(0, i))
+  }
+  /** @type {string[]} */ const out = []
+  for (const [ref, was] of meta.branches) {
+    if (skip.has(ref) || others.has(ref)) continue
+    const is = now.get(ref)
+    if (is === was) continue
+    out.push(
+      is
+        ? `branch ${branchName(ref)} moved during the round (${was.slice(0, 12)} -> ${is.slice(0, 12)}) and was not moved back; review it, then \`git update-ref ${ref} ${was}\` to put it back.`
+        : `branch ${branchName(ref)} was deleted during the round; \`git branch ${branchName(ref)} ${was}\` puts it back.`,
+    )
+  }
+  for (const [ref, is] of now) {
+    if (meta.branches.has(ref) || skip.has(ref) || others.has(ref) || !madeCommits(root, meta, is)) continue
+    out.push(`branch ${branchName(ref)} was created during the round at ${is.slice(0, 12)} and holds commits made during it; they were not undone.`)
+  }
+  return out
+}
+
+/**
  * Puts HEAD back on the branch (or detached commit) it was on at the
  * checkpoint when that is safe, and reports what it cannot undo: the loop
- * never moves a branch, so commits made during the round stay and pause it.
+ * never moves a branch, so commits made during the round, and branches it
+ * moved or deleted, stay and pause it.
  *
  * @param {string} root
  * @param {CheckpointMeta} meta
@@ -839,11 +951,27 @@ function restoreHead(root, meta, problems, mayMove) {
   if (!meta.head) return
   const head = revParse(root, 'HEAD') ?? ''
   const branch = symbolicHead(root)
+  /** @type {Set<string>} branches a problem below already names */ const named = new Set()
+  headProblems(root, meta, problems, mayMove, head, branch, named)
+  problems.push(...branchMoves(root, meta, named))
+}
+
+/**
+ * @param {string} root
+ * @param {CheckpointMeta} meta
+ * @param {string[]} problems
+ * @param {boolean} mayMove
+ * @param {string} head HEAD now
+ * @param {string} branch the branch HEAD is on now ('' when detached)
+ * @param {Set<string>} named
+ */
+function headProblems(root, meta, problems, mayMove, head, branch, named) {
   const at = (/** @type {string} */ ref, /** @type {string} */ sha) =>
     `${ref ? branchName(ref) : 'detached HEAD'} at ${sha.slice(0, 12) || 'none'}`
   const restored = 'The working tree and index are back at the round start'
   if (meta.branch === null || meta.branch === branch) {
     if (head !== meta.head) {
+      named.add(branch)
       problems.push(
         `HEAD moved during the round (${meta.head.slice(0, 12)} -> ${head.slice(0, 12) || 'none'}): its commits were not undone. ` +
           `${restored}; review those commits, then \`git reset --soft ${meta.head}\`.`,
@@ -857,6 +985,7 @@ function restoreHead(root, meta, problems, mayMove) {
   // detached HEAD only when nothing moved but the attachment.
   const canReturn = mayMove && startNow === meta.head && (meta.branch !== '' || head === meta.head)
   if (!canReturn) {
+    named.add(meta.branch).add(branch)
     const moved = startNow === meta.head ? '' : startNow ? `, and ${branchName(meta.branch)} moved to ${startNow.slice(0, 12)}` : `, and ${branchName(meta.branch)} was deleted`
     const back = meta.branch
       ? `\`git symbolic-ref HEAD ${meta.branch}\`, then \`git reset --soft ${meta.head}\``
@@ -876,6 +1005,7 @@ function restoreHead(root, meta, problems, mayMove) {
   if (!r.ok) {
     problems.push(`could not put HEAD back on ${at(meta.branch, meta.head)}: ${r.stderr.trim()}`)
   } else if (head !== meta.head && madeCommits(root, meta, head)) {
+    named.add(branch)
     problems.push(
       `HEAD was moved during the round to ${at(branch, head)}; it is back on ${at(meta.branch, meta.head)}, and those commits were not undone ` +
         `(${branch ? `${branchName(branch)} still holds them` : 'find them with `git reflog`'}).`,
@@ -899,12 +1029,12 @@ function restoreHead(root, meta, problems, mayMove) {
 export function restoreTree(root, tree) {
   const meta = readCheckpoint(root, tree)
   /** @type {string[]} */ const problems = []
-  const settled = endOperations(root, meta, problems)
+  const trash = `${TRASH}/${new Date().toISOString().replace(/[:.]/g, '-')}`
+  const settled = endOperations(root, meta, problems, trash)
   const { tree: current, skipped } = worktreeTree(root)
   const changes = parseRawDiff(
     gitRaw(['diff-tree', '-r', '-z', '--no-renames', current, tree, '--', '.', EXCLUDE], { cwd: root }).stdout,
   )
-  const trash = `${TRASH}/${new Date().toISOString().replace(/[:.]/g, '-')}`
   /** @type {string[]} */ const restored = []
   /** @type {string[]} */ const deleted = []
   /** @type {string[]} */ const kept = []
