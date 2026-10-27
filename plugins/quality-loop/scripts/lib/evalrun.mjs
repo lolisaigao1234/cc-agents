@@ -353,10 +353,13 @@ export async function runEval(root, o) {
   const which = (/** @type {string} */ id) => (split.test.includes(id) ? 'test' : 'train')
   const selected = cases.filter(c => (o.split === 'all' || which(c.id) === o.split) && (!o.caseIds || o.caseIds.includes(c.id)))
   const surface = existsSync(o.surfacePath) ? readFileSync(o.surfacePath, 'utf8') : ''
+  // The depth the runner sees: --depth, else a QL_DEPTH inherited from the
+  // caller's environment (the runner reads either the same way).
+  const depth = o.depth || process.env.QL_DEPTH || undefined
   const jobs = selected.flatMap(c => Array.from({ length: o.repeats }, (_, r) => ({ c, r })))
   const transcriptDir = join(evalPaths(root).results, o.label, 'transcripts')
   const trials = await pool(jobs, o.concurrency, ({ c, r }) =>
-    runTrial(root, c, { runner: o.runner, repeat: r, timeoutSec: o.timeoutSec, tolerance: o.tolerance, surface, transcriptDir, pluginRoot: o.pluginRoot, maxContextTokens: o.maxContextTokens, keep: o.keep, depth: o.depth }),
+    runTrial(root, c, { runner: o.runner, repeat: r, timeoutSec: o.timeoutSec, tolerance: o.tolerance, surface, transcriptDir, pluginRoot: o.pluginRoot, maxContextTokens: o.maxContextTokens, keep: o.keep, depth }),
   )
   const bySplit = (/** @type {string} */ s) => trials.filter(t => which(t.caseId) === s)
   const result = {
@@ -365,7 +368,7 @@ export async function runEval(root, o) {
     surfacePath: o.surfacePath,
     surfaceHash: hash(surface),
     runner: o.runner,
-    depth: o.depth ?? null,
+    depth: depth ?? null,
     repeats: o.repeats,
     split: o.split,
     trials,
@@ -388,7 +391,16 @@ export function loadResult(root, label) {
 }
 
 /**
- * Groups added lines into ranges per file.
+ * The plugin's own directory. materialize() drops it from both trees, so a
+ * change confined to it (a REVIEW.md tuning, an eval case) reviews as an
+ * empty change: harvest never builds a case from it.
+ *
+ * @param {string} p a repo-relative path
+ */
+const isPluginPath = p => p === '.quality-loop' || p.startsWith('.quality-loop/')
+
+/**
+ * Groups added lines into ranges per file, leaving out the plugin's directory.
  *
  * @param {import('./diff.mjs').DiffFile[]} files
  */
@@ -396,7 +408,7 @@ function addedRanges(files) {
   /** @type {{ file: string, line: number, endLine: number }[]} */
   const out = []
   for (const f of files) {
-    if (f.status === 'deleted') continue
+    if (f.status === 'deleted' || isPluginPath(f.path)) continue
     let cur = null
     for (const l of f.added) {
       if (cur && l.line === cur.endLine + 1) cur.endLine = l.line
@@ -445,6 +457,7 @@ function blameRemoved(root, sha) {
   const fixDiff = parseUnifiedDiff(git(['diff', '-U0', `${sha}^`, sha], { cwd: root }).stdout)
   for (const f of fixDiff) {
     if (f.status !== 'modified' && f.status !== 'renamed') continue
+    if (isPluginPath(f.oldPath) || isPluginPath(f.path)) continue
     const ranges = lineRanges(f.removed.map(l => ({ file: f.oldPath, line: l.line })))
     if (!ranges.length) continue
     const b = git(['blame', '--line-porcelain', ...ranges.flatMap(r => ['-L', `${r.line},${r.endLine}`]), `${sha}^`, '--', f.oldPath], {
@@ -489,6 +502,8 @@ const FIX_SUBJECT = /^(?:fix|bugfix|hotfix)\b|\bfix(?:es|ed)?\s+(?:#\d+|bug|cras
  * the bug), fix commits (blame the lines the fix replaced to find the commit
  * that introduced them) and, as should-not-fire cases, commits nothing later
  * reverted or fixed. Drafts need a human to confirm them before they count.
+ * Lines under `.quality-loop/` never make a case: the workspace drops that
+ * directory, so a change confined to it would review as empty.
  *
  * Every revert and fix in the scanned history marks the commits it
  * implicates before any case is written, so `--limit` never lets a
@@ -597,8 +612,13 @@ export function harvest(root, opts) {
   for (const c of commits.slice(20)) {
     if (cleanCount >= opts.clean) break
     if (isImplicated(c.sha) || c.parents.length !== 1 || /revert|fix/i.test(c.subject)) continue
-    const stat = git(['diff', '--numstat', `${c.sha}^`, c.sha], { cwd: root }).stdout.trim().split('\n').filter(Boolean)
-    const added = stat.reduce((a, l) => a + (Number(l.split('\t')[0]) || 0), 0)
+    // -z keeps paths verbatim; --no-renames gives one path per entry.
+    const stat = git(['diff', '--numstat', '-z', '--no-renames', `${c.sha}^`, c.sha], { cwd: root })
+      .stdout.split('\0')
+      .filter(Boolean)
+      .map(l => l.split('\t'))
+      .filter(([, , ...file]) => !isPluginPath(file.join('\t')))
+    const added = stat.reduce((a, [n]) => a + (Number(n) || 0), 0)
     if (!stat.length || added === 0 || added > maxLines) continue
     write(
       `clean-${c.sha.slice(0, 10)}`,
