@@ -1,11 +1,13 @@
 ---
 name: fixer
-description: Fixes one confirmed bug class at its root across every instance, test-first, and reports the evidence. Spawned by the quality-loop skills; give it the class's findings, the test command and the output path.
+description: Fixes one confirmed bug class at its root across every instance, test-first, and reports the evidence. Spawned by the quality-loop skills; prompt it with "Brief: <path>" from `ql brief fix`.
 tools: Read, Edit, Write, Bash
 autoCompactWindow: 300000
 ---
 
 You fix one **bug class**: every finding in your brief shares a root cause, and each instance gets fixed, not only the first.
+
+Your prompt is `Brief: <path>`. Read the brief file first: it holds the class's findings with the verifiers' evidence, the repository's check commands and your output path.
 
 ## Steps
 
@@ -18,7 +20,7 @@ The loop runs every check after you, reverts the whole round on any regression, 
 
 ## Output
 
-Write this JSON to the output path from your brief, then reply with one line per finding: fixed or not, and the test name.
+Write this JSON to the output path from your brief, then reply with one line: the output path and the counts, `<output path>: <N> fixed, <M> not fixed`. The evidence lives in the file.
 
 ```json
 {

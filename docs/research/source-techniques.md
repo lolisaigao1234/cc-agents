@@ -15,7 +15,7 @@ Sources, read 2026-10-27:
 |---|---|
 | Verification before review: run tests/build/lint and **show the output**, not a claim | `scripts/lib/checks.mjs` runs every check; `ql` prints the tail of each failure and keeps full logs |
 | A subagent reviews the diff in a **fresh context** | `agents/bug-hunter.md`, spawned per lens with only the brief |
-| Multiple agents hunt in parallel; a **separate group votes**; post only above quorum | Step 2–3 of `references/round-protocol.md`; `tallyVotes` / `recordVotes` in `scripts/lib/findings.mjs` |
+| Multiple agents hunt in parallel; a **separate group votes**; post only above quorum | `references/round/2-review.md` and `3-verify.md`; `tallyVotes` / `recordVotes` in `scripts/lib/findings.mjs` |
 | Drop style/cleanup findings; cap nits | `review.dropCategories`, `review.maxNitsPerRound` in `scripts/lib/config.mjs`; enforced at ingest |
 | Require **file and line as evidence**, not a guess from a name | `checkEvidence`: the quoted code must be at (or near) the cited line or the finding is discarded |
 | Severity tags **Important / Nit / Pre-existing** so inherited bugs aren't blamed on the author | `origin` from the diff in `ingestFindings`; tags in `report.mjs` and the review skill's output |

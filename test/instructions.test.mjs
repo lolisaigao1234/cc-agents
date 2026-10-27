@@ -56,15 +56,16 @@ function committedBug() {
 test('debug skill: hunters review a scope refreshed after the fix, not the one `ql round begin` wrote before it', () => {
   const debug = read('skills/debug/SKILL.md')
   const review = section(debug, /Review the fix/)
-  assert.match(review, /`ql scope --json`/, 'the review step refreshes the scope after the fix')
-  assert.match(review, /steps 2–4 of `\$\{CLAUDE_PLUGIN_ROOT\}\/references\/round-protocol\.md`/)
+  assert.match(review, /`ql brief hunters`/, 'the review step refreshes the scope after the fix')
+  assert.match(review, /round steps 2–4/)
+  assert.match(review, /`2-review\.md`/, 'the step file for the review of the fix')
 
   // The protocol step the debug skill runs on the fix: the refresh comes
   // before the empty-scope rule and before any hunter is briefed.
-  const step2 = section(read('references/round-protocol.md'), /^## 2\./)
-  const scopeRefresh = step2.search(/Run `ql scope --json`/)
-  assert.ok(scopeRefresh >= 0, 'protocol step 2 runs `ql scope --json`')
-  assert.ok(scopeRefresh < step2.search(/Empty scope/), 'the protocol decides "empty" from a fresh `ql scope --json`')
+  const step2 = read('references/round/2-review.md')
+  const scopeRefresh = step2.search(/Run `ql brief hunters`/)
+  assert.ok(scopeRefresh >= 0, 'protocol step 2 runs `ql brief hunters`, which rewrites the scope')
+  assert.ok(scopeRefresh < step2.search(/Empty scope/), 'the protocol decides "empty" from a fresh `ql brief hunters`')
   assert.ok(scopeRefresh < step2.search(/spawn one `bug-hunter`/), 'hunters are briefed from the fresh scope')
 })
 
@@ -77,6 +78,10 @@ test('debug flow: a fix made after `ql round begin` is in the refreshed scope', 
   assert.equal(stale, '', 'the scope round begin wrote predates the fix')
   const fresh = JSON.parse(ql(root, ['scope', '--json']))
   assert.equal(fresh.empty, false)
+  assert.match(readFileSync(fresh.diffFile, 'utf8'), /\+export const add = \(a, b\) => b \+ a \+ 0/)
+  // `ql brief hunters`, which the protocol's step 2 runs, rewrites the same scope.
+  writeFileSync(fresh.diffFile, '')
+  assert.match(ql(root, ['brief', 'hunters']), /^bug-hunter /m)
   assert.match(readFileSync(fresh.diffFile, 'utf8'), /\+export const add = \(a, b\) => b \+ a \+ 0/)
 })
 
@@ -104,7 +109,7 @@ test('debug flow: an edit made inside a round is undone when that round regresse
 
 test('improve skill: a custom finish line is checked by the orchestrator, not assumed met by ql DONE', () => {
   const improve = read('skills/improve/SKILL.md')
-  const protocol = read('references/round-protocol.md')
+  const protocol = read('references/round/decisions.md')
   const doneRow = protocol.split('\n').find(l => l.startsWith('| `DONE`'))
   assert.ok(doneRow)
   assert.doesNotMatch(doneRow, /finish line is met/, 'ql DONE does not evaluate --goal')

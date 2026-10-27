@@ -117,26 +117,59 @@ export function nextAction(s) {
     case 'begin':
       return 'Start the next round: `ql round begin`.'
     case 'investigate':
-      return `Debug round: reproduce with the repro command, investigate hypotheses in parallel, apply the smallest root-cause fix, then review the fix: \`ql scope\`, one bug hunter per lens (${(s.config?.review?.lenses ?? []).join(', ')}), and \`ql ingest <file> --lens <lens>\` for each (\`ql ingest --none --lens <lens>\` for a lens that found nothing; \`ql ingest --none --lens scope\` only when the scope is empty). \`ql round end\` once every lens is in and verified.`
+      return 'Debug round: reproduce with the repro command, test hypotheses in parallel (`ql brief investigate --hypothesis "<h>"` for each), apply the smallest root-cause fix, then review the fix: `ql brief hunters`, one bug-hunter per brief, and `ql ingest <file> --lens <lens>` for each (`ql ingest --none --lens <lens>` for a lens that found nothing; `ql ingest --none --lens scope` only when the scope is empty). `ql round end` once every lens is in and verified.'
     case 'review': {
       const missing = missingLenses(s)
       const r = currentRound(s)
       if (r?.ingests && missing.length) {
         const total = s.config.review.lenses.length
-        return `Review: ${total - missing.length} of ${total} lenses ingested; still to come: ${missing.join(', ')}. Ingest each as its hunter reports (\`ql ingest <file> --lens <lens>\`, or \`ql ingest --none --lens <lens>\` when it found nothing). Verifying candidates already in (\`ql pending\`) meanwhile is fine.`
+        return `Review: ${total - missing.length} of ${total} lenses in; still to come: ${missing.join(', ')}. \`ql ingest <file> --lens <lens>\` as each hunter reports (\`ql ingest --none --lens <lens>\` if it found nothing); verifying candidates already in (\`ql brief verifiers\`) meanwhile is fine.`
       }
-      return 'Review: run `ql scope` for the diff, give each lens to its own bug-hunter subagent in parallel, then `ql ingest <file> --lens <lens>` for each (use `ql ingest --none --lens scope` if the scope is empty).'
+      return 'Review: `ql brief hunters`, then one bug-hunter subagent per printed line, all in one message, each prompted "Brief: <brief path>"; `ql ingest <output> --lens <lens>` as each reports (`ql ingest --none --lens scope` if the scope is empty).'
     }
     case 'verify':
-      return 'Verify: `ql pending --json`, have independent finding-verifier subagents vote on each candidate (the configured number of voters each), then `ql vote <file>`.'
+      return 'Verify: `ql brief verifiers`, then one finding-verifier subagent per printed line, all in one message, each prompted "Brief: <brief path>"; then `ql vote <output files>`.'
     case 'fix':
-      return 'Fix: `ql open --json`, fix each bug class at its root (every instance), add a regression test, then `ql mark <id> fixed --reason "<evidence>"` or `ql mark <id> wontfix --reason "..."`. Then `ql round end`.'
+      return 'Fix: `ql brief fix --all`, one fixer subagent per printed line (a wave in parallel, waves in order); check each fixer\'s evidence, then `ql mark <id> fixed --reason "<evidence>"` or `ql mark <id> wontfix --reason "..."`. Then `ql round end`.'
     case 'end':
       return 'Validate: `ql round end` (runs the checks, compares against the round start, reverts on regression, decides).'
     case 'report':
       return 'Review complete: `ql export --out <file>` for the verified findings, `ql finish`, then present `ql report`.'
   }
 }
+
+/**
+ * The round-protocol step file (in `references/round/`) for the step the
+ * loop is at, or null when no protocol step applies (a review-only report is
+ * the review skill's own step). The orchestrator reads a step file only when
+ * ql names it, so a run loads the steps it reaches and no others.
+ *
+ * @param {LoopState} s
+ * @returns {string | null}
+ */
+export function stepFile(s) {
+  switch (phaseOf(s)) {
+    case 'begin':
+      return '1-begin.md'
+    case 'investigate':
+    case 'review':
+      return '2-review.md'
+    case 'verify':
+      return '3-verify.md'
+    case 'fix':
+      return '4-fix.md'
+    case 'end':
+      return '5-validate.md'
+    case 'report':
+      return null
+    case 'terminal':
+      return s && !s.reviewOnly ? 'decisions.md' : null
+  }
+}
+
+const OPEN_ORDER = ['stuck', 'confirmed', 'candidate']
+/** LOOP.md is re-injected after every compaction: it lists this many open findings at most. */
+export const LOOP_MD_MAX_FINDINGS = 10
 
 /** @param {Finding} f */
 function findingRow(f) {
@@ -151,7 +184,19 @@ function findingRow(f) {
  */
 export function renderLoopMd(s) {
   const all = /** @type {Finding[]} */ (Object.values(s.ledger.findings))
-  const shown = all.filter(f => f.status !== 'rejected')
+  const num = (/** @type {Finding} */ f) => Number(f.id.replace(/\D/g, '')) || 0
+  // Most urgent first: stuck, then confirmed (important before nit), then candidates.
+  const open = all
+    .filter(f => OPEN_ORDER.includes(f.status))
+    .sort(
+      (a, b) =>
+        OPEN_ORDER.indexOf(a.status) - OPEN_ORDER.indexOf(b.status) ||
+        (a.severity === b.severity ? 0 : a.severity === 'important' ? -1 : 1) ||
+        num(a) - num(b),
+    )
+  const shown = open.slice(0, LOOP_MD_MAX_FINDINGS)
+  const more = open.length - shown.length
+  const closed = (/** @type {string} */ st) => all.filter(f => f.status === st).length
   const lines = [
     '# Quality loop',
     '',
@@ -165,12 +210,13 @@ export function renderLoopMd(s) {
     '',
     nextAction(s),
     '',
-    '## Findings',
+    '## Open findings',
     '',
-    shown.length ? '| id | tag | status | where | class | title |\n|---|---|---|---|---|---|' : '_none yet_',
+    shown.length ? '| id | tag | status | where | class | title |\n|---|---|---|---|---|---|' : '_none_',
     ...shown.map(findingRow),
+    ...(more ? ['', `+${more} more: \`ql pending\` (to verify), \`ql open\` (to fix).`] : []),
     '',
-    `Rejected by verification: ${all.length - shown.length}`,
+    `Closed: ${closed('fixed')} fixed, ${closed('wontfix')} won't fix, ${closed('rejected')} rejected by verification.`,
     '',
     '## Rounds',
     '',
@@ -200,6 +246,8 @@ export function renderReport(s) {
   const fixed = all.filter(f => f.status === 'fixed')
   const pre = all.filter(f => f.origin === 'pre-existing' && f.status === 'confirmed')
   const wontfix = all.filter(f => f.status === 'wontfix')
+  // Open nits never block DONE, but they are still open: name them.
+  const nits = all.filter(f => f.status === 'confirmed' && f.severity === 'nit' && f.origin !== 'pre-existing')
   const failing = (s.lastRun?.results ?? []).filter((/** @type {any} */ r) => !r.ok)
   const out = [
     `**${c.fixed} fixed · ${c.important} important open · ${c.stuck} stuck · ${c.preExisting} pre-existing · ${c.rejected} rejected as false positives** — status: ${s.status} after ${s.round} round(s).`,
@@ -216,7 +264,8 @@ export function renderReport(s) {
   const reverted = s.rounds.filter((/** @type {any} */ r) => r.reverted)
   if (reverted.length) out.push(`- ${reverted.length} round(s) reverted for regressions: ${reverted.map((/** @type {any} */ r) => r.n).join(', ')}`)
   out.push('', '## Found', '')
-  if (!pre.length && !wontfix.length) out.push('Nothing beyond the above.')
+  if (!pre.length && !wontfix.length && !nits.length) out.push('Nothing beyond the above.')
+  out.push(...nits.map(f => `- [Nit] ${f.id} \`${f.file}:${f.line}\` ${f.title} (open)`))
   out.push(...pre.map(f => `- [Pre-existing] ${f.id} \`${f.file}:${f.line}\` ${f.title}`))
   out.push(...wontfix.map(f => `- [Won't fix] ${f.id} \`${f.file}:${f.line}\` ${f.title} — ${f.resolution}`))
   return out.join('\n') + '\n'

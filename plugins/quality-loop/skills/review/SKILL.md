@@ -23,7 +23,7 @@ The intent of the change is whatever the arguments say beyond the flags; otherwi
 
 ## 2. Review and verify
 
-Do steps 2 and 3 of `${CLAUDE_PLUGIN_ROOT}/references/round-protocol.md` — read that file now. Hunters in parallel, one per lens; then independent verifiers with distinct stances on every candidate until `ql pending` shows none.
+Do round steps 2 and 3: hunters in parallel, one per lens; then independent verifiers with distinct stances on every candidate until `ql pending` shows none. Each comes as a step file: when a `ql` command prints `step: <path>`, read that step file then and follow it (`ql round begin` names step 2; `ql next` names the current one again). Pass the intent to the hunters with `ql brief hunters --intent "<intent>"`.
 
 Done when: `ql next` says the review is complete.
 

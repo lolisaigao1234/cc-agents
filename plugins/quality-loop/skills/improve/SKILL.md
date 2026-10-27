@@ -18,7 +18,7 @@ The finish line is what "done" means for this run. `ql round end` decides `DONE`
 ql start --mode review [--goal "<finish line>"] [--base <ref>] [--depth <depth>]
 ```
 
-`ql start` creates `.quality-loop/` on first use with checks detected from the repository, runs them once as the **baseline**, and prints their output. Read it:
+`ql start` creates `.quality-loop/` on first use with checks detected from the repository, runs them once as the **baseline**, and prints one line per check (a failing one with its last lines and the path of its full log). Read it:
 
 - Checks already failing at baseline are pre-existing: the loop holds them steady and does not count them against the change.
 - `WARNING: no checks are configured` means regressions cannot be caught. Continue, and put this first in the final report under Blocked on me, with the checks you would add.
@@ -26,13 +26,13 @@ ql start --mode review [--goal "<finish line>"] [--base <ref>] [--depth <depth>]
 
 ## 2. Run rounds
 
-Follow `${CLAUDE_PLUGIN_ROOT}/references/round-protocol.md` — read it now, in full. Each round: begin, review with one bug hunter per lens in parallel, verify each candidate by independent voters, fix one bug class per fixer, then `ql round end`, which validates, reverts on regression and decides.
+Each round: begin, review with one bug hunter per lens in parallel, verify each candidate by independent voters, fix one bug class per fixer, then `ql round end`, which validates, reverts on regression and decides. The round protocol comes one step file at a time: when a `ql` command prints `step: <path>`, read that step file then and follow it (`ql next` names the current one again).
 
 A custom finish line that asks for more than ql's criterion (nits fixed, a coverage target) widens each round's fix step: do that work inside the round, before `ql round end`, because a `DONE` ends the loop and takes no further round.
 
 Keep going round after round without asking: put a one-line status note in the same message as your next action. The loop itself enforces the limits (round cap, stall and oscillation detection, attempts per finding), so you never need to judge whether to stop early. Stop and ask the user only when you cannot continue without them, and first record it: `ql pause --reason "<what you need>"`.
 
-Done when: `ql round end` reports `DONE`, `CAPPED` or `STALLED` and you have done what the protocol's decision table says.
+Done when: `ql round end` reports `DONE`, `CAPPED` or `STALLED` and you have done what its decision table (`decisions.md`) says.
 
 ## 3. Check the finish line
 
@@ -44,4 +44,6 @@ Done when: every criterion of the finish line is recorded as met or unmet, each 
 
 ## 4. Report
 
-Run `ql report` and present it as written: the count line, then **Blocked on me**, **Changed**, **Found**. Add the verification you did of the fixers' evidence and the finish-line check from step 3, and mark anything you could not confirm as unconfirmed, saying where you looked.
+Run `ql report` and present it: the count line, then **Blocked on me**, **Changed**, **Found**. **Blocked on me** opens with what steps 1 and 3 put there (the no-checks warning, each unmet finish-line criterion), in place of a `Nothing.`; the rest of the report stays as written. Add the verification you did of the fixers' evidence, and mark anything you could not confirm as unconfirmed, saying where you looked.
+
+Done when: every unmet criterion from step 3 appears under **Blocked on me**.

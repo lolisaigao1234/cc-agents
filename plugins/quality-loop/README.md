@@ -36,7 +36,8 @@ A band above the prompt shows the active loop's round, phase, open findings, che
 ## How it is built
 
 - `scripts/ql.mjs` — the deterministic core (`ql --help`). Evidence checks, dedupe, voting, checkpoints, regression and weakening detection, convergence decisions, eval grading. No dependencies.
-- `skills/` — the orchestration. `references/round-protocol.md` is the round, shared by `improve`, `review` and `debug`.
+- `skills/` — the orchestration. `references/round/` is the round, shared by `improve`, `review` and `debug`, one small file per step; `ql` names the step file to read when the loop reaches it, so a review-only run never loads the fix or validate steps.
+- Context stays lean: `ql brief hunters|verifiers|fix|investigate` writes each subagent's brief to `.quality-loop/work/round-<n>/briefs/` and prints one line per brief, so an Agent prompt is just `Brief: <path>`; agents reply in one line and keep the details in their output file. `ql` prints one line per check, finding or vote by default (`--json` or the file it names for the rest), and `LOOP.md`, re-injected after compaction, lists at most ten open findings.
 - `agents/` — `bug-hunter`, `finding-verifier`, `fixer`, `root-cause-investigator`.
 - `hooks/hooks.json` — classic hooks: a guard against destructive commands and edits to loop state or eval answer keys during a loop; a Stop hook that keeps an active loop going (bounded); context re-injection after compaction. Plus the mod `hooks/quality-loop.tsx` for the status band, `/loop-status`, toasts and the context-cap backstop.
 
