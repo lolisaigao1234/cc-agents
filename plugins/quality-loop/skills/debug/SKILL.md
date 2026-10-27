@@ -35,7 +35,9 @@ Turn the repro into a regression test in the repository's test suite if it is no
 
 ## 4. Review the fix, then validate
 
-Run steps 2–4 of `${CLAUDE_PLUGIN_ROOT}/references/round-protocol.md` (read it now) on the fix: bug hunters on the scope, verification, fixes for anything confirmed. Then `ql round end`, which runs every check plus the repro and reverts the round on any regression. Follow the protocol's decision table; another round starts from step 2 of this skill if the repro is still red, or from the protocol's step 1 if review findings remain.
+The scope `ql round begin` printed predates the fix. Run steps 2–4 of `${CLAUDE_PLUGIN_ROOT}/references/round-protocol.md` (read it now) on the fix: its step 2 refreshes the scope with `ql scope --json`, then bug hunters, verification, fixes for anything confirmed. Then `ql round end`, which runs every check plus the repro and reverts the round to its checkpoint, fix included, on any regression.
+
+On `CONTINUE` (reverted or not), the next round starts with `ql round begin` before any investigation or edit, so its checkpoint holds what a revert must restore. Then, with the repro still red: steps 2, 3 and 4 of this skill. With the repro green and review findings open: this step.
 
 Done when: `ql round end` reports `DONE` (repro green, no regressions, nothing important open), `CAPPED` or `STALLED`.
 
