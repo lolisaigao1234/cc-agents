@@ -433,6 +433,10 @@ export async function endRound(root, opts = {}) {
   })
   if (!decision.revert) s.lastRun = run
   if (decision.status !== 'continue') s.status = decision.status
+  // What a revert could not undo (a moved HEAD, nested repositories, write
+  // failures) needs a human before another round builds on it.
+  for (const p of restored?.problems ?? []) decision.reasons.push(`revert incomplete: ${p}`)
+  if (restored?.problems.length && decision.status === 'continue') s.status = 'paused'
   s.statusReasons = decision.reasons
   s.stopNudges = 0
   saveState(root, s)

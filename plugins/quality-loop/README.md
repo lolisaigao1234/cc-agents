@@ -65,4 +65,4 @@ Long sessions lose focus well before the model's window is full, so a quality-lo
 
 ## Safety
 
-The loop never commits, pushes or touches your git index; it checkpoints with git plumbing and a temporary index. While a loop runs, the guard denies `git reset --hard`, `git clean -f`, force pushes, `--no-verify`, `rm -rf` and edits to the loop's own limits. The guard reads command text, so it is a seatbelt: keep Claude Code's permission prompts on for anything destructive.
+The loop never commits or pushes; it checkpoints with git plumbing and a temporary index. Reverting a round puts the working tree and the index back as they were at its checkpoint, moves files the round created to `.quality-loop/trash/` rather than deleting them, and never removes a file that was ignored at the checkpoint; what it cannot undo (commits made during the round, changes inside nested repositories) pauses the loop. While a loop runs, the guard denies `git reset --hard`, `git clean -f`, force pushes, `--no-verify`, `rm -rf` and edits to the loop's own limits. The guard reads command text, so it is a seatbelt: keep Claude Code's permission prompts on for anything destructive.
