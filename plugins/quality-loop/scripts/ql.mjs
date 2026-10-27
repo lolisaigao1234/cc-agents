@@ -210,7 +210,13 @@ async function main(argv) {
         const { round, scope } = loop.beginRound(root)
         if (flags.json) return print({ round, scope })
         print(`round ${round} begun · scope: ${scope.diffOnly ? 'diff-only since last kept round' : 'full change vs base'}`)
-        print(scope.empty ? 'scope is empty: nothing changed to review (record with `ql ingest --none --lens scope`)' : `diff: ${scope.diffFile}\nfiles:\n${scope.files.map(f => `  ${f.status} ${f.path} (+${f.added} -${f.removed})`).join('\n')}`)
+        // In debug mode the fix lands after round begin: an empty scope here
+        // is the state before the fix, not a review to skip.
+        const emptyNote =
+          loop.loadState(root)?.mode === 'debug'
+            ? 'scope is empty so far: apply the fix, then `ql scope` and review it with one bug hunter per lens'
+            : 'scope is empty: nothing changed to review (record with `ql ingest --none --lens scope`)'
+        print(scope.empty ? emptyNote :`diff: ${scope.diffFile}\nfiles:\n${scope.files.map(f => `  ${f.status} ${f.path} (+${f.added} -${f.removed})`).join('\n')}`)
         return print(`lenses:\n${scope.lenses.map((/** @type {{ name: string, focus: string }} */ l) => `  ${l.name}: ${l.focus}`).join('\n')}\nREVIEW.md: ${scope.reviewMd}`)
       }
       if (sub === 'end') {
@@ -291,14 +297,14 @@ async function main(argv) {
       return print(`${f.id} → ${f.status}`)
     }
     case 'status': {
-      const s = loop.loadState(root)
+      const s = loop.syncState(root)
       if (flags.json) return print(s)
       print(statusLine(s))
       if (s?.statusReasons?.length) print(s.statusReasons.map((/** @type {string} */ r) => `  - ${r}`).join('\n'))
       return
     }
     case 'next':
-      return print(nextAction(loop.loadState(root)))
+      return print(nextAction(loop.syncState(root)))
     case 'pause':
       loop.pause(root, str(flags.reason) ?? '')
       return print('paused')

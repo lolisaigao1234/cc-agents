@@ -309,3 +309,63 @@ test('oscillation counts only findings still in play, not ones since rejected', 
   writeState(root, s)
   assert.match(qlOk(root, ['round', 'end']), /decision: CONTINUE/)
 })
+
+test('an empty scope recorded before the debug fix does not let the fix skip review', () => {
+  // the bug is committed, so round 1 starts with nothing changed vs the base
+  const root = makeRepo({
+    'package.json': JSON.stringify({ type: 'module', scripts: { test: 'node --test' } }),
+    'src/cart.js': BUGGY,
+    'test/cart.test.js': CART_TEST,
+  })
+  const repro = `node -e "if (/<=/.test(require('fs').readFileSync('src/cart.js','utf8'))) process.exit(1)"`
+  qlOk(root, ['start', '--mode', 'debug', '--repro', repro, '--depth', 'quick'])
+  const begin = qlOk(root, ['round', 'begin'])
+  assert.doesNotMatch(begin, /record with `ql ingest --none --lens scope`/, 'debug round begin does not invite closing the review before the fix')
+  qlOk(root, ['ingest', '--none', '--lens', 'scope'])
+  // then the fix, and an unrelated edit riding along
+  writeFiles(root, { 'src/cart.js': CART + 'export const secret = "hunter2"\n' })
+  const end = ql(root, ['round', 'end'])
+  assert.equal(end.code, 1, 'round end refuses the unreviewed change')
+  assert.match(end.err, /scope was recorded empty/)
+  assert.equal(state(root).rounds[0].ended, false)
+  assert.equal(state(root).rounds[0].lensesDone.includes('scope'), false, 'the stale empty-scope record is dropped')
+  assert.doesNotMatch(qlOk(root, ['next']), /^Validate/, 'next does not say validate an unreviewed change')
+  assert.equal(ql(root, ['round', 'end']).code, 1)
+  // reviewing every lens lets it end
+  finishReview(root)
+  assert.match(qlOk(root, ['round', 'end']), /decision: DONE/)
+})
+
+test('`ql next` notices an empty-scope record gone stale before round end does', () => {
+  const clean = makeRepo({ 'a.txt': 'x\n' })
+  qlOk(clean, ['start', '--mode', 'review'])
+  qlOk(clean, ['round', 'begin'])
+  qlOk(clean, ['ingest', '--none', '--lens', 'scope'])
+  assert.match(qlOk(clean, ['next']), /^Validate/)
+  writeFiles(clean, { 'a.txt': 'y\n' })
+  assert.match(qlOk(clean, ['next']), /^Review/)
+  assert.match(qlOk(clean, ['status']), /phase review/)
+})
+
+test('a reverted round keeps a confirmed finding whose code survives the revert, even if the fix moved it far', () => {
+  const root = buggyProject()
+  const repro = `node -e "if (/<=/.test(require('fs').readFileSync('src/cart.js','utf8'))) process.exit(1)"`
+  qlOk(root, ['start', '--mode', 'debug', '--repro', repro, '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  // the fix prepends 30 lines of docs, so the surviving buggy line moves from 4 to 34
+  const pad = Array.from({ length: 30 }, (_, i) => `// doc ${i}`).join('\n') + '\n'
+  writeFiles(root, { 'src/cart.js': pad + BUGGY.replace('i <= items.length', 'i < items.length') })
+  ingest(root, [{ ...NIT, line: 34, severity: 'important', title: 'A missing price is summed as 0' }], 'correctness')
+  finishReview(root)
+  voteAll(root, 'F1')
+  assert.equal(state(root).ledger.findings.F1.line, 34)
+  writeFiles(root, { 'test/broken.test.js': `import { test } from 'node:test'\nimport assert from 'node:assert/strict'\ntest('x', () => assert.equal(1, 2))\n` })
+  const end = qlOk(root, ['round', 'end'])
+  assert.match(end, /REVERTED/)
+  assert.doesNotMatch(end, /discarded F1/)
+  assert.equal(readFileSync(join(root, 'src/cart.js'), 'utf8'), BUGGY)
+  const f = state(root).ledger.findings.F1
+  assert.ok(f, 'the bug is still in the tree, so the finding stays')
+  assert.equal(f.line, 4, 'relocated to where the code is after the revert')
+  assert.match(qlOk(root, ['open']), /F1/)
+})

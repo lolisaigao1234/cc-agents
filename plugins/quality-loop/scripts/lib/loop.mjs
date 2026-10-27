@@ -9,7 +9,7 @@ import { compareRuns, runChecks } from './checks.mjs'
 import { detectChecks, lensFocus, resolveConfig, validateConfig } from './config.mjs'
 import { decideRound, scoreOf } from './decide.mjs'
 import { parseUnifiedDiff } from './diff.mjs'
-import { checkEvidence, ingestFindings, newLedger, recordVotes } from './findings.mjs'
+import { checkEvidence, ingestFindings, newLedger, normalizeQuote, recordVotes } from './findings.mjs'
 import { diffTrees, resolveBase, restoreTree, snapshotTree } from './git.mjs'
 import { counts, currentRound, inScope, phaseOf, renderLoopMd } from './report.mjs'
 import { GITIGNORE, paths, readJson, writeJson, writeText } from './store.mjs'
@@ -231,6 +231,7 @@ export function scope(root) {
   const r = currentRound(s)
   if (!r) throw new LoopError('no round in progress: run `ql round begin`')
   const { diffOnly, from, diff } = scopeDiff(root, s)
+  if (dropStaleEmptyScope(s, diff)) saveState(root, s)
   const files = parseUnifiedDiff(diff).map(f => ({ path: f.path, status: f.status, added: f.added.length, removed: f.removed.length }))
   const diffFile = join(paths(root).work, `round-${s.round}`, 'scope.diff')
   writeText(diffFile, diff)
@@ -250,6 +251,35 @@ function scopeDiff(root, s) {
   const diffOnly = s.round > s.config.loop.diffOnlyAfterRound && kept.length > 0
   const from = diffOnly ? kept.at(-1).startCheckpoint : s.baseCommit
   return { diffOnly, from, diff: diffTrees(root, from, snapshotTree(root)) }
+}
+
+/**
+ * An empty scope recorded with `ingest --none --lens scope` closes the review
+ * only while the scope stays empty. In debug mode the fix lands after `round
+ * begin`; once anything changes, the record no longer holds and every lens
+ * must review the change. Returns whether the record was dropped.
+ *
+ * @param {any} s
+ * @param {string} diff the current scope diff
+ */
+function dropStaleEmptyScope(s, diff) {
+  const r = currentRound(s)
+  if (!r?.lensesDone?.includes('scope') || !diff.trim()) return false
+  r.lensesDone = r.lensesDone.filter((/** @type {string} */ l) => l !== 'scope')
+  r.scopeChanged = true
+  return true
+}
+
+/**
+ * The state with a stale empty-scope record dropped (and saved), so `ql next`
+ * and `ql status` describe the tree as it is now.
+ *
+ * @param {string} root
+ */
+export function syncState(root) {
+  const s = loadState(root)
+  if (s && currentRound(s) && dropStaleEmptyScope(s, scopeDiff(root, s).diff)) saveState(root, s)
+  return s
 }
 
 /** @param {string} root @param {string} file */
@@ -274,9 +304,11 @@ export function ingest(root, raws, lens) {
   // configured lens it stands for; `scope` stands for all of them and is
   // only true of an empty scope.
   const lenses = /** @type {string[]} */ (s.config.review.lenses)
+  const scopeNow = scopeDiff(root, s).diff
+  dropStaleEmptyScope(s, scopeNow)
   if (lens === 'scope') {
     if (raws !== null) throw new LoopError('the lens "scope" only records an empty scope: `ql ingest --none --lens scope`')
-    if (scopeDiff(root, s).diff.trim()) {
+    if (scopeNow.trim()) {
       throw new LoopError(`the scope is not empty: review it with one bug hunter per lens (${lenses.join(', ')}) and ingest each`)
     }
   } else if (raws === null && !lenses.includes(lens)) {
@@ -358,6 +390,28 @@ export function mark(root, id, status, reason) {
 }
 
 /**
+ * Where a finding's quote starts in `lines`, anywhere in the file: the
+ * occurrence nearest its recorded line, or null when the code is gone.
+ *
+ * @param {Finding} f
+ * @param {string[] | null} lines
+ * @returns {number | null}
+ */
+function findQuote(f, lines) {
+  if (!lines) return null
+  const quote = normalizeQuote(f.quote)
+  if (!quote) return null
+  const span = Math.max(1, f.quote.trim().split('\n').length)
+  /** @type {number | null} */
+  let best = null
+  for (let i = 1; i <= lines.length; i++) {
+    if (!normalizeQuote(lines.slice(i - 1, i - 1 + span).join(' ')).includes(quote)) continue
+    if (best === null || Math.abs(i - f.line) < Math.abs(best - f.line)) best = i
+  }
+  return best
+}
+
+/**
  * Validates the round: runs the checks, compares against the run the round
  * started from, scans the round's own diff for weakened tests, reverts the
  * round on regression, counts fix attempts and decides how the loop goes on.
@@ -369,7 +423,14 @@ export async function endRound(root, opts = {}) {
   const s = requireState(root)
   if (s.reviewOnly) throw new LoopError('a review-only loop changes nothing and is not validated: close it with `ql finish`')
   // Only a fully reviewed and verified round can be validated: every lens
-  // ingested (or an empty scope recorded) and no candidate left unvoted.
+  // ingested (or an empty scope recorded, and still empty) and no candidate
+  // left unvoted.
+  if (currentRound(s) && dropStaleEmptyScope(s, scopeDiff(root, s).diff)) {
+    saveState(root, s)
+    throw new LoopError(
+      `the scope was recorded empty, but the tree has changed since: review the change (\`ql scope\`) with one bug hunter per lens (${s.config.review.lenses.join(', ')}) and ingest each before \`ql round end\``,
+    )
+  }
   requirePhase(s, ['fix', 'end'], 'end the round')
   const r = currentRound(s)
   const specs = checkSpecs(s)
@@ -428,9 +489,17 @@ export async function endRound(root, opts = {}) {
     // next review reports it afresh.
     for (const f of all) {
       if (f.firstRound !== r.n || !['candidate', 'confirmed'].includes(f.status)) continue
-      const ev = checkEvidence(f, readLines(root, f.file))
-      if (ev.ok) continue
-      discarded.push({ id: f.id, title: f.title, file: f.file, line: f.line, reason: `${ev.reason} after the revert` })
+      // The reverted fix may have moved the code far from the finding's
+      // line: the code is gone only if its quote is nowhere in the file.
+      const lines = readLines(root, f.file)
+      const ev = checkEvidence(f, lines)
+      const at = ev.ok ? ev.line : findQuote(f, lines)
+      if (at != null) {
+        f.endLine = at + (f.endLine - f.line)
+        f.line = at
+        continue
+      }
+      discarded.push({ id: f.id, title: f.title, file: f.file, line: f.line, reason: `${ev.ok ? 'quote-not-found' : ev.reason} after the revert` })
       delete s.ledger.findings[f.id]
     }
   }
