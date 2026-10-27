@@ -12,6 +12,7 @@ import { parseUnifiedDiff, rangeTouches } from './diff.mjs'
 import { checkEvidence, decodeGitPath, ingestFindings, newLedger, recordVotes } from './findings.mjs'
 import { checkpointTree, diffTrees, resolveBase, restoreTree, snapshotTree } from './git.mjs'
 import { normalizePath } from './glob.mjs'
+import { lineTranslator } from './track.mjs'
 import { counts, currentRound, inScope, phaseOf, renderLoopMd } from './report.mjs'
 import { GITIGNORE, paths, readJson, writeJson, writeText } from './store.mjs'
 import { readTombstone, recordLoop } from './tombstone.mjs'
@@ -391,6 +392,9 @@ export function ingest(root, raws, lens) {
     diffFiles,
     readLines: f => readLines(root, f),
     config: s.config.review,
+    // Known findings are followed from the tree they were last seen in.
+    tree,
+    translate: lineTranslator(root, tree),
   })
   // Where each finding reported now sits in the round-start tree, decided by
   // the round's diff so far, for a revert to put it back (see endRound).
@@ -599,7 +603,8 @@ export async function endRound(root, opts = {}) {
     // start, as their ingest recorded it from the round's diff.
     /** @type {Record<string, number | null>} */
     const startLines = r.startLines ?? {}
-    const baseDiff = parseUnifiedDiff(diffTrees(root, s.baseCommit, snapshotTree(root), { context: 0 }))
+    const restoredTree = snapshotTree(root)
+    const baseDiff = parseUnifiedDiff(diffTrees(root, s.baseCommit, restoredTree, { context: 0 }))
     for (const f of all) {
       if (!(f.id in startLines) || !['candidate', 'confirmed'].includes(f.status)) continue
       const start = startLines[f.id]
@@ -620,6 +625,8 @@ export async function endRound(root, opts = {}) {
       if (at === null) continue
       f.endLine = at + (f.endLine - f.line)
       f.line = at
+      // Its lines are now those of the restored tree (see ADR 0002).
+      f.tree = restoredTree
       // Whether the change touches it depends on what the revert left.
       const df = diffOf(baseDiff, f.file)
       f.origin = df && rangeTouches(df, f.line, f.endLine, 1) ? 'introduced' : 'pre-existing'
