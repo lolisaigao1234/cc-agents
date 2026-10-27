@@ -430,3 +430,118 @@ test('checkEvidence: a cited line past the end of a shortened file is still relo
   assert.deepEqual(checkEvidence({ line: 62, quote: 'not here' }, lines), { ok: false, reason: 'quote-not-found' })
   assert.deepEqual(checkEvidence({ line: 99, quote: 'return null' }, lines), { ok: false, reason: 'line-out-of-range' })
 })
+
+// ---------------------------------------------------------------------------
+// Instance identity: a copy of the code is told apart from its siblings by
+// what surrounds it, not by its rank among the copies (which shifts when one
+// copy is rewritten) nor by being the nearest copy in the relocation window.
+
+test('ingest: a rejected copy that is later edited does not swallow the other copy', () => {
+  const quote = 'const cap = order.total'
+  const lines = fileOf(60, { 10: `  ${quote}`, 40: `  ${quote}` })
+  const ledger = newLedger()
+  ingestFindings(ledger, [at(10, quote)], ctxFor(lines))
+  const f1 = ledger.findings.F1
+  if (!f1) throw new Error('no F1')
+  f1.status = 'rejected'
+  const edited = fileOf(60, { 10: '  const cap = guarded(order.total)', 40: `  ${quote}` })
+  const r2 = ingestFindings(ledger, [at(40, quote)], ctxFor(edited, { round: 2 }))
+  assert.deepEqual(r2.report.repeats, [])
+  assert.deepEqual(r2.report.accepted, ['F2'])
+  // the new instance is its own finding in later rounds
+  const r3 = ingestFindings(ledger, [at(40, quote)], ctxFor(edited, { round: 3 }))
+  assert.deepEqual(r3.report.merged, ['F2'])
+})
+
+for (const gap of [30, 15]) {
+  test(`ingest: fixing one copy, then reporting another ${gap} lines away is a new finding, not a reopen`, () => {
+    const quote = 'const cap = order.total'
+    const other = 10 + gap
+    const lines = fileOf(80, { 10: `  ${quote}`, [other]: `  ${quote}` })
+    const ledger = newLedger()
+    ingestFindings(ledger, [at(10, quote)], ctxFor(lines))
+    const f1 = ledger.findings.F1
+    if (!f1) throw new Error('no F1')
+    Object.assign(f1, { status: 'fixed', resolution: 'converted to USD at line 10' })
+    const fixed = fileOf(80, { 10: '  const cap = toUsd(order.total)', [other]: `  ${quote}` })
+    const r2 = ingestFindings(ledger, [at(other, quote, { title: 'copy B' })], ctxFor(fixed, { round: 2 }))
+    assert.deepEqual(r2.report.reopened, [])
+    assert.deepEqual(r2.report.accepted, ['F2'])
+    assert.equal(f1.status, 'fixed')
+    assert.equal(f1.reopens, 0)
+    assert.equal(f1.resolution, 'converted to USD at line 10')
+    assert.equal(ledger.findings.F2?.line, other)
+  })
+}
+
+test('ingest: three copies fixed one per round never count as a reopen', () => {
+  const Q = '  const cap = order.total'
+  const FIXED = '  const cap = toUsd(order.total)'
+  const ledger = newLedger()
+  const round = (/** @type {number} */ n, /** @type {number} */ line, /** @type {Record<number, string>} */ code) => {
+    const { report } = ingestFindings(ledger, [at(line, Q.trim())], ctxFor(fileOf(80, code), { round: n }))
+    for (const id of report.accepted) {
+      const f = ledger.findings[id]
+      if (f) f.status = 'fixed'
+    }
+    return report
+  }
+  round(1, 10, { 10: Q, 40: Q, 70: Q })
+  const r2 = round(2, 40, { 10: FIXED, 40: Q, 70: Q })
+  const r3 = round(3, 70, { 10: FIXED, 40: FIXED, 70: Q })
+  assert.deepEqual([r2.reopened, r3.reopened], [[], []])
+  assert.deepEqual(Object.keys(ledger.findings), ['F1', 'F2', 'F3'])
+  assert.deepEqual(Object.values(ledger.findings).map(f => f.reopens), [0, 0, 0])
+})
+
+test('ingest: the same issue is still recognised when edits land right around a unique quote', () => {
+  const quote = 'if (x > 10) {'
+  const ledger = newLedger()
+  ingestFindings(ledger, [at(30, quote)], ctxFor(fileOf(60, { 30: `  ${quote}` })))
+  const f1 = ledger.findings.F1
+  if (!f1) throw new Error('no F1')
+  f1.status = 'rejected'
+  // fixes elsewhere rewrote the lines on both sides and shifted it down one
+  const edited = fileOf(61, { 28: '  guard()', 29: '  check()', 30: '  check2()', 31: `  ${quote}`, 32: '  log()', 33: '  done()' })
+  const r2 = ingestFindings(ledger, [at(31, quote)], ctxFor(edited, { round: 2 }))
+  assert.deepEqual(r2.report.repeats, ['F1'])
+  assert.deepEqual(r2.report.accepted, [])
+})
+
+test('ingest: one copy keeps its finding when an edit lands right beside it', () => {
+  const quote = 'const cap = order.total'
+  const lines = fileOf(60, { 10: `  ${quote}`, 30: `  ${quote}` })
+  const ledger = newLedger()
+  ingestFindings(ledger, [at(10, quote), at(30, quote)], ctxFor(lines))
+  const f2 = ledger.findings.F2
+  if (!f2) throw new Error('no F2')
+  f2.status = 'rejected'
+  // a fix inserts a guard right above copy B
+  const edited = [...lines.slice(0, 29), '  assert(order)', ...lines.slice(29)]
+  const r2 = ingestFindings(ledger, [at(31, quote), at(10, quote)], ctxFor(edited, { round: 2 }))
+  assert.deepEqual(r2.report.repeats, ['F2'])
+  assert.deepEqual(r2.report.merged, ['F1'])
+  assert.deepEqual(r2.report.accepted, [])
+})
+
+for (const [sevs, opts, want] of /** @type {const} */ ([
+  [['nit', 'important', 'nit'], { verifiers: 3, quorum: 2 }, 'nit'],
+  [['important', 'nit', 'nit'], { verifiers: 3, quorum: 2 }, 'nit'],
+  [['nit', 'nit', 'important'], { verifiers: 3, quorum: 2 }, 'nit'],
+  [['important', 'important', 'nit', 'nit', 'nit'], { verifiers: 5, quorum: 3 }, 'nit'],
+  [['nit', 'important', 'important'], { verifiers: 3, quorum: 2 }, 'important'],
+])) {
+  test(`recordVotes: severity is the majority of all confirm votes, in any order (${sevs.join(',')})`, () => {
+    const votes = (/** @type {string} */ id) =>
+      sevs.map((severity, i) => ({ id, verdict: 'confirm', voter: `v${i + 1}`, reason: 'r', severity }))
+    const together = newLedger()
+    const id = ingestFindings(together, [base], ctx()).report.accepted[0] ?? ''
+    recordVotes(together, votes(id), opts)
+    const oneByOne = newLedger()
+    ingestFindings(oneByOne, [base], ctx())
+    for (const v of votes(id)) recordVotes(oneByOne, [v], opts)
+    assert.equal(together.findings[id]?.status, 'confirmed')
+    assert.equal(together.findings[id]?.severity, want)
+    assert.equal(oneByOne.findings[id]?.severity, want)
+  })
+}
