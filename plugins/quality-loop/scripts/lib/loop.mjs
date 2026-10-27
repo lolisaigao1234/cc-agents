@@ -13,6 +13,7 @@ import { checkEvidence, ingestFindings, newLedger, normalizeQuote, recordVotes }
 import { checkpointTree, diffTrees, resolveBase, restoreTree, snapshotTree } from './git.mjs'
 import { counts, currentRound, inScope, phaseOf, renderLoopMd } from './report.mjs'
 import { GITIGNORE, paths, readJson, writeJson, writeText } from './store.mjs'
+import { readTombstone, recordLoop } from './tombstone.mjs'
 import { scanWeakening } from './weakening.mjs'
 
 /** @typedef {import('./findings.mjs').Finding} Finding */
@@ -94,6 +95,7 @@ export function saveState(root, s) {
   s.updatedAt = new Date().toISOString()
   writeJson(paths(root).state, s)
   writeText(paths(root).loopMd, renderLoopMd(s))
+  recordLoop(root, s)
 }
 
 /** @param {string} root */
@@ -149,6 +151,24 @@ export function restartRefusal(prev) {
 }
 
 /**
+ * Why `ql start` without --force must not start a loop in `root`, given its
+ * state file (`prev`, possibly gone). The tombstone in the git directory
+ * speaks for a loop whose state was deleted or replaced, so removing
+ * `.quality-loop/` does not reset the cap.
+ *
+ * @param {string} root
+ * @param {any} prev
+ */
+export function startRefusal(root, prev) {
+  const own = restartRefusal(prev)
+  if (own) return own
+  const t = readTombstone(root)
+  if (!t || t.id === prev?.id || t.status === 'done' || t.reviewOnly) return null
+  if (!(t.round > 0) && !['capped', 'stalled'].includes(t.status)) return null
+  return `the loop ${t.id} was ${t.status} at round ${t.round}${t.maxRounds ? ` of ${t.maxRounds}` : ''} when its state in .quality-loop/ was deleted or replaced. Starting over would reset its round cap, which only the user may do: report to the user, who can run \`! ql start --force ...\`.`
+}
+
+/**
  * @param {string} root
  * @param {{ mode: 'review' | 'debug', goal?: string, base?: string, repro?: string, force?: boolean, reviewOnly?: boolean, depth?: string }} opts
  */
@@ -159,7 +179,7 @@ export async function start(root, opts) {
   if (!existsSync(p.config)) init(root)
   const config = loadConfig(root, { depth: opts.depth })
   const prev = loadState(root)
-  const refusal = opts.force ? null : restartRefusal(prev)
+  const refusal = opts.force ? null : startRefusal(root, prev)
   if (refusal) throw new LoopError(refusal)
   if (prev) {
     // Keep the old run for the record.
