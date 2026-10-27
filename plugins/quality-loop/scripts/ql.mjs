@@ -31,7 +31,7 @@ Loop
   ql round begin                    checkpoint the tree and write the review scope
   ql scope [--json]                 this round's diff (full first, then diff-only)
   ql ingest <file|-> --lens L       add a bug hunter's findings (JSON array)
-  ql ingest --none [--lens L]       record that a reviewer found nothing
+  ql ingest --none --lens L         record that lens L's reviewer found nothing (L=scope: the scope is empty)
   ql pending [--json]               candidates awaiting verifier votes
   ql vote <file|-> [file ...]       record votes: {id, verdict: confirm|reject, voter, reason, severity?} or arrays of them
   ql open [--json]                  confirmed findings to fix, grouped by bug class
@@ -210,7 +210,7 @@ async function main(argv) {
         const { round, scope } = loop.beginRound(root)
         if (flags.json) return print({ round, scope })
         print(`round ${round} begun · scope: ${scope.diffOnly ? 'diff-only since last kept round' : 'full change vs base'}`)
-        print(scope.empty ? 'scope is empty: nothing changed to review (record with `ql ingest --none`)' : `diff: ${scope.diffFile}\nfiles:\n${scope.files.map(f => `  ${f.status} ${f.path} (+${f.added} -${f.removed})`).join('\n')}`)
+        print(scope.empty ? 'scope is empty: nothing changed to review (record with `ql ingest --none --lens scope`)' : `diff: ${scope.diffFile}\nfiles:\n${scope.files.map(f => `  ${f.status} ${f.path} (+${f.added} -${f.removed})`).join('\n')}`)
         return print(`lenses:\n${scope.lenses.map((/** @type {{ name: string, focus: string }} */ l) => `  ${l.name}: ${l.focus}`).join('\n')}\nREVIEW.md: ${scope.reviewMd}`)
       }
       if (sub === 'end') {
@@ -220,6 +220,7 @@ async function main(argv) {
         if (out.flaky.length) print(`flaky (failed then passed on retry): ${out.flaky.join(', ')}`)
         for (const w of out.weakening) print(`${w.blocking ? 'WEAKENING' : 'warning'}: ${w.kind} ${w.file}${w.line ? `:${w.line}` : ''} ${w.text}`)
         if (out.decision.revert) print(`REVERTED round ${out.round}: restored ${out.restored?.restored.length ?? 0} file(s), deleted ${out.restored?.deleted.length ?? 0}`)
+        for (const d of out.discarded) print(`  discarded ${d.id} ${d.file}:${d.line} ${d.title} (its code was reverted)`)
         print(`decision: ${out.decision.status.toUpperCase()} · score ${out.decision.endScore}`)
         for (const r of out.decision.reasons) print(`  - ${r}`)
         return print(`next: ${nextAction(loop.loadState(root))}`)
@@ -231,9 +232,11 @@ async function main(argv) {
       return print(flags.json ? s : `${s.diffOnly ? 'diff-only' : 'full'} scope · ${s.files.length} file(s) · diff: ${s.diffFile}`)
     }
     case 'ingest': {
-      const lens = str(flags.lens) ?? 'general'
       const source = sub
-      if (!flags.none && !source) throw new loop.LoopError('ql ingest <file|-> --lens L, or ql ingest --none')
+      if (!flags.none && !source) throw new loop.LoopError('ql ingest <file|-> --lens L, or ql ingest --none --lens L')
+      // A --none stands for one lens's hunter (or an empty scope): it must say which.
+      if (flags.none && !str(flags.lens)) throw new loop.LoopError('ql ingest --none needs --lens: the lens whose hunter found nothing, or `scope` for an empty scope')
+      const lens = str(flags.lens) ?? 'general'
       let raws = null
       if (!flags.none && source) {
         const parsed = readJsonInput(source)

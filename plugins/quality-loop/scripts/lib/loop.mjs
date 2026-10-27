@@ -9,7 +9,7 @@ import { compareRuns, runChecks } from './checks.mjs'
 import { detectChecks, lensFocus, resolveConfig, validateConfig } from './config.mjs'
 import { decideRound, scoreOf } from './decide.mjs'
 import { parseUnifiedDiff } from './diff.mjs'
-import { ingestFindings, newLedger, recordVotes } from './findings.mjs'
+import { checkEvidence, ingestFindings, newLedger, recordVotes } from './findings.mjs'
 import { diffTrees, resolveBase, restoreTree, snapshotTree } from './git.mjs'
 import { counts, currentRound, inScope, phaseOf, renderLoopMd } from './report.mjs'
 import { GITIGNORE, paths, readJson, writeJson, writeText } from './store.mjs'
@@ -170,6 +170,8 @@ export async function start(root, opts) {
     stopNudges: 0,
     warnings: /** @type {string[]} */ ([]),
     reviewOnly: !!opts.reviewOnly,
+    reproPassedAtStart: false,
+    extendedAt: 0,
   }
   if (s.reviewOnly) {
     if (s.mode !== 'review') throw new LoopError('--review-only applies to review mode')
@@ -189,7 +191,10 @@ export async function start(root, opts) {
   if (s.repro) {
     const repro = s.baseline.run.results.find((/** @type {any} */ r) => r.name === 'repro')
     if (repro?.ok) {
+      // Not a pause the user can answer: the loop has nothing to fix until a
+      // new repro fails. `resume` refuses it; `ql start` replaces it.
       s.status = 'paused'
+      s.reproPassedAtStart = true
       s.statusReasons = ['the repro command passes before any fix: the bug does not reproduce. Fix the repro command, then `ql start` again.']
     }
   }
@@ -225,16 +230,26 @@ export function scope(root) {
   const s = requireState(root)
   const r = currentRound(s)
   if (!r) throw new LoopError('no round in progress: run `ql round begin`')
-  const kept = s.rounds.filter((/** @type {any} */ x) => x.ended && !x.reverted)
-  const diffOnly = s.round > s.config.loop.diffOnlyAfterRound && kept.length > 0
-  const from = diffOnly ? kept.at(-1).startCheckpoint : s.baseCommit
-  const now = snapshotTree(root)
-  const diff = diffTrees(root, from, now)
+  const { diffOnly, from, diff } = scopeDiff(root, s)
   const files = parseUnifiedDiff(diff).map(f => ({ path: f.path, status: f.status, added: f.added.length, removed: f.removed.length }))
   const diffFile = join(paths(root).work, `round-${s.round}`, 'scope.diff')
   writeText(diffFile, diff)
   const lenses = s.config.review.lenses.map((/** @type {string} */ name) => ({ name, focus: lensFocus(name, s.config.review.customLenses) }))
   return { round: s.round, diffOnly, from, diffFile, files, empty: files.length === 0, reviewMd: paths(root).reviewMd, lenses }
+}
+
+/**
+ * The current round's review diff: against the base, or diff-only since the
+ * last kept round started.
+ *
+ * @param {string} root
+ * @param {any} s
+ */
+function scopeDiff(root, s) {
+  const kept = s.rounds.filter((/** @type {any} */ x) => x.ended && !x.reverted)
+  const diffOnly = s.round > s.config.loop.diffOnlyAfterRound && kept.length > 0
+  const from = diffOnly ? kept.at(-1).startCheckpoint : s.baseCommit
+  return { diffOnly, from, diff: diffTrees(root, from, snapshotTree(root)) }
 }
 
 /** @param {string} root @param {string} file */
@@ -255,6 +270,18 @@ export function ingest(root, raws, lens) {
   const s = requireState(root)
   requirePhase(s, ['review', 'investigate', 'verify', 'fix', 'end', 'report'], 'ingest findings')
   const r = currentRound(s)
+  // Review completeness is counted by lens name, so a `--none` must name the
+  // configured lens it stands for; `scope` stands for all of them and is
+  // only true of an empty scope.
+  const lenses = /** @type {string[]} */ (s.config.review.lenses)
+  if (lens === 'scope') {
+    if (raws !== null) throw new LoopError('the lens "scope" only records an empty scope: `ql ingest --none --lens scope`')
+    if (scopeDiff(root, s).diff.trim()) {
+      throw new LoopError(`the scope is not empty: review it with one bug hunter per lens (${lenses.join(', ')}) and ingest each`)
+    }
+  } else if (raws === null && !lenses.includes(lens)) {
+    throw new LoopError(`\`ql ingest --none\` needs --lens naming a configured lens (${lenses.join(', ')}), or --lens scope for an empty scope; got "${lens || '(none)'}"`)
+  }
   const diffFiles = parseUnifiedDiff(diffTrees(root, s.baseCommit, snapshotTree(root), { context: 0 }))
   const { report } = ingestFindings(s.ledger, raws ?? [], {
     round: s.round,
@@ -340,7 +367,10 @@ export function mark(root, id, status, reason) {
  */
 export async function endRound(root, opts = {}) {
   const s = requireState(root)
-  requirePhase(s, ['fix', 'end', 'review', 'investigate', 'verify'], 'end the round')
+  if (s.reviewOnly) throw new LoopError('a review-only loop changes nothing and is not validated: close it with `ql finish`')
+  // Only a fully reviewed and verified round can be validated: every lens
+  // ingested (or an empty scope recorded) and no candidate left unvoted.
+  requirePhase(s, ['fix', 'end'], 'end the round')
   const r = currentRound(s)
   const specs = checkSpecs(s)
   const logDir = join(paths(root).runs, s.id, `round-${r.n}`)
@@ -384,15 +414,31 @@ export async function endRound(root, opts = {}) {
   })
 
   let restored = null
+  /** @type {{ id: string, title: string, file: string, line: number, reason: string }[]} */
+  const discarded = []
   if (willRevert) {
     restored = restoreTree(root, r.startCheckpoint)
     for (const f of fixedThisRound) {
       f.status = 'confirmed'
       f.resolution = ''
     }
+    // Findings reported this round on code the revert removed (typically on
+    // the reverted fix itself) describe code that no longer exists; keeping
+    // them open would block the loop on nothing. If the code comes back, the
+    // next review reports it afresh.
+    for (const f of all) {
+      if (f.firstRound !== r.n || !['candidate', 'confirmed'].includes(f.status)) continue
+      const ev = checkEvidence(f, readLines(root, f.file))
+      if (ev.ok) continue
+      discarded.push({ id: f.id, title: f.title, file: f.file, line: f.line, reason: `${ev.reason} after the revert` })
+      delete s.ledger.findings[f.id]
+    }
   }
-  for (const f of all) {
-    if (f.status === 'confirmed' && inScope(s, f)) {
+  const live = /** @type {Finding[]} */ (Object.values(s.ledger.findings))
+  // An attempt counts against important findings only: nits never block the
+  // finish line, so leaving one open is not being stuck on it.
+  for (const f of live) {
+    if (f.status === 'confirmed' && f.severity === 'important' && inScope(s, f)) {
       f.attempts += 1
       if (f.attempts >= s.config.loop.maxAttemptsPerFinding) f.status = 'stuck'
     }
@@ -408,12 +454,15 @@ export async function endRound(root, opts = {}) {
     baselineRequiredFailing: failingRequired(s.baseline.run),
     reproOk: s.repro ? !!(willRevert ? s.lastRun : run).results.find((/** @type {any} */ x) => x.name === 'repro')?.ok : null,
     open: { important: c.important, nit: c.nit, pending: c.pending, stuck: c.stuck },
-    maxReopens: Math.max(0, ...all.map(f => f.reopens)),
+    // Oscillation: a finding still in play that keeps coming back. One later
+    // rejected or accepted as won't-fix is no longer fighting a fix.
+    maxReopens: Math.max(0, ...live.filter(f => f.status !== 'rejected' && f.status !== 'wontfix').map(f => f.reopens)),
+    // Stall and divergence look only at rounds since the user last extended.
     history: s.rounds
-      .filter((/** @type {any} */ x) => x.ended)
+      .filter((/** @type {any} */ x) => x.ended && x.n > (s.extendedAt ?? 0))
       .map((/** @type {any} */ x) => ({ startScore: x.startScore, endScore: x.endScore, reverted: x.reverted, found: x.found })),
     startScore,
-    found: all.filter(f => f.confirmedRound === r.n).length,
+    found: live.filter(f => f.confirmedRound === r.n).length,
   })
 
   Object.assign(r, {
@@ -427,7 +476,8 @@ export async function endRound(root, opts = {}) {
     weakening,
     startScore,
     endScore: decision.endScore,
-    found: all.filter(f => f.confirmedRound === r.n).length,
+    found: live.filter(f => f.confirmedRound === r.n).length,
+    discarded,
     reasons: decision.reasons,
     status: decision.status,
   })
@@ -436,7 +486,7 @@ export async function endRound(root, opts = {}) {
   s.statusReasons = decision.reasons
   s.stopNudges = 0
   saveState(root, s)
-  return { round: r.n, decision, compare: cmp, flaky, weakening, restored, run }
+  return { round: r.n, decision, compare: cmp, flaky, weakening, restored, discarded, run }
 }
 
 /**
@@ -495,6 +545,9 @@ export function pause(root, reason) {
 export function resume(root) {
   const s = requireState(root)
   if (s.status !== 'paused') throw new LoopError(`loop is ${s.status}, not paused`)
+  if (s.reproPassedAtStart) {
+    throw new LoopError('the repro passed before any fix, so there is nothing to resume: build a repro that fails while the bug exists, then `ql start --mode debug --repro "<command>"`')
+  }
   s.status = 'active'
   s.statusReasons = []
   s.stopNudges = 0
@@ -523,12 +576,17 @@ export function extend(root, extra) {
   const s = requireState(root)
   if (!['capped', 'stalled'].includes(s.status)) throw new LoopError(`loop is ${s.status}; only a capped or stalled loop can be extended`)
   s.config.loop.maxRounds = s.round + Math.max(1, extra)
+  // Start the convergence counters afresh, or the stall that led here ends
+  // the first granted round: attempts, reopens (oscillation), and the round
+  // history that stall and divergence detection read.
   for (const f of /** @type {Finding[]} */ (Object.values(s.ledger.findings))) {
+    f.reopens = 0
     if (f.status === 'stuck') {
       f.status = 'confirmed'
       f.attempts = 0
     }
   }
+  s.extendedAt = s.round
   s.status = 'active'
   s.statusReasons = []
   saveState(root, s)
