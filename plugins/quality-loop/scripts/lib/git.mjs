@@ -447,6 +447,17 @@ function symbolicHead(root) {
 }
 
 /**
+ * The commits every local and remote-tracking branch points at, so a revert
+ * can tell commits the round made from ones that were already there.
+ *
+ * @param {string} root
+ */
+function refTips(root) {
+  const out = git(['for-each-ref', '--format=%(objectname)', 'refs/heads', 'refs/remotes'], { cwd: root }).stdout
+  return [...new Set(out.split('\n').filter(Boolean))]
+}
+
+/**
  * Paths the index holds as intent-to-add (`git add -N`): `tree` is the index
  * written as a tree, which leaves them out.
  *
@@ -491,7 +502,7 @@ export function snapshotTree(root) {
 /**
  * A snapshot a round can be reverted to. Under `.quality-loop/checkpoint/`
  * (never part of a diff) the tree also records what a faithful revert needs:
- * the time, HEAD and the branch it is on, the real index as a tree and its
+ * the time, HEAD and the branch it is on, the branch tips, the real index as a tree and its
  * intent-to-add entries, git operations in progress, the paths on disk that
  * the tree does not hold (ignored as matched by an ignore rule, or
  * unreadable), the state of nested repositories and the raw bytes of files
@@ -503,6 +514,7 @@ export function checkpointTree(root) {
   const time = Date.now()
   const head = revParse(root, 'HEAD') ?? ''
   const branch = symbolicHead(root)
+  const tips = refTips(root)
   const indexTree = realIndexTree(root)
   const ita = indexTree ? intentToAdd(root, indexTree) : []
   const ops = inProgress(root)
@@ -528,6 +540,7 @@ export function checkpointTree(root) {
       ['time', String(time)],
       ['head', head],
       ['branch', branch],
+      ['refs', tips.join('\n')],
       ['index', indexTree],
       ['ita', ita.map(p => `${p}\0`).join('')],
       ['ops', ops.map(o => `${o}\0`).join('')],
@@ -548,6 +561,7 @@ export function checkpointTree(root) {
  *   time: number,
  *   head: string,
  *   branch: string | null,
+ *   refs: string[] | null,
  *   index: string,
  *   ita: Set<string> | null,
  *   ops: string[] | null,
@@ -583,6 +597,7 @@ function readCheckpoint(root, tree) {
     head: text('head'),
     // null: an older checkpoint that did not record it
     branch: files.has('branch') ? text('branch') : null,
+    refs: files.has('refs') ? text('refs').split('\n').filter(Boolean) : null,
     index: text('index'),
     ita: files.has('ita') ? new Set(nulList(text('ita'))) : null,
     ops: files.has('ops') ? nulList(text('ops')) : null,
@@ -754,6 +769,11 @@ function endOperations(root, meta, problems) {
   const before = new Set(meta.ops)
   const started = () => inProgress(root).filter(m => !before.has(m))
   if (!started().length) return true
+  // A file ignored at the checkpoint that the operation now tracks (the other
+  // side has it) was overwritten by it, and an abort removes it again.
+  const offTree = meta.offTree.size
+    ? [...new Set(nulList(gitRaw(['ls-files', '-z', '--', '.', EXCLUDE], { cwd: root }).stdout))].filter(p => wasOffTree(meta.offTree, p))
+    : []
   /** @type {string[]} */ const errors = []
   for (const [marker, ...commands] of IN_PROGRESS) {
     for (const cmd of commands) {
@@ -761,6 +781,21 @@ function endOperations(root, meta, problems) {
       if (!started().includes(marker)) break
       const r = git(cmd, { cwd: root, allowFail: true })
       if (!r.ok) errors.push(`git ${cmd.join(' ')}: ${r.stderr.trim()}`)
+    }
+  }
+  // One still tracked and on disk is reported with the rest of the working tree.
+  const tracked = offTree.length ? new Set(nulList(gitRaw(['ls-files', '-z', '--', '.', EXCLUDE], { cwd: root }).stdout)) : new Set()
+  for (const p of offTree) {
+    if (!lstatOrNull(onDisk(root, p))) {
+      problems.push(
+        `${shown(p)} was outside the checkpoint (ignored or unreadable), a git operation the round started overwrote it, ` +
+          'and ending that operation removed it: the original cannot be restored from the checkpoint',
+      )
+    } else if (!tracked.has(p) && touchedSince(root, p, meta.time)) {
+      problems.push(
+        `${shown(p)} was left in place: it was outside the checkpoint (ignored or unreadable), ` +
+          'so a version a git operation the round started wrote cannot be told apart from the original',
+      )
     }
   }
   const left = started()
@@ -772,6 +807,22 @@ function endOperations(root, meta, problems) {
 /** @param {string} ref */
 function branchName(ref) {
   return ref.replace(/^refs\/heads\//, '')
+}
+
+/**
+ * Does `head` hold commits that no branch held at the checkpoint? A round that
+ * only checked out an existing branch made none. Without a record (an older
+ * checkpoint) or an answer from git, assume it did.
+ *
+ * @param {string} root
+ * @param {CheckpointMeta} meta
+ * @param {string} head
+ */
+function madeCommits(root, meta, head) {
+  if (!meta.refs || !head) return true
+  const input = [meta.head, ...meta.refs].filter(Boolean).map(sha => `^${sha}\n`).join('')
+  const r = git(['rev-list', '--count', head, '--stdin'], { cwd: root, input, allowFail: true })
+  return !r.ok || r.stdout.trim() !== '0'
 }
 
 /**
@@ -824,7 +875,7 @@ function restoreHead(root, meta, problems, mayMove) {
     : git(['update-ref', '--no-deref', '-m', message, 'HEAD', meta.head], { cwd: root, allowFail: true })
   if (!r.ok) {
     problems.push(`could not put HEAD back on ${at(meta.branch, meta.head)}: ${r.stderr.trim()}`)
-  } else if (head !== meta.head) {
+  } else if (head !== meta.head && madeCommits(root, meta, head)) {
     problems.push(
       `HEAD was moved during the round to ${at(branch, head)}; it is back on ${at(meta.branch, meta.head)}, and those commits were not undone ` +
         `(${branch ? `${branchName(branch)} still holds them` : 'find them with `git reflog`'}).`,

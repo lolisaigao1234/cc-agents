@@ -564,3 +564,86 @@ test('an unreadable directory the round created is reported; one that was there 
     if (existsSync(`${root}/outer/inner`)) chmodSync(`${root}/outer/inner`, 0o755)
   }
 })
+
+test('an ignored file that a merge or rebase the round started clobbered, and the abort removed, is reported', () => {
+  for (const op of [['merge', 'other'], ['rebase', 'other'], ['cherry-pick', 'other']]) {
+    const root = makeRepo({ '.gitignore': '.env\n', 'a.txt': 'base\n' })
+    git(['checkout', '-q', '-b', 'other'], { cwd: root })
+    writeFiles(root, { 'a.txt': 'other\n', '.env': 'FROM_OTHER\n' })
+    git(['add', '-f', '-A'], { cwd: root })
+    git(['commit', '-qm', 'other'], { cwd: root })
+    git(['checkout', '-q', 'main'], { cwd: root })
+    writeFileSync(`${root}/a.txt`, 'main\n')
+    git(['commit', '-qam', 'main'], { cwd: root })
+    writeFileSync(`${root}/.env`, 'SECRET=1\n')
+    const cp = checkpointTree(root)
+
+    assert.equal(git(op, { cwd: root, allowFail: true }).ok, false, op.join(' '))
+    assert.equal(readFileSync(`${root}/.env`, 'utf8'), 'FROM_OTHER\n', op.join(' '))
+    const out = restoreTree(root, cp)
+    assert.equal(branchOf(root), 'main', op.join(' '))
+    assert.equal(readFileSync(`${root}/a.txt`, 'utf8'), 'main\n', op.join(' '))
+    // the original cannot be brought back, but it never disappears silently
+    assert.equal(out.problems.filter(p => p.includes('.env')).length, 1, `${op.join(' ')}: ${out.problems.join('\n')}`)
+    assert.equal(git(['ls-files', '.env'], { cwd: root }).stdout, '', op.join(' '))
+  }
+})
+
+test('an ignored file the round left alone through an aborted merge is not reported', () => {
+  const root = divergedRepo()
+  writeFileSync(`${root}/.gitignore`, '.env\n')
+  git(['add', '.gitignore'], { cwd: root })
+  git(['commit', '-qm', 'ignore'], { cwd: root })
+  writeFileSync(`${root}/.env`, 'SECRET=1\n')
+  const cp = checkpointTree(root)
+  assert.equal(git(['merge', 'other'], { cwd: root, allowFail: true }).ok, false)
+  const out = restoreTree(root, cp)
+  assert.deepEqual(out.problems, [])
+  assert.equal(readFileSync(`${root}/.env`, 'utf8'), 'SECRET=1\n')
+})
+
+test('a round that only visited an existing branch and made no commits reverts cleanly', () => {
+  const root = makeRepo({ 'a.txt': 'a\n' })
+  git(['checkout', '-q', '-b', 'other'], { cwd: root })
+  writeFileSync(`${root}/o.txt`, 'o\n')
+  git(['add', 'o.txt'], { cwd: root })
+  git(['commit', '-qm', 'o'], { cwd: root })
+  git(['checkout', '-q', 'main'], { cwd: root })
+  const start = headOf(root)
+  const cp = checkpointTree(root)
+
+  git(['checkout', '-q', 'other'], { cwd: root })
+  writeFileSync(`${root}/a.txt`, 'broken\n')
+  const out = restoreTree(root, cp)
+  assert.deepEqual(out.problems, [])
+  assert.equal(branchOf(root), 'main')
+  assert.equal(headOf(root), start)
+  assert.equal(git(['status', '--porcelain'], { cwd: root }).stdout, '')
+
+  // detached onto an existing commit: the same
+  const cp2 = checkpointTree(root)
+  git(['checkout', '-q', '--detach', 'other'], { cwd: root })
+  assert.deepEqual(restoreTree(root, cp2).problems, [])
+  assert.equal(branchOf(root), 'main')
+})
+
+test('a round that ran `git rebase other feature` and stopped on a conflict is back on the start branch with nothing to report', () => {
+  const root = makeRepo({ 'a.txt': 'a\n' })
+  git(['branch', 'feature'], { cwd: root })
+  git(['checkout', '-q', '-b', 'other'], { cwd: root })
+  writeFileSync(`${root}/a.txt`, 'other\n')
+  git(['commit', '-qam', 'other'], { cwd: root })
+  git(['checkout', '-q', 'feature'], { cwd: root })
+  writeFileSync(`${root}/a.txt`, 'feat\n')
+  git(['commit', '-qam', 'feat'], { cwd: root })
+  git(['checkout', '-q', 'main'], { cwd: root })
+  const feature = git(['rev-parse', 'feature'], { cwd: root }).stdout.trim()
+  const cp = checkpointTree(root)
+
+  assert.equal(git(['rebase', 'other', 'feature'], { cwd: root, allowFail: true }).ok, false)
+  const out = restoreTree(root, cp)
+  assert.deepEqual(out.problems, [])
+  assert.equal(branchOf(root), 'main')
+  assert.equal(git(['rev-parse', 'feature'], { cwd: root }).stdout.trim(), feature)
+  assert.equal(git(['status', '--porcelain'], { cwd: root }).stdout, '')
+})
