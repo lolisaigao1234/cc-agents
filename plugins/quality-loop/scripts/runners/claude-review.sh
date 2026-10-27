@@ -2,8 +2,9 @@
 # Eval runner: reviews one materialised eval workspace headlessly with the
 # quality-loop review skill and writes its verified findings to $QL_OUTPUT.
 #
-# ql eval run sets: QL_WORKSPACE (cwd), QL_BASE, QL_OUTPUT, QL_CASE_ID,
-# QL_INTENT, QL_PLUGIN_ROOT. Optional: QL_MODEL, QL_DEPTH, QL_EFFORT.
+# ql eval run sets: QL_WORKSPACE (cwd), QL_BASE, QL_OUTPUT, QL_INTENT,
+# QL_PLUGIN_ROOT, and QL_DEPTH with --depth. It never names the case.
+# Optional: QL_MODEL, QL_DEPTH, QL_EFFORT.
 set -eu
 
 : "${QL_BASE:?QL_BASE is not set}"

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 
 import { runChecks } from './lib/checks.mjs'
 import { ensureCompactWindow } from './lib/compact.mjs'
+import { DEPTHS } from './lib/config.mjs'
 import { decideHillclimb, leakCheck } from './lib/evals.mjs'
 import { ensureSplit, evalPaths, harvest, loadCases, loadResult, runEval } from './lib/evalrun.mjs'
 import { repoRoot } from './lib/git.mjs'
@@ -47,7 +48,7 @@ Evals (tuning the reviewer)
   ql eval harvest [--limit N] [--clean N]   draft cases from reverts and fixes in git history
   ql eval cases                     list cases and their split
   ql eval split [--reset]           (re)write the train/test split
-  ql eval run --label L [--split train|test|all] [--repeats N] [--runner CMD] [--concurrency K] [--cases a,b] [--keep]
+  ql eval run --label L [--split train|test|all] [--repeats N] [--runner CMD] [--concurrency K] [--cases a,b] [--depth quick|standard|deep] [--keep]
   ql eval show <label>              summary of a run
   ql eval compare <base> <cand>     keep / revert decision with deltas
   ql eval leakcheck [--surface F]   eval answers copied into the tuned surface
@@ -354,9 +355,10 @@ async function evalCommand(root, sub, rest, flags) {
       const split = readJson(ep.split)
       for (const c of cases) {
         const side = split ? (split.test.includes(c.id) ? 'test' : split.train.includes(c.id) ? 'train' : '-') : '-'
-        print(`${c.id} · ${c.kind} · ${c.status} · ${side} · ${c.expected.bugs.length} expected bug(s)`)
+        print(`${c.id} · ${c.kind} · ${c.status} · ${side} · ${c.expected.bugs.length} expected bug(s)${c.problem ? ` · INVALID: ${c.problem}` : ''}`)
       }
-      return print(`${cases.length} case(s), ${cases.filter(c => c.status === 'confirmed').length} confirmed`)
+      const invalid = cases.filter(c => c.problem).length
+      return print(`${cases.length} case(s), ${cases.filter(c => c.status === 'confirmed').length} confirmed${invalid ? `, ${invalid} INVALID (each would be an infra error; fix case.json)` : ''}`)
     }
     case 'split': {
       const cases = loadCases(root)
@@ -370,8 +372,11 @@ async function evalCommand(root, sub, rest, flags) {
       const repeats = int(flags.repeats, ec.repeats)
       const split = /** @type {'train'} */ (str(flags.split) ?? 'all')
       const caseIds = str(flags.cases)?.split(',')
+      // The runner reads the review depth from QL_DEPTH.
+      const depth = str(flags.depth)
+      if (flags.depth !== undefined && !(depth && depth in DEPTHS)) throw new loop.LoopError(`--depth must be one of ${Object.keys(DEPTHS).join(', ')}`)
       const n = loadCases(root).filter(c => !caseIds || caseIds.includes(c.id)).length
-      process.stderr.write(`eval ${label}: ${n} case(s) × ${repeats} repeat(s) (split ${split}), concurrency ${int(flags.concurrency, ec.concurrency)}, timeout ${ec.timeoutSec}s per trial\n`)
+      process.stderr.write(`eval ${label}: ${n} case(s) × ${repeats} repeat(s) (split ${split}${depth ? `, depth ${depth}` : ''}), concurrency ${int(flags.concurrency, ec.concurrency)}, timeout ${ec.timeoutSec}s per trial\n`)
       const result = await runEval(root, {
         label,
         split,
@@ -387,6 +392,7 @@ async function evalCommand(root, sub, rest, flags) {
         caseIds,
         maxContextTokens: loop.loadConfig(root).loop.maxContextTokens,
         keep: !!flags.keep,
+        depth,
       })
       return print(flags.json ? result : formatEval(result, ec.minDelta))
     }
@@ -402,6 +408,8 @@ async function evalCommand(root, sub, rest, flags) {
       const base = loadResult(root, a)
       const cand = loadResult(root, b)
       const d = decideHillclimb(base.summary, cand.summary, { minDelta: ec.minDelta })
+      // An undecidable comparison must not read as success to a script.
+      if (d.decision === 'invalid') process.exitCode = 1
       if (flags.json) return print(d)
       const pct = (/** @type {number} */ x) => `${(x * 100).toFixed(1)}%`
       print(`train ${pct(base.summary.train.passRate.mean)} → ${pct(cand.summary.train.passRate.mean)} (${d.dTrain >= 0 ? '+' : ''}${pct(d.dTrain)})`)
@@ -438,7 +446,7 @@ async function evalCommand(root, sub, rest, flags) {
 /** @param {any} r @param {number} minDelta */
 function formatEval(r, minDelta) {
   const pct = (/** @type {number} */ x) => `${(x * 100).toFixed(1)}%`
-  const out = [`eval ${r.label} · ${r.trials.length} trial(s) · surface ${r.surfaceHash}`]
+  const out = [`eval ${r.label} · ${r.trials.length} trial(s) · surface ${r.surfaceHash}${r.depth ? ` · depth ${r.depth}` : ''}`]
   for (const side of ['train', 'test', 'all']) {
     const s = r.summary[side]
     if (!s.trials && !s.infraErrors) continue

@@ -7,41 +7,56 @@ import { bootstrapCI, mean } from './stats.mjs'
 /**
  * @typedef {{ file: string, line: number, endLine?: number, description?: string, quote?: string }} ExpectedBug
  * @typedef {{ kind: 'bug' | 'clean', bugs: ExpectedBug[] }} Expected
- * @typedef {{ file: string, line: number, endLine?: number, severity?: string }} Predicted
+ * @typedef {{ file: string, line: number, endLine?: number, severity?: string, tag?: string, origin?: string }} Predicted
  * @typedef {{ caseId: string, repeat: number, pass: boolean, tp: number, fp: number, fn: number, infraError: string | null }} Trial
  */
 
 /**
  * Programmatic grader: a predicted finding matches an expected bug in the
- * same file whose line range it falls within, give or take `tolerance`
- * lines. Matching is one-to-one; a second report of an already-matched bug
- * is a duplicate, not a false positive. Nits never count either way.
+ * same file whose line range its own range overlaps, give or take
+ * `tolerance` lines. Matching is one-to-one and maximum (the most expected
+ * bugs any assignment could cover), so the grade does not depend on the
+ * order findings are listed in. A finding that overlaps only bugs other
+ * findings already cover is a duplicate, not a false positive. Nits and
+ * findings tagged pre-existing (outside the change) never count either way.
  *
  * @param {Expected} expected
  * @param {Predicted[]} predicted
  * @param {{ tolerance: number }} opts
  */
 export function gradeCase(expected, predicted, opts) {
-  const important = predicted.filter(p => (p.severity ?? 'important') === 'important')
+  const scored = predicted.filter(p => (p.severity ?? 'important') === 'important' && p.tag !== 'pre-existing' && p.origin !== 'pre-existing')
   const bugs = expected.kind === 'clean' ? [] : expected.bugs
-  const matched = new Set()
-  let fp = 0
-  let duplicates = 0
-  for (const p of important) {
+  const hits = scored.map(p => {
     const file = normalizePath(p.file)
-    const pEnd = p.endLine ?? p.line
-    const hits = bugs
-      .map((b, i) => ({ b, i }))
-      .filter(
-        ({ b }) =>
-          normalizePath(b.file) === file && p.line <= (b.endLine ?? b.line) + opts.tolerance && pEnd >= b.line - opts.tolerance,
-      )
-    const free = hits.find(({ i }) => !matched.has(i))
-    if (free) matched.add(free.i)
-    else if (hits.length) duplicates++
-    else fp++
+    const pEnd = Math.max(p.endLine ?? p.line, p.line)
+    /** @type {number[]} */
+    const out = []
+    bugs.forEach((b, i) => {
+      if (normalizePath(b.file) === file && p.line <= Math.max(b.endLine ?? b.line, b.line) + opts.tolerance && pEnd >= b.line - opts.tolerance) out.push(i)
+    })
+    return out
+  })
+  // Maximum bipartite matching (augmenting paths); the sets are tiny.
+  /** @type {number[]} bug index -> finding index */
+  const owner = bugs.map(() => -1)
+  /** @param {number} u @param {Set<number>} seen @returns {boolean} */
+  const augment = (u, seen) => {
+    for (const b of hits[u] ?? []) {
+      if (seen.has(b)) continue
+      seen.add(b)
+      const o = /** @type {number} */ (owner[b])
+      if (o === -1 || augment(o, seen)) {
+        owner[b] = u
+        return true
+      }
+    }
+    return false
   }
-  const tp = matched.size
+  let tp = 0
+  for (let u = 0; u < scored.length; u++) if (augment(u, new Set())) tp++
+  const fp = hits.filter(h => !h.length).length
+  const duplicates = scored.length - fp - tp
   const fn = bugs.length - tp
   return { tp, fp, fn, duplicates, pass: fn === 0 && fp === 0 }
 }
@@ -77,6 +92,42 @@ export function splitCases(cases, opts) {
     sorted.forEach((c, i) => (i < k ? test : train).push(c.id))
   }
   return { seed: opts.seed, train: train.sort(), test: test.sort() }
+}
+
+/**
+ * Places cases that are new since a split was written, without moving any
+ * case already placed (moving one would leak test cases into training). Each
+ * new case, in a stable hash order, goes to whichever side keeps its kind's
+ * test share at round(n × testFraction), so the test split keeps growing
+ * when cases are added one at a time.
+ *
+ * @param {{ seed: number, train: string[], test: string[] }} existing
+ * @param {{ id: string, kind: string }[]} cases every current case
+ * @param {{ testFraction: number }} opts
+ */
+export function extendSplit(existing, cases, opts) {
+  const train = new Set(existing.train)
+  const test = new Set(existing.test)
+  const isPlaced = (/** @type {{ id: string }} */ c) => train.has(c.id) || test.has(c.id)
+  /** @type {Map<string, { id: string, kind: string }[]>} */
+  const strata = new Map()
+  for (const c of cases) strata.set(c.kind, [...(strata.get(c.kind) ?? []), c])
+  for (const group of strata.values()) {
+    let n = group.filter(isPlaced).length
+    let k = group.filter(c => test.has(c.id)).length
+    const fresh = group.filter(c => !isPlaced(c))
+    fresh.sort((a, b) => hashInt(`${existing.seed}:${a.id}`) - hashInt(`${existing.seed}:${b.id}`) || (a.id < b.id ? -1 : 1))
+    for (const c of fresh) {
+      n++
+      let target = Math.round(n * opts.testFraction)
+      target = n >= 2 ? Math.min(Math.max(target, 1), n - 1) : 0
+      if (k < target) {
+        test.add(c.id)
+        k++
+      } else train.add(c.id)
+    }
+  }
+  return { seed: existing.seed, train: [...train].sort(), test: [...test].sort() }
 }
 
 /**
@@ -120,6 +171,8 @@ export function summarize(trials, opts) {
 
 /**
  * The hill-climbing keep/revert rule:
+ *   infra errors in either run, or the
+ *   runs scored different cases -> invalid (fix plumbing, rerun)
  *   any regression beyond noise -> revert
  *   train up, test flat         -> revert (suspected overfitting)
  *   test up                     -> keep
@@ -133,6 +186,21 @@ export function decideHillclimb(base, cand, opts) {
   const dTrain = cand.train.passRate.mean - base.train.passRate.mean
   const dTest = cand.test.passRate.mean - base.test.passRate.mean
   const d = { dTrain, dTest }
+  // Infra-error trials are left out of the pass rates, so a candidate that
+  // crashes or times out on exactly the hard cases would look better. Pass
+  // rates are only comparable over the same cases with no plumbing noise.
+  /** @type {string[]} */
+  const problems = []
+  for (const side of /** @type {const} */ (['train', 'test'])) {
+    const infra = base[side].infraErrors + cand[side].infraErrors
+    if (infra) problems.push(`${infra} infra error(s) on ${side} (base ${base[side].infraErrors}, candidate ${cand[side].infraErrors})`)
+    const a = Object.keys(base[side].perCase).sort().join('\n')
+    const b = Object.keys(cand[side].perCase).sort().join('\n')
+    if (a !== b) problems.push(`the runs scored different ${side} cases`)
+  }
+  if (problems.length) {
+    return { decision: 'invalid', ...d, reason: `cannot compare: ${problems.join('; ')}. Fix the cause and rerun; do not adopt the candidate` }
+  }
   if (dTrain <= -opts.minDelta || dTest <= -opts.minDelta) {
     return { decision: 'revert-regression', ...d, reason: 'a split got worse by at least the noise threshold' }
   }

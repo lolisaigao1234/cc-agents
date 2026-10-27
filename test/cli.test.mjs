@@ -278,19 +278,21 @@ test('evals: fake runner graded per split; compare decides; leakcheck and hillcl
       [`.quality-loop/evals/cases/${id}/case.json`]: JSON.stringify({ id, kind, status: 'confirmed', source: { type: 'files' } }),
       [`.quality-loop/evals/cases/${id}/expected.json`]: JSON.stringify({ bugs }),
       [`.quality-loop/evals/cases/${id}/before/src/a.js`]: 'let a = 1\n',
-      [`.quality-loop/evals/cases/${id}/after/src/a.js`]: 'let a = 1\nlet b = a / 0\n',
+      [`.quality-loop/evals/cases/${id}/after/src/a.js`]: kind === 'bug' ? 'let a = 1\nlet b = a / 0\n' : 'let a = 1\nlet b = a / 2\n',
     })
   }
   for (const i of [1, 2, 3, 4]) mk(`bug${i}`, 'bug', [{ file: 'src/a.js', line: 2, description: 'the division by zero yields infinity silently' }])
   for (const i of [1, 2]) mk(`clean${i}`, 'clean', [])
-  // The fake reviewer reports line 2 when REVIEW.md says "division", else nothing.
+  // The fake reviewer reports line 2 when REVIEW.md says "division" and the
+  // code divides by zero, else nothing. It reads the code, not the case id:
+  // the runner is not told which case it reviews.
   writeFileSync(
     join(root, 'runner.sh'),
     `#!/bin/sh
 test -n "$QL_BASE" || exit 3
 test "$CLAUDE_CODE_AUTO_COMPACT_WINDOW" = 300000 || exit 5
 git diff --quiet "$QL_BASE" HEAD && exit 4
-if grep -q division .quality-loop/REVIEW.md && [ "\${QL_CASE_ID#bug}" != "$QL_CASE_ID" ]; then
+if grep -q division .quality-loop/REVIEW.md && grep -q '/ 0' src/a.js; then
   echo '[{"file":"src/a.js","line":2,"severity":"important"}]' > "$QL_OUTPUT"
 else
   echo '[]' > "$QL_OUTPUT"
