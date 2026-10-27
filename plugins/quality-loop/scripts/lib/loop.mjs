@@ -9,7 +9,7 @@ import { compareRuns, runChecks } from './checks.mjs'
 import { detectChecks, lensFocus, resolveConfig, validateConfig } from './config.mjs'
 import { decideRound, scoreOf } from './decide.mjs'
 import { parseUnifiedDiff, rangeTouches } from './diff.mjs'
-import { checkEvidence, decodeGitPath, ingestFindings, locate, newLedger, normalizeQuote, recordVotes } from './findings.mjs'
+import { checkEvidence, decodeGitPath, ingestFindings, newLedger, recordVotes } from './findings.mjs'
 import { checkpointTree, diffTrees, resolveBase, restoreTree, snapshotTree } from './git.mjs'
 import { normalizePath } from './glob.mjs'
 import { counts, currentRound, inScope, phaseOf, renderLoopMd } from './report.mjs'
@@ -255,8 +255,8 @@ export function scope(root) {
   const s = requireState(root)
   const r = currentRound(s)
   if (!r) throw new LoopError('no round in progress: run `ql round begin`')
-  const { diffOnly, from, diff } = scopeDiff(root, s)
-  if (dropStaleEmptyScope(s, diff)) saveState(root, s)
+  const { diffOnly, from, diff, tree } = scopeDiff(root, s)
+  if (dropStaleEmptyScope(s, diff, tree)) saveState(root, s)
   const files = parseUnifiedDiff(diff).map(f => ({ path: f.path, status: f.status, added: f.added.length, removed: f.removed.length }))
   const diffFile = join(paths(root).work, `round-${s.round}`, 'scope.diff')
   writeText(diffFile, diff)
@@ -275,8 +275,12 @@ function scopeDiff(root, s) {
   const kept = s.rounds.filter((/** @type {any} */ x) => x.ended && !x.reverted)
   const diffOnly = s.round > s.config.loop.diffOnlyAfterRound && kept.length > 0
   const from = diffOnly ? kept.at(-1).startCheckpoint : s.baseCommit
-  return { diffOnly, from, diff: diffTrees(root, from, snapshotTree(root)) }
+  const tree = snapshotTree(root)
+  return { diffOnly, from, tree, diff: diffTrees(root, from, tree) }
 }
+
+/** @param {any} s whether a confirmed in-scope finding is open, so `ql next` asks for a fix */
+const fixPending = s => /** @type {Finding[]} */ (Object.values(s.ledger.findings)).some(f => f.status === 'confirmed' && inScope(s, f))
 
 /**
  * An empty scope recorded with `ingest --none --lens scope` closes the review
@@ -284,15 +288,20 @@ function scopeDiff(root, s) {
  * begin`; once anything changes, the record no longer holds and every lens
  * must review the change. Returns whether the record was dropped.
  *
+ * The one exception is the round's fix step: recorded while findings were
+ * open (and no debug fix was still to come), the review closed and `ql next`
+ * went on to ask for fixes, which are reviewed next round as in any round.
+ * The fix step ends when the last open finding is marked (`fixEndTree`); a
+ * change after that is unreviewed again.
+ *
  * @param {any} s
  * @param {string} diff the current scope diff
+ * @param {string} tree the current tree
  */
-function dropStaleEmptyScope(s, diff) {
+function dropStaleEmptyScope(s, diff, tree) {
   const r = currentRound(s)
   if (!r?.lensesDone?.includes('scope') || !diff.trim()) return false
-  // Recorded while findings were open, the review closed and the round went
-  // on to its fix step: those fixes are reviewed next round, as in any round.
-  if (r.scopeEmptyBeforeFix) return false
+  if (r.scopeEmptyBeforeFix && (r.fixEndTree ? r.fixEndTree === tree : fixPending(s))) return false
   r.lensesDone = r.lensesDone.filter((/** @type {string} */ l) => l !== 'scope')
   r.scopeChanged = true
   return true
@@ -306,7 +315,10 @@ function dropStaleEmptyScope(s, diff) {
  */
 export function syncState(root) {
   const s = loadState(root)
-  if (s && currentRound(s) && dropStaleEmptyScope(s, scopeDiff(root, s).diff)) saveState(root, s)
+  if (s && currentRound(s)) {
+    const { diff, tree } = scopeDiff(root, s)
+    if (dropStaleEmptyScope(s, diff, tree)) saveState(root, s)
+  }
   return s
 }
 
@@ -332,8 +344,8 @@ export function ingest(root, raws, lens) {
   // configured lens it stands for; `scope` stands for all of them and is
   // only true of an empty scope.
   const lenses = /** @type {string[]} */ (s.config.review.lenses)
-  const scopeNow = scopeDiff(root, s).diff
-  dropStaleEmptyScope(s, scopeNow)
+  const { diff: scopeNow, tree } = scopeDiff(root, s)
+  dropStaleEmptyScope(s, scopeNow, tree)
   if (lens === 'scope') {
     if (raws !== null) throw new LoopError('the lens "scope" only records an empty scope: `ql ingest --none --lens scope`')
     if (scopeNow.trim()) {
@@ -341,14 +353,16 @@ export function ingest(root, raws, lens) {
     }
     // With findings open, `ql next` goes on to the fix step, whose changes
     // must not make the record stale (see dropStaleEmptyScope). With none,
-    // the next step is `round end`, and any change is unreviewed.
-    r.scopeEmptyBeforeFix = /** @type {Finding[]} */ (Object.values(s.ledger.findings)).some(
-      f => f.status === 'confirmed' && inScope(s, f),
-    )
+    // the next step is `round end`, and any change is unreviewed. A debug
+    // round whose repro still fails has its root-cause fix still to come,
+    // and that fix is reviewed this round whatever else is open.
+    const debugFixToCome = !!s.repro && !s.lastRun?.results?.find((/** @type {any} */ x) => x.name === 'repro')?.ok
+    r.scopeEmptyBeforeFix = !debugFixToCome && fixPending(s)
+    delete r.fixEndTree
   } else if (raws === null && !lenses.includes(lens)) {
     throw new LoopError(`\`ql ingest --none\` needs --lens naming a configured lens (${lenses.join(', ')}), or --lens scope for an empty scope; got "${lens || '(none)'}"`)
   }
-  const diffFiles = parseUnifiedDiff(diffTrees(root, s.baseCommit, snapshotTree(root), { context: 0 }))
+  const diffFiles = parseUnifiedDiff(diffTrees(root, s.baseCommit, tree, { context: 0 }))
   const { report } = ingestFindings(s.ledger, raws ?? [], {
     round: s.round,
     lens,
@@ -356,6 +370,17 @@ export function ingest(root, raws, lens) {
     readLines: f => readLines(root, f),
     config: s.config.review,
   })
+  // Where each finding reported now sits in the round-start tree, decided by
+  // the round's diff so far, for a revert to put it back (see endRound).
+  const reported = [...report.accepted, ...report.merged, ...report.repeats, ...report.reopened]
+  if (reported.length) {
+    const sinceStart = parseUnifiedDiff(diffTrees(root, r.startCheckpoint, tree, { context: 0 }))
+    r.startLines ??= {}
+    for (const id of reported) {
+      const f = s.ledger.findings[id]
+      if (f) r.startLines[id] = lineAtRoundStart(f, diffOf(sinceStart, f.file))
+    }
+  }
   r.ingests += 1
   r.lensesDone = [...new Set([...(r.lensesDone ?? []), lens])]
   saveState(root, s)
@@ -418,26 +443,17 @@ export function mark(root, id, status, reason) {
   }
   f.status = status
   f.resolution = reason.trim()
-  if (status === 'fixed') currentRound(s).fixedIds.push(id)
+  const r = currentRound(s)
+  if (status === 'fixed') r.fixedIds.push(id)
+  // The last open finding marked ends the fix step an empty-scope record
+  // was kept for: from here on, a change is unreviewed (dropStaleEmptyScope).
+  if (r.scopeEmptyBeforeFix && !r.fixEndTree && !fixPending(s)) r.fixEndTree = snapshotTree(root)
   saveState(root, s)
   return f
 }
 
 /** @param {Finding} f the number of lines its quote spans */
 const quoteHeight = f => Math.max(1, f.quote.trim().split('\n').length)
-
-/**
- * Whether a finding's quote starts at `line` (1-based) in `lines`.
- *
- * @param {Finding} f
- * @param {string[] | null} lines
- * @param {number} line
- */
-function quoteAt(f, lines, line) {
-  const quote = normalizeQuote(f.quote)
-  if (!lines || !quote || line < 1) return false
-  return normalizeQuote(lines.slice(line - 1, line - 1 + quoteHeight(f)).join(' ')).includes(quote)
-}
 
 /**
  * The old-side line that the unchanged new-side `line` came from. A diff
@@ -459,45 +475,23 @@ function toOldLine(df, line) {
 }
 
 /**
- * Where a finding reported in a reverted round sits once the round is
- * undone, or null when its code was the round's own and is gone. Decided by
- * the round's diff (start → end), never by its quote text alone, so a
- * finding on the reverted code is not moved onto an unrelated copy of the
- * same text:
- *
- * - its code still in the tree the round left (found by the anchor-aware
- *   locate) is the round's own code if any of its lines were added by the
- *   round; otherwise it predates the round and maps back line for line;
- * - its code gone from that tree comes back only if the round removed it
- *   (a fix the revert undoes): it is placed on a removed line.
+ * Where a finding, just reported on the current tree, sits in the tree the
+ * round started from, or null when any line of its quote was added by the
+ * round so far (its code is the round's own, typically a debug fix). Decided
+ * by the round's diff, never by the quote text, so a revert neither drops a
+ * finding on older code the fixer later moved or re-indented, nor moves one
+ * on the round's own code onto an unrelated copy of the same text.
  *
  * @param {Finding} f
- * @param {string[] | null} before the file as the round left it
- * @param {string[] | null} after the file after the revert
- * @param {import('./diff.mjs').DiffFile | undefined} df the round's diff of the file
+ * @param {import('./diff.mjs').DiffFile | undefined} df the round's diff of the file so far
  * @returns {number | null}
  */
-function placeAfterRevert(f, before, after, df) {
-  const height = quoteHeight(f)
-  const at = locate(f, before)?.line
-  if (at != null) {
-    if (!df) return quoteAt(f, after, at) ? at : null
-    const added = new Set(df.added.map(a => a.line))
-    for (let l = at; l < at + height; l++) if (added.has(l)) return null
-    const old = toOldLine(df, at)
-    return quoteAt(f, after, old) ? old : null
-  }
-  if (!df || !after) return null
-  const removed = new Set(df.removed.map(x => x.line))
-  /** @type {number | null} */
-  let best = null
-  for (let i = 1; i <= after.length; i++) {
-    if (!quoteAt(f, after, i)) continue
-    let wasRemoved = true
-    for (let l = i; l < i + height; l++) if (!removed.has(l)) wasRemoved = false
-    if (wasRemoved && (best === null || Math.abs(i - f.line) < Math.abs(best - f.line))) best = i
-  }
-  return best
+function lineAtRoundStart(f, df) {
+  if (!df) return f.line
+  if (df.status === 'added') return null
+  const added = new Set(df.added.map(a => a.line))
+  for (let l = f.line; l < f.line + quoteHeight(f); l++) if (added.has(l)) return null
+  return toOldLine(df, f.line)
 }
 
 /**
@@ -520,7 +514,8 @@ export async function endRound(root, opts = {}) {
   // Only a fully reviewed and verified round can be validated: every lens
   // ingested (or an empty scope recorded, and still empty) and no candidate
   // left unvoted.
-  if (currentRound(s) && dropStaleEmptyScope(s, scopeDiff(root, s).diff)) {
+  const now = currentRound(s) && scopeDiff(root, s)
+  if (now && dropStaleEmptyScope(s, now.diff, now.tree)) {
     saveState(root, s)
     throw new LoopError(
       `the scope was recorded empty, but the tree has changed since: review the change (\`ql scope\`) with one bug hunter per lens (${s.config.review.lenses.join(', ')}) and ingest each before \`ql round end\``,
@@ -573,20 +568,21 @@ export async function endRound(root, opts = {}) {
   /** @type {{ id: string, title: string, file: string, line: number, reason: string }[]} */
   const discarded = []
   if (willRevert) {
-    // Findings reported this round carry lines in the round's tree: read it
-    // before the revert replaces it.
-    const placed = all.filter(f => f.lastRound === r.n && (['candidate', 'confirmed'].includes(f.status) || r.fixedIds.includes(f.id)))
-    const leftBy = new Map(placed.map(f => [f.file, readLines(root, f.file)]))
     restored = restoreTree(root, r.startCheckpoint)
     for (const f of fixedThisRound) {
       f.status = 'confirmed'
       f.resolution = ''
     }
+    // Findings reported this round go back to where they sat at round
+    // start, as their ingest recorded it from the round's diff.
+    /** @type {Record<string, number | null>} */
+    const startLines = r.startLines ?? {}
     const baseDiff = parseUnifiedDiff(diffTrees(root, s.baseCommit, snapshotTree(root), { context: 0 }))
-    for (const f of placed) {
+    for (const f of all) {
+      if (!(f.id in startLines) || !['candidate', 'confirmed'].includes(f.status)) continue
+      const start = startLines[f.id]
       const lines = readLines(root, f.file)
-      let at = placeAfterRevert(f, leftBy.get(f.file) ?? null, lines, diffOf(roundDiff, f.file))
-      if (at == null && f.firstRound === r.n) {
+      if ((start === null || lines === null) && f.firstRound === r.n) {
         // Reported on the round's own code (typically the reverted fix),
         // which no longer exists: keeping it open would block the loop on
         // nothing. If the code comes back, the next review reports it afresh.
@@ -594,12 +590,12 @@ export async function endRound(root, opts = {}) {
         delete s.ledger.findings[f.id]
         continue
       }
-      // An older finding re-reported this round: its code predates the round.
-      if (at == null) {
-        const ev = checkEvidence(f, lines)
-        if (!ev.ok) continue
-        at = ev.line
-      }
+      if (lines === null) continue
+      // Its round-start line; an older finding re-reported on the round's
+      // code has code that predates the round: look near the line it had.
+      const ev = checkEvidence(start === null ? f : { ...f, line: start }, lines)
+      const at = ev.ok ? ev.line : start
+      if (at === null) continue
       f.endLine = at + (f.endLine - f.line)
       f.line = at
       // Whether the change touches it depends on what the revert left.
