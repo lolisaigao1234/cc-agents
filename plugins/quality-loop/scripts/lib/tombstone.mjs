@@ -7,35 +7,89 @@
 
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
+
+/** @typedef {{ top: string, gitDir: string, commonDir: string }} GitLayout */
+
+/** @param {string} p */
+const isDir = p => {
+  try {
+    return statSync(p).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+/** @param {string} p */
+const isFile = p => {
+  try {
+    return statSync(p).isFile()
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The repository whose `.git` entry is in `dir`, or null when there is none
+ * or it is not one git would use: a git directory has a HEAD, and its common
+ * directory objects and refs. An empty `.git` directory or a `.git` file
+ * pointing nowhere is not a repository.
+ *
+ * @param {string} dir
+ * @returns {GitLayout | null}
+ */
+function layoutAt(dir) {
+  const dotGit = join(dir, '.git')
+  let gitDir = dotGit
+  if (!isDir(dotGit)) {
+    let text = ''
+    try {
+      text = readFileSync(dotGit, 'utf8')
+    } catch {
+      return null
+    }
+    const to = /^gitdir:\s*(.+)$/m.exec(text)?.[1]?.trim()
+    if (!to) return null
+    gitDir = resolve(dir, to)
+  }
+  let commonDir = gitDir
+  try {
+    commonDir = resolve(gitDir, readFileSync(join(gitDir, 'commondir'), 'utf8').trim())
+  } catch {}
+  if (!isFile(join(gitDir, 'HEAD')) || !isDir(join(commonDir, 'objects')) || !isDir(join(commonDir, 'refs'))) return null
+  return { top: dir, gitDir, commonDir }
+}
+
+/**
+ * Every repository whose working tree holds `start`, nearest first: the
+ * first is the one `git rev-parse --show-toplevel` (and so `ql`) finds, the
+ * rest enclose it. Found without running git; a `.git` that is not a
+ * repository is passed over, so it cannot hide the one above it.
+ *
+ * @param {string} start
+ * @returns {GitLayout[]}
+ */
+export function gitLayouts(start) {
+  const out = []
+  for (let dir = resolve(start); ; dir = dirname(dir)) {
+    const l = layoutAt(dir)
+    if (l) out.push(l)
+    if (dirname(dir) === dir) return out
+  }
+}
 
 /**
  * The working tree that holds `start`, its git directory and the common git
- * directory its worktrees share, the way git finds them: the nearest `.git`
- * directory, or the directory a `.git` file (a worktree, a submodule) points
- * to, whose `commondir` names the shared one.
+ * directory its worktrees share, as git finds them.
  *
  * @param {string} start
- * @returns {{ top: string, gitDir: string, commonDir: string } | null}
+ * @returns {GitLayout | null}
  */
 export function gitLayout(start) {
   for (let dir = resolve(start); ; dir = dirname(dir)) {
-    const dotGit = join(dir, '.git')
-    try {
-      let gitDir = dotGit
-      if (!statSync(dotGit).isDirectory()) {
-        const to = /^gitdir:\s*(.+)$/m.exec(readFileSync(dotGit, 'utf8'))?.[1]?.trim()
-        if (!to) return null
-        gitDir = resolve(dir, to)
-      }
-      let commonDir = gitDir
-      try {
-        commonDir = resolve(gitDir, readFileSync(join(gitDir, 'commondir'), 'utf8').trim())
-      } catch {}
-      return { top: dir, gitDir, commonDir }
-    } catch {
-      if (dirname(dir) === dir) return null
-    }
+    const l = layoutAt(dir)
+    if (l) return l
+    if (dirname(dir) === dir) return null
   }
 }
 
@@ -60,15 +114,26 @@ export function tombstoneDir(root) {
 
 /**
  * The tombstone of the loop in the working tree `root`: one per worktree,
- * named by a hash of the worktree's real path.
+ * named after the worktree's own git directory, which stays put when the
+ * worktree is moved (`git worktree move`, or moving a repository with its
+ * `.git`): `main.json` for the main worktree, `worktrees-<name>.json` for a
+ * linked one. A worktree removed and added again under the same name finds
+ * the old tombstone; the user lifts it with `! ql start --force`.
  *
  * @param {string} root
  */
 export function tombstoneFile(root) {
   const l = gitLayout(root)
   if (!l) return null
-  const key = createHash('sha256').update(real(l.top)).digest('hex').slice(0, 16)
-  return join(real(l.commonDir), 'quality-loop', `${key}.json`)
+  const common = real(l.commonDir)
+  const rel = relative(common, real(l.gitDir))
+  const key =
+    rel === ''
+      ? 'main'
+      : !rel.startsWith('..') && !rel.startsWith('/')
+        ? rel.replace(/[^\w.-]+/g, '-')
+        : createHash('sha256').update(real(l.gitDir)).digest('hex').slice(0, 16)
+  return join(common, 'quality-loop', `${key}.json`)
 }
 
 /**

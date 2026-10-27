@@ -304,3 +304,85 @@ test('ql start rejects a config whose loop.maxStopNudges is not a whole number (
   writeFileSync(cfg, JSON.stringify({ ...JSON.parse(readFileSync(cfg, 'utf8')), loop: { maxStopNudges: 'unlimited' } }))
   await assert.rejects(loop.start(root, { mode: 'review' }), /maxStopNudges/)
 })
+
+// --- round 3: the verifier's findings on round 2
+
+test('a decoy .git in a subdirectory does not turn the guard off (verifier r2: gitLayout decoy)', async () => {
+  for (const decoy of ['empty .git directory', 'junk .git file', 'nested repository']) {
+    const root = await started()
+    saveAs(root, { status: 'capped', round: 3 })
+    const sub = join(root, 'sub')
+    mkdirSync(sub, { recursive: true })
+    if (decoy === 'empty .git directory') mkdirSync(join(sub, '.git'))
+    else if (decoy === 'junk .git file') writeFileSync(join(sub, '.git'), 'gitdir: /nonexistent\n')
+    else gitIn(sub, ['init', '-q'])
+    const decision = (/** @type {string} */ c) =>
+      hook('pre-tool-use', { cwd: sub, session_id: 'A', tool_name: 'Bash', tool_input: { command: c } })?.hookSpecificOutput.permissionDecision
+    for (const c of [
+      'rm ../.quality-loop/state.json',
+      `rm ${root}/.quality-loop/state.json`,
+      'rm -rf ../.quality-loop',
+      `rm -rf ${root}/.git/quality-loop`,
+      'ql start --force --mode review',
+    ]) {
+      assert.equal(decision(c), 'deny', `${decoy}: ${c}`)
+    }
+  }
+  // while the loop runs, from below a decoy
+  const root = await started()
+  mkdirSync(join(root, 'sub/.git'), { recursive: true })
+  const sub = join(root, 'sub')
+  const decision = (/** @type {string} */ c) =>
+    hook('pre-tool-use', { cwd: sub, session_id: 'A', tool_name: 'Bash', tool_input: { command: c } })?.hookSpecificOutput.permissionDecision
+  assert.equal(decision('git -C .. reset --hard'), 'deny')
+  assert.equal(decision('echo {} > ../.quality-loop/config.json'), 'deny')
+  // the other hooks find the outer loop too, as ql does
+  assert.equal(hook('stop', { cwd: sub, session_id: 'A' })?.decision, 'block')
+})
+
+test('editing the state in place to look finished does not lift the cap (verifier r2: same-id state edit)', async () => {
+  for (const status of ['capped', 'stalled', 'aborted']) {
+    const root = await started()
+    saveAs(root, { status, round: 3 })
+    writeFileSync(join(root, '.quality-loop/state.json'), JSON.stringify({ ...state(root), status: 'done' }))
+    await assert.rejects(loop.start(root, { mode: 'review' }), /only the user/, status)
+  }
+  // a loop ql itself finished starts over freely
+  const root = await started()
+  saveAs(root, { status: 'done', round: 3 })
+  assert.equal((await loop.start(root, { mode: 'review' })).status, 'active')
+})
+
+test('moving a worktree keeps its tombstone (verifier r2: tombstone keyed by path)', async () => {
+  const main = makeRepo({ 'README.md': 'x\n' })
+  const wt = `${main}-wt`
+  gitIn(main, ['worktree', 'add', '-q', '--detach', wt])
+  await loop.start(wt, { mode: 'review' })
+  saveAs(wt, { status: 'capped', round: 3 })
+  const moved = `${main}-wt2`
+  gitIn(main, ['worktree', 'move', wt, moved])
+  rmSync(join(moved, '.quality-loop'), { recursive: true, force: true })
+  await assert.rejects(loop.start(moved, { mode: 'review' }), /only the user/)
+  assert.equal((await loop.start(main, { mode: 'review' })).status, 'active', 'the main worktree is not held by it')
+  // the main worktree, moved with its .git
+  const root = await started()
+  saveAs(root, { status: 'capped', round: 3 })
+  rmSync(join(root, '.quality-loop'), { recursive: true, force: true })
+  const elsewhere = `${root}-moved`
+  assert.equal(spawnSync('mv', [root, elsewhere]).status, 0)
+  await assert.rejects(loop.start(elsewhere, { mode: 'review' }), /only the user/)
+})
+
+test('ql init --force cannot reset a protected config (verifier r2: init --force)', async () => {
+  const root = await started()
+  saveAs(root, { status: 'done', round: 1 })
+  mkdirSync(join(root, '.quality-loop/evals'), { recursive: true })
+  writeFileSync(join(root, '.quality-loop/evals/hillclimb.json'), JSON.stringify({ active: true }))
+  const decision = (/** @type {string} */ c) => bash(root, c, 'A')?.hookSpecificOutput.permissionDecision
+  assert.equal(decision('node "$P/scripts/ql.mjs" init --force'), 'deny')
+  assert.equal(decision('ql init'), undefined, 'a plain init leaves an existing config alone')
+  rmSync(join(root, '.quality-loop/evals/hillclimb.json'))
+  assert.equal(decision('ql init --force'), undefined, "no loop running and no hill climb: the config is the user's")
+  const active = await started()
+  assert.equal(bash(active, 'ql init --force', 'A')?.hookSpecificOutput.permissionDecision, 'deny', 'while a loop runs')
+})

@@ -451,3 +451,34 @@ test('find -delete and git clean are judged by what they can actually delete (ve
   assert.ok(bash('git clean -fd', { loopStatus: 'capped', gitStatus: () => 'untracked' }))
   assert.equal(bash('git clean -fdx', { loopStatus: 'capped', gitStatus: () => 'tracked' }), null)
 })
+
+// --- round 3
+
+test("a `**` glob (zero or more directories) reaches the tombstone and the state (verifier r2: globstar)", () => {
+  const { root, tombstone } = tombRepo()
+  for (const status of ['capped', 'aborted', 'active']) {
+    const o = { root, cwd: root, tombstone, loopStatus: status }
+    for (const c of [
+      'rm -rf .git/**/quality-loop',
+      'rm -rf .git/**/quality-loop .quality-loop/**/state.json',
+      'rm .quality-loop/**/state.json',
+      'rm .quality-loop/**/*.json',
+      'rm -rf **/.quality-loop',
+      'rm .git/**/**/*.json',
+    ]) {
+      assert.ok(bash(c, o), `${status}: ${c}`)
+    }
+  }
+  // `**` does not enter hidden directories unless the pattern spells the dot
+  for (const c of ['rm -rf **/node_modules', 'rm **/*.pyc', 'rm **/*.json', 'rm -rf src/**/build']) {
+    assert.equal(bash(c, { root, cwd: root, tombstone, loopStatus: 'capped' }), null, c)
+  }
+})
+
+test('ql init --force, which rewrites config.json, is denied while the config is protected (verifier r2: init --force)', () => {
+  assert.ok(bash('ql init --force', { loopStatus: 'active' }))
+  assert.ok(bash('node /p/scripts/ql.mjs init --force', { loopStatus: 'done', hillclimbActive: true }))
+  assert.equal(bash('ql init', { loopStatus: 'active' }), null)
+  assert.equal(bash('ql init --force', { loopStatus: 'done' }), null)
+  assert.equal(bash('ql init --force', { loopStatus: 'active', protectedPaths: ['.quality-loop/state.json'] }), null)
+})

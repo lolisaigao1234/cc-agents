@@ -864,7 +864,8 @@ function segmentRegExp(seg) {
 /**
  * Whether the shell would expand `pattern` to `path` (both relative to the
  * same place): wildcards stay within a segment and match a leading dot only
- * when the pattern spells it.
+ * when the pattern spells it, and a `**` segment (zsh, bash's globstar)
+ * stands for zero or more directories that do not start with a dot.
  *
  * @param {string} pattern
  * @param {string} path
@@ -872,14 +873,21 @@ function segmentRegExp(seg) {
 function globNames(pattern, path) {
   const ps = pattern.split('/')
   const xs = path.split('/')
-  return (
-    ps.length === xs.length &&
-    ps.every((p, i) => {
-      const x = /** @type {string} */ (xs[i])
-      if (!GLOB.test(p)) return p === x
-      return !(x.startsWith('.') && !p.startsWith('.')) && segmentRegExp(p).test(x)
-    })
-  )
+  /** @param {string} p @param {string} x */
+  const seg = (p, x) => (GLOB.test(p) ? !(x.startsWith('.') && !p.startsWith('.')) && segmentRegExp(p).test(x) : p === x)
+  /** @param {number} i @param {number} j @returns {boolean} */
+  const from = (i, j) => {
+    if (i === ps.length) return j === xs.length
+    const p = /** @type {string} */ (ps[i])
+    // A trailing `**` is a plain `*`.
+    if (p === '**' && i < ps.length - 1) {
+      // `**/` matches nothing, or one more directory and then `**/` again.
+      if (from(i + 1, j)) return true
+      return j < xs.length - 1 && !(/** @type {string} */ (xs[j]).startsWith('.')) && from(i, j + 1)
+    }
+    return j < xs.length && seg(p, /** @type {string} */ (xs[j])) && from(i + 1, j + 1)
+  }
+  return from(0, 0)
 }
 
 /** @param {string} p a root-relative path, and every directory above it */
@@ -1117,6 +1125,7 @@ function protectedMatcher(g, globs, wholeDirs) {
 
 const LOOP_DIR = '.quality-loop'
 const STATE_FILE = `${LOOP_DIR}/state.json`
+const CONFIG_FILE = `${LOOP_DIR}/config.json`
 // While hill climbing: the eval answer keys, and the config that holds the
 // keep/revert thresholds (eval.minDelta, tolerance, seed, testFraction).
 const HILLCLIMB_PATHS = [`${LOOP_DIR}/evals/**`, `${LOOP_DIR}/config.json`]
@@ -1166,6 +1175,10 @@ export function evaluateGuard(g) {
     for (const q of qlInvocations(raw)) {
       if (q.sub === 'extend') return EXTEND
       if (q.sub === 'start' && q.flags.has('force') && locked) return RESTART
+      // It rewrites the config with defaults.
+      if (q.sub === 'init' && q.flags.has('force') && !q.flags.has('help') && matchesAny(CONFIG_FILE, protectedPaths)) {
+        return `quality-loop: \`ql init --force\` rewrites ${CONFIG_FILE}, which is protected ${when}. Ask the user.`
+      }
     }
     if ((isLoopActive || g.hillclimbActive) && g.blockDestructive) {
       for (const c of commands) {

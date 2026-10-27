@@ -153,8 +153,9 @@ export function restartRefusal(prev) {
 /**
  * Why `ql start` without --force must not start a loop in `root`, given its
  * state file (`prev`, possibly gone). The tombstone in the git directory
- * speaks for a loop whose state was deleted or replaced, so removing
- * `.quality-loop/` does not reset the cap.
+ * holds the status ql last saved, so it speaks for a loop whose state was
+ * deleted, replaced or edited outside ql: removing `.quality-loop/`, or
+ * marking the state done by hand, does not reset the cap.
  *
  * @param {string} root
  * @param {any} prev
@@ -163,9 +164,10 @@ export function startRefusal(root, prev) {
   const own = restartRefusal(prev)
   if (own) return own
   const t = readTombstone(root)
-  if (!t || t.id === prev?.id || t.status === 'done' || t.reviewOnly) return null
+  if (!t || t.status === 'done' || t.reviewOnly) return null
   if (!(t.round > 0) && !['capped', 'stalled'].includes(t.status)) return null
-  return `the loop ${t.id} was ${t.status} at round ${t.round}${t.maxRounds ? ` of ${t.maxRounds}` : ''} when its state in .quality-loop/ was deleted or replaced. Starting over would reset its round cap, which only the user may do: report to the user, who can run \`! ql start --force ...\`.`
+  const how = t.id === prev?.id ? 'edited outside ql' : prev ? 'replaced' : 'deleted'
+  return `the loop ${t.id} was ${t.status} at round ${t.round}${t.maxRounds ? ` of ${t.maxRounds}` : ''} when its state in .quality-loop/ was ${how}. Starting over would reset its round cap, which only the user may do: report to the user, who can run \`! ql start --force ...\`.`
 }
 
 /**

@@ -12,7 +12,7 @@ import { evaluateGuard, qlInvocations } from './guard.mjs'
 import { saveState, startRefusal } from './loop.mjs'
 import { isActive, nextAction, statusLine } from './report.mjs'
 import { paths, readJson } from './store.mjs'
-import { gitLayout, tombstoneDir } from './tombstone.mjs'
+import { gitLayout, gitLayouts, tombstoneDir } from './tombstone.mjs'
 
 /**
  * The working tree whose loop `start` belongs to: the git top level, as `ql`
@@ -62,8 +62,7 @@ const DRIVING = new Set(['round', 'ingest', 'vote', 'mark', 'resume', 'pause', '
 /**
  * Where a session's claim on the loop it is starting is kept: in the git
  * directory, so a `ql start` that never runs leaves nothing in the working
- * tree. Found without running git: the nearest `.git` directory, or the one
- * a `.git` file (a worktree, a submodule) points to.
+ * tree. Found without running git, as git finds it (`gitLayout`).
  *
  * @param {string} start
  */
@@ -161,8 +160,46 @@ function nudgeLimit(v) {
   return Math.min(n, HARD_MAX_NUDGES)
 }
 
+/**
+ * Why the guard denies a tool call made in `cwd`, or null. It asks for the
+ * loop of every repository whose working tree holds `cwd`, not only the
+ * nearest: a `.git` made below the loop (empty, junk, or a nested `git
+ * init`) must not hide it. The tombstone outlives `.quality-loop/`, so a
+ * repository with only a tombstone is guarded too.
+ *
+ * @param {string} cwd
+ * @param {any} input the hook's stdin JSON
+ */
+function guardReason(cwd, input) {
+  for (const l of gitLayouts(cwd)) {
+    const top = l.top
+    const loopDir = existsSync(join(top, LOOP_DIR))
+    const tomb = tombstoneDir(top)
+    if (!loopDir && !(tomb && existsSync(tomb))) continue
+    const p = paths(top)
+    const state = loopDir ? readJson(p.state) : null
+    const config = state?.config ?? resolveConfig(loopDir ? readJson(p.config) : null)
+    const hillclimb = loopDir ? readJson(join(p.evals, 'hillclimb.json')) : null
+    const reason = evaluateGuard({
+      tool: String(input?.tool_name ?? ''),
+      input: input?.tool_input ?? {},
+      root: top,
+      cwd,
+      loopStatus: state?.status ?? null,
+      protectedPaths: config.guard.protectedPaths,
+      blockDestructive: config.guard.blockDestructive,
+      hillclimbActive: !!hillclimb?.active,
+      tombstone: tomb,
+      restartLocked: !!startRefusal(top, state),
+      gitStatus: gitStatusIn(top),
+    })
+    if (reason) return reason
+  }
+  return null
+}
+
 /** @param {string} root @param {any} state */
-const elsewhere = (root, state) => `A quality loop is running in another session in ${root} (${statusLine(state)}); it is not this session's task.`
+const elsewhere =(root, state) => `A quality loop is running in another session in ${root} (${statusLine(state)}); it is not this session's task.`
 
 /**
  * @param {string} event pre-tool-use | stop | session-start | user-prompt-submit
@@ -173,7 +210,7 @@ export function handleHook(event, input) {
   const cwd = input?.cwd || process.cwd()
   // The loop is the git top level's, as for ql itself.
   const top = gitLayout(cwd)?.top ?? null
-  const root = top && existsSync(join(top, LOOP_DIR)) ? top : null
+  const root = findLoopRoot(cwd)
   const sid = sessionOf(input)
   const tool = String(input?.tool_name ?? '')
   const command = event === 'pre-tool-use' && tool === 'Bash' ? String(input.tool_input?.command ?? '') : ''
@@ -182,24 +219,8 @@ export function handleHook(event, input) {
   const starts = sid && top ? qlInvocations(command).filter(q => claimsLoop(q, top, state)) : []
   if (sid && event !== 'pre-tool-use') settleClaim(top ?? cwd, state, sid)
 
-  // The tombstone outlives `.quality-loop/`: guard it, and the cap it holds, without one.
-  const tomb = top ? tombstoneDir(top) : null
-  if (event === 'pre-tool-use' && top && (root || (tomb && existsSync(tomb)))) {
-    const config = state?.config ?? resolveConfig(p ? readJson(p.config) : null)
-    const hillclimb = p ? readJson(join(p.evals, 'hillclimb.json')) : null
-    const reason = evaluateGuard({
-      tool,
-      input: input.tool_input ?? {},
-      root: top,
-      cwd: typeof input.cwd === 'string' && input.cwd ? input.cwd : top,
-      loopStatus: state?.status ?? null,
-      protectedPaths: config.guard.protectedPaths,
-      blockDestructive: config.guard.blockDestructive,
-      hillclimbActive: !!hillclimb?.active,
-      tombstone: tomb,
-      restartLocked: !!startRefusal(top, state),
-      gitStatus: gitStatusIn(top),
-    })
+  if (event === 'pre-tool-use') {
+    const reason = guardReason(cwd, input)
     if (reason) {
       return {
         stdout: JSON.stringify({
