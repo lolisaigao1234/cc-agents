@@ -20,6 +20,11 @@ import { bootstrapCI, mean } from './stats.mjs'
  * findings already cover is a duplicate, not a false positive. Nits and
  * findings tagged pre-existing (outside the change) never count either way.
  *
+ * A finding's range counts only while it spans at most `tolerance × 4`
+ * lines. A wider one (a whole function, a whole file) matches only bugs at
+ * its first line, give or take `tolerance`; otherwise a reviewer could cover
+ * every bug in a file with one wide range.
+ *
  * @param {Expected} expected
  * @param {Predicted[]} predicted
  * @param {{ tolerance: number }} opts
@@ -29,7 +34,8 @@ export function gradeCase(expected, predicted, opts) {
   const bugs = expected.kind === 'clean' ? [] : expected.bugs
   const hits = scored.map(p => {
     const file = normalizePath(p.file)
-    const pEnd = Math.max(p.endLine ?? p.line, p.line)
+    const claimed = Math.max(p.endLine ?? p.line, p.line)
+    const pEnd = claimed - p.line + 1 > opts.tolerance * 4 ? p.line : claimed
     /** @type {number[]} */
     const out = []
     bugs.forEach((b, i) => {
@@ -159,6 +165,8 @@ export function summarize(trials, opts) {
   return {
     trials: valid.length,
     infraErrors: trials.length - valid.length,
+    /** cases with at least one infra-error trial */
+    infraCases: [...new Set(trials.filter(t => t.infraError).map(t => t.caseId))].sort(),
     cases: byCase.size,
     passRate: bootstrapCI(Object.values(perCase), { seed: opts.seed }),
     precision,
@@ -172,7 +180,9 @@ export function summarize(trials, opts) {
 /**
  * The hill-climbing keep/revert rule:
  *   infra errors in either run, or the
- *   runs scored different cases -> invalid (fix plumbing, rerun)
+ *   runs scored different cases -> invalid (fix plumbing, rerun; a case
+ *                                  unscored only through infra errors
+ *                                  counts as infra, not as changed cases)
  *   any regression beyond noise -> revert
  *   train up, test flat         -> revert (suspected overfitting)
  *   test up                     -> keep
@@ -193,22 +203,37 @@ export function decideHillclimb(base, cand, opts) {
   const problems = []
   /** @type {string[]} */
   const todo = []
+  let anyInfra = false
+  let casesDiffer = false
   for (const side of /** @type {const} */ (['train', 'test'])) {
-    const infra = base[side].infraErrors + cand[side].infraErrors
-    if (infra) problems.push(`${infra} infra error(s) on ${side} (base ${base[side].infraErrors}, candidate ${cand[side].infraErrors})`)
     const a = Object.keys(base[side].perCase)
     const b = Object.keys(cand[side].perCase)
-    const onlyBase = a.filter(id => !b.includes(id)).sort()
-    const onlyCand = b.filter(id => !a.includes(id)).sort()
+    // A case whose every repeat was an infra error ran but went unscored in
+    // that run: that is the infra error, not a changed case set. (Results
+    // written before infraCases existed lack it.)
+    const baseInfra = base[side].infraCases ?? []
+    const candInfra = cand[side].infraCases ?? []
+    const hiddenBase = a.filter(id => !b.includes(id) && candInfra.includes(id))
+    const hiddenCand = b.filter(id => !a.includes(id) && baseInfra.includes(id))
+    const infra = base[side].infraErrors + cand[side].infraErrors
+    if (infra) {
+      anyInfra = true
+      const hidden = [...hiddenBase, ...hiddenCand].sort()
+      const unscored = hidden.length ? `; ${hidden.join(', ')} went unscored in one run, every repeat an infra error` : ''
+      problems.push(`${infra} infra error(s) on ${side} (base ${base[side].infraErrors}, candidate ${cand[side].infraErrors}${unscored})`)
+    }
+    const onlyBase = a.filter(id => !b.includes(id) && !hiddenBase.includes(id)).sort()
+    const onlyCand = b.filter(id => !a.includes(id) && !hiddenCand.includes(id)).sort()
     if (onlyBase.length || onlyCand.length) {
+      casesDiffer = true
       const which = [onlyBase.length ? `only in base: ${onlyBase.join(', ')}` : '', onlyCand.length ? `only in candidate: ${onlyCand.join(', ')}` : '']
       problems.push(`the runs scored different ${side} cases (${which.filter(Boolean).join('; ')})`)
     }
   }
-  if (problems.some(p => p.includes('infra error'))) todo.push('read the infra transcripts, fix the cause and rerun the run(s) with errors')
+  if (anyInfra) todo.push('read the infra transcripts, fix the cause and rerun the run(s) with errors')
   // Cases fixed, added or dropped since one of the runs: rerunning the
   // candidate alone never clears this; the best must be rerun too.
-  if (problems.some(p => p.includes('different'))) todo.push('rerun the best from its saved surface on the current cases (and the candidate too if it ran before the cases changed), without --cases')
+  if (casesDiffer) todo.push('rerun the best from its saved surface on the current cases (and the candidate too if it ran before the cases changed), without --cases')
   if (problems.length) {
     return { decision: 'invalid', ...d, reason: `cannot compare: ${problems.join('; ')}. To decide, ${todo.join('; ')}. Do not adopt the candidate` }
   }

@@ -3,8 +3,8 @@
 // wrong and how to fix it; ql decides what counts (evidence, votes,
 // regressions, convergence) and keeps the state on disk.
 
-import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { runChecks } from './lib/checks.mjs'
@@ -137,6 +137,24 @@ const findingLine = f =>
 /** @param {string} root */
 function evalConfig(root) {
   return loop.loadConfig(root).eval
+}
+
+/**
+ * The surface file an eval command works on: `--surface`, relative to the
+ * repo root (as every other repo path ql takes), or REVIEW.md. Every eval
+ * subcommand resolves it here, so run, leakcheck and hillclimb never read
+ * different files for the same flag. A mistyped path is an error, never a
+ * silent run with an empty REVIEW.md.
+ *
+ * @param {string} root
+ * @param {Record<string, string | true>} flags
+ */
+function surfaceFlag(root, flags) {
+  if (flags.surface === undefined) return paths(root).reviewMd
+  const given = str(flags.surface)
+  const p = resolve(root, given ?? '')
+  if (!given || !existsSync(p) || !statSync(p).isFile()) throw new loop.LoopError(`--surface: no such file ${given ?? ''} (paths are relative to the repo root)`)
+  return p
 }
 
 /** @param {string[]} argv */
@@ -381,14 +399,18 @@ async function evalCommand(root, sub, rest, flags) {
       const repeats = int(flags.repeats, ec.repeats)
       const split = /** @type {'train'} */ (str(flags.split) ?? 'all')
       const caseIds = str(flags.cases)?.split(',')
-      // The runner reads the review depth from QL_DEPTH.
+      // The runner reads the review depth from QL_DEPTH: --depth sets it,
+      // otherwise one inherited from the environment reaches the runner, so
+      // both are checked (and recorded by runEval).
       const depth = str(flags.depth)
-      if (flags.depth !== undefined && !(depth && Object.hasOwn(DEPTHS, depth))) throw new loop.LoopError(`--depth must be one of ${Object.keys(DEPTHS).join(', ')}`)
-      // A mistyped --surface must not silently run an empty REVIEW.md.
-      const surfacePath = flags.surface === undefined ? paths(root).reviewMd : resolve(root, str(flags.surface) ?? '')
-      if (flags.surface !== undefined && !(str(flags.surface) && existsSync(surfacePath))) throw new loop.LoopError(`--surface: no such file ${str(flags.surface) ?? ''}`)
+      const depthNames = Object.keys(DEPTHS).join(', ')
+      if (flags.depth !== undefined && !(depth && Object.hasOwn(DEPTHS, depth))) throw new loop.LoopError(`--depth must be one of ${depthNames}`)
+      const envDepth = process.env.QL_DEPTH
+      if (!depth && envDepth && !Object.hasOwn(DEPTHS, envDepth)) throw new loop.LoopError(`QL_DEPTH (inherited from the environment) must be one of ${depthNames}, got "${envDepth}"`)
+      const effectiveDepth = depth || envDepth || undefined
+      const surfacePath = surfaceFlag(root, flags)
       const n = loadCases(root).filter(c => !caseIds || caseIds.includes(c.id)).length
-      process.stderr.write(`eval ${label}: ${n} case(s) × ${repeats} repeat(s) (split ${split}${depth ? `, depth ${depth}` : ''}), concurrency ${int(flags.concurrency, ec.concurrency)}, timeout ${ec.timeoutSec}s per trial\n`)
+      process.stderr.write(`eval ${label}: ${n} case(s) × ${repeats} repeat(s) (split ${split}${effectiveDepth ? `, depth ${effectiveDepth}` : ''}), concurrency ${int(flags.concurrency, ec.concurrency)}, timeout ${ec.timeoutSec}s per trial\n`)
       const result = await runEval(root, {
         label,
         split,
@@ -429,11 +451,11 @@ async function evalCommand(root, sub, rest, flags) {
       return print(`decision: ${d.decision.toUpperCase()} — ${d.reason}`)
     }
     case 'leakcheck': {
-      const surface = str(flags.surface) ?? paths(root).reviewMd
-      const text = readFileSync(surface, 'utf8')
+      const surface = surfaceFlag(root, flags)
+      const text = existsSync(surface) ? readFileSync(surface, 'utf8') : ''
       const leaks = leakCheck(text, loadCases(root, { includeDrafts: true }))
       if (flags.json) return print(leaks)
-      if (!leaks.length) return print(`no eval answers found in ${surface}`)
+      if (!leaks.length) return print(`no eval answers found in ${relative(root, surface) || surface}`)
       for (const l of leaks) print(`LEAK (${l.kind}) from case ${l.caseId}: "${l.match}"`)
       process.exitCode = 1
       return
@@ -441,7 +463,7 @@ async function evalCommand(root, sub, rest, flags) {
     case 'hillclimb': {
       const action = rest[0]
       if (action === 'start') {
-        writeJson(ep.hillclimb, { active: true, startedAt: new Date().toISOString(), surface: str(flags.surface) ?? paths(root).reviewMd })
+        writeJson(ep.hillclimb, { active: true, startedAt: new Date().toISOString(), surface: surfaceFlag(root, flags) })
         return print('hill climbing: eval cases and answer keys are now protected from edits')
       }
       if (action === 'stop') {

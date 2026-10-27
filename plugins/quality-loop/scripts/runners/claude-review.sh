@@ -4,7 +4,8 @@
 #
 # ql eval run sets: QL_WORKSPACE (cwd), QL_BASE, QL_OUTPUT, QL_INTENT,
 # QL_PLUGIN_ROOT, and QL_DEPTH with --depth. It never names the case.
-# Optional: QL_MODEL, QL_DEPTH, QL_EFFORT.
+# Optional: QL_MODEL, QL_DEPTH, QL_EFFORT. An inherited QL_DEPTH is checked
+# and recorded as the run's depth, like --depth.
 set -eu
 
 : "${QL_BASE:?QL_BASE is not set}"

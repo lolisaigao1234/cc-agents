@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 
@@ -319,4 +319,96 @@ test('INVALID from changed case sets says what to rerun; rerunning the best on t
   const again = ql(root, ['eval', 'compare', 'base2', 'cand'])
   assert.equal(again.code, 0, again.out)
   assert.doesNotMatch(again.out, /INVALID/)
+})
+
+test('harvest skips changes that touch only .quality-loop/: materialised, they would be empty', () => {
+  const root = makeRepo({ 'src/a.js': 'export const a = 1\n' })
+  const { git, commit } = gitIn(root)
+  writeFiles(root, { '.quality-loop/REVIEW.md': 'rule one\nrule two\n' })
+  const tune = commit('tune review rules')
+  writeFiles(root, { '.quality-loop/REVIEW.md': 'rule one\nrule two\nrule three\n' })
+  const tune2 = commit('tune review rules again')
+  git(['revert', '--no-edit', tune2])
+  writeFiles(root, { '.quality-loop/REVIEW.md': 'rule one\nrule 2\n' })
+  const fixRules = commit('fix: rule two was misleading')
+  // A mixed change counts only its code lines.
+  writeFiles(root, { 'src/b.js': 'export const b = 2\n', '.quality-loop/REVIEW.md': 'rule one\nrule 2\nrule four\n' })
+  const mixed = commit('add b')
+  for (let i = 0; i < 21; i++) {
+    writeFiles(root, { [`docs/n${i}.md`]: `note ${i}\n` })
+    commit(`docs: note ${i}`)
+  }
+  const out = qlOk(root, ['eval', 'harvest', '--limit', '20', '--clean', '30'])
+  for (const sha of [tune, tune2]) assert.doesNotMatch(out, new RegExp(`-${sha.slice(0, 10)}`), `${sha} touches only .quality-loop/`)
+  assert.doesNotMatch(out, new RegExp(`fix-${fixRules.slice(0, 10)}`), 'a fix of .quality-loop/ lines is not a code bug')
+  assert.match(out, new RegExp(`clean-${mixed.slice(0, 10)}`), 'a change with code lines is still drafted')
+})
+
+test('gradeCase: a finding spanning a whole file does not match every bug in it', () => {
+  const wide = gradeCase({ kind: 'bug', bugs: [{ file: 'a.js', line: 100, endLine: 120 }] }, [{ file: 'a.js', line: 1, endLine: 500 }], { tolerance: 0 })
+  assert.deepEqual([wide.tp, wide.fp, wide.fn, wide.pass], [0, 1, 1, false])
+  const wide5 = gradeCase({ kind: 'bug', bugs: [{ file: 'a.js', line: 300 }] }, [{ file: 'a.js', line: 1, endLine: 500 }], { tolerance: 5 })
+  assert.equal(wide5.pass, false)
+  // A wide finding still matches a bug at its first line, give or take the tolerance.
+  const anchored = gradeCase({ kind: 'bug', bugs: [{ file: 'a.js', line: 104 }] }, [{ file: 'a.js', line: 100, endLine: 500 }], { tolerance: 5 })
+  assert.equal(anchored.pass, true)
+  // A range no longer than tolerance × 4 lines matches by overlap as before.
+  const narrow = gradeCase({ kind: 'bug', bugs: [{ file: 'a.js', line: 28 }] }, [{ file: 'a.js', line: 10, endLine: 25 }], { tolerance: 5 })
+  assert.equal(narrow.pass, true)
+})
+
+test('INVALID caused only by infra errors does not claim the cases changed', () => {
+  /** @param {[string, boolean | 'infra'][]} rows */
+  const mk = rows => rows.map(([caseId, p]) => ({ caseId, repeat: 0, pass: p === true, tp: p === true ? 1 : 0, fp: 0, fn: p === true ? 0 : 1, infraError: p === 'infra' ? 'runner exited 1' : null }))
+  const train = summarize(mk([['t1', true], ['t2', false]]), { seed: 1 })
+  const base = { train, test: summarize(mk([['e1', true], ['h1', false], ['h2', false]]), { seed: 1 }) }
+  const cand = { train, test: summarize(mk([['e1', true], ['h1', 'infra'], ['h2', 'infra']]), { seed: 1 }) }
+  const d = decideHillclimb(base, cand, { minDelta: 0.1 })
+  assert.equal(d.decision, 'invalid')
+  assert.match(d.reason, /infra error/)
+  assert.match(d.reason, /h1, h2/, 'names the cases the infra errors hid')
+  assert.doesNotMatch(d.reason, /different/, d.reason)
+  assert.doesNotMatch(d.reason, /rerun the best/, d.reason)
+  // A case really dropped is still reported, next to the infra errors.
+  const dropped = { train, test: summarize(mk([['h1', 'infra'], ['h2', 'infra']]), { seed: 1 }) }
+  const d2 = decideHillclimb(base, dropped, { minDelta: 0.1 })
+  assert.match(d2.reason, /different test cases \(only in base: e1\)/, d2.reason)
+  assert.match(d2.reason, /rerun the best/)
+})
+
+test('--surface resolves against the repo root in eval run, leakcheck and hillclimb start', () => {
+  const { root, base, head } = repoWithCommittedEvals()
+  writeCase(root, 'k1', { kind: 'bug', source: { type: 'git', base, head } }, [{ file: 'src/x.js', line: 2 }])
+  writeFiles(root, { 's.md': 'Watch src/x.js closely\n', 'sub/s.md': 'nothing here\n' })
+  const real = realpathSync(root)
+  const sub = join(root, 'sub')
+  const { probe, tmp, runner } = probeSetup(root)
+  qlOk(sub, ['eval', 'run', '--label', 's', '--runner', runner, '--repeats', '1', '--surface', 's.md'], { PROBE: probe, TMPDIR: tmp })
+  const result = JSON.parse(readFileSync(join(root, '.quality-loop/evals/results/s.json'), 'utf8'))
+  assert.equal(result.surfacePath, join(real, 's.md'))
+  const leak = ql(sub, ['eval', 'leakcheck', '--surface', 's.md'])
+  assert.equal(leak.code, 1, leak.out)
+  assert.match(leak.out, /LEAK \(path\) from case k1/)
+  const missing = ql(sub, ['eval', 'leakcheck', '--surface', 'nope.md'])
+  assert.equal(missing.code, 1, missing.err)
+  assert.match(missing.err, /--surface: no such file/)
+  qlOk(sub, ['eval', 'hillclimb', 'start', '--surface', 's.md'])
+  assert.equal(JSON.parse(readFileSync(join(root, '.quality-loop/evals/hillclimb.json'), 'utf8')).surface, join(real, 's.md'))
+  qlOk(sub, ['eval', 'hillclimb', 'stop'])
+})
+
+test('an inherited QL_DEPTH is recorded as the run depth, and validated', () => {
+  const { root, base, head } = repoWithCommittedEvals()
+  writeCase(root, 'd1', { kind: 'bug', source: { type: 'git', base, head } }, [{ file: 'src/x.js', line: 2 }])
+  const { probe, tmp, runner } = probeSetup(root)
+  const out = qlOk(root, ['eval', 'run', '--label', 'envdeep', '--runner', runner, '--repeats', '1'], { PROBE: probe, TMPDIR: tmp, QL_DEPTH: 'deep' })
+  assert.match(readFileSync(probe, 'utf8'), /DEPTH=deep/)
+  assert.match(out, /· depth deep/)
+  assert.equal(JSON.parse(readFileSync(join(root, '.quality-loop/evals/results/envdeep.json'), 'utf8')).depth, 'deep')
+  // --depth wins over the environment.
+  qlOk(root, ['eval', 'run', '--label', 'flag', '--runner', runner, '--repeats', '1', '--depth', 'quick'], { PROBE: probe, TMPDIR: tmp, QL_DEPTH: 'deep' })
+  assert.equal(JSON.parse(readFileSync(join(root, '.quality-loop/evals/results/flag.json'), 'utf8')).depth, 'quick')
+  const bad = ql(root, ['eval', 'run', '--label', 'bad', '--runner', runner, '--repeats', '1'], { PROBE: probe, TMPDIR: tmp, QL_DEPTH: 'huge' })
+  assert.equal(bad.code, 1, bad.err)
+  assert.match(bad.err, /QL_DEPTH/)
 })
