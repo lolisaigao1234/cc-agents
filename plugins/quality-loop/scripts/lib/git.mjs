@@ -9,6 +9,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   renameSync,
   rmSync,
   statSync,
@@ -178,15 +179,44 @@ function stageWorktree(root, env) {
   if (!add.ok && add.status !== 1) throw new Error(`git add -A failed (${add.status}): ${add.stderr.trim()}`)
   // Drop loop files that a copied real index may already hold.
   git(['rm', '-r', '-q', '--cached', '--ignore-unmatch', '--', LOOP_DIR], { cwd: root, env })
-  if (add.ok) return []
-  // A skipped tracked file keeps the copied index entry (its old content):
-  // after `add` refreshed everything else, those are the entries still stale.
-  const stale = nulList(gitRaw(['diff-files', '-z', '--name-only', '--ignore-submodules', '--', '.', EXCLUDE], { cwd: root, env }).stdout)
-  if (stale.length) {
-    gitRaw(['update-index', '-z', '--force-remove', '--stdin'], { cwd: root, env, input: stale.map(p => `${p}\0`).join('') })
+  // A directory git cannot open draws only a warning, so a clean exit with
+  // something on stderr still needs the scan below.
+  if (add.ok && !add.stderr.trim()) return []
+  /** @type {string[]} */ let stale = []
+  if (!add.ok) {
+    // A skipped tracked file keeps the copied index entry (its old content):
+    // after `add` refreshed everything else, those are the entries still stale.
+    stale = nulList(gitRaw(['diff-files', '-z', '--name-only', '--ignore-submodules', '--', '.', EXCLUDE], { cwd: root, env }).stdout)
+    if (stale.length) {
+      gitRaw(['update-index', '-z', '--force-remove', '--stdin'], { cwd: root, env, input: stale.map(p => `${p}\0`).join('') })
+    }
   }
-  const untracked = nulList(gitRaw(['ls-files', '-z', '-o', '--exclude-standard', '--', '.', EXCLUDE], { cwd: root, env }).stdout)
-  return [...new Set([...stale, ...untracked])]
+  const lsOther = (/** @type {string[]} */ flags) =>
+    nulList(gitRaw(['ls-files', '-z', '-o', '--exclude-standard', ...flags, '--', '.', EXCLUDE], { cwd: root, env }).stdout)
+  const untracked = lsOther([])
+  // An unreadable directory lists none of its files above. `--directory` names
+  // it, along with empty directories and ones holding only ignored files (git
+  // calls an unreadable one empty too), so look at those on disk.
+  const candidates = lsOther(['--directory']).filter(d => d.endsWith('/') && !untracked.some(u => u.startsWith(d)))
+  /** @type {string[]} */ const unreadable = []
+  if (candidates.length) {
+    const ignoredDirs = new Set(lsOther(['--directory', '--ignored']).filter(d => d.endsWith('/')))
+    const walk = (/** @type {string} */ d) => {
+      /** @type {import('node:fs').Dirent<Buffer>[]} */ let entries
+      try {
+        entries = readdirSync(onDisk(root, d.slice(0, -1)), { withFileTypes: true, encoding: 'buffer' })
+      } catch {
+        unreadable.push(d)
+        return
+      }
+      for (const e of entries) {
+        const child = `${d}${e.name.toString('latin1')}/`
+        if (e.isDirectory() && !ignoredDirs.has(child)) walk(child)
+      }
+    }
+    candidates.forEach(walk)
+  }
+  return [...new Set([...stale, ...untracked, ...unreadable])]
 }
 
 /** @param {string} out NUL-separated list */
@@ -386,17 +416,21 @@ function rawOverrides(root, env, entries) {
   })
 }
 
-// Markers of a git operation in progress, and how to forget each one while
-// leaving HEAD, the index and the working tree as they are.
-/** @type {[string, string[]][]} */
+// Markers of a git operation in progress, in the order a revert ends them, and
+// the commands to try for each until one works. A rebase is aborted, which puts
+// HEAD back on the branch it started from (quitting would leave HEAD detached
+// and lose the way back); a merge is aborted, or else quit, since the revert
+// rewrites the index and working tree anyway. The others are quit, leaving
+// HEAD where it is: aborting them would move a branch.
+/** @type {[string, ...string[][]][]} */
 const IN_PROGRESS = [
-  ['MERGE_HEAD', ['merge', '--quit']],
+  ['rebase-apply/applying', ['am', '--quit']],
+  ['rebase-merge', ['rebase', '--abort']],
+  ['rebase-apply', ['rebase', '--abort']],
+  ['MERGE_HEAD', ['merge', '--abort'], ['merge', '--quit']],
   ['CHERRY_PICK_HEAD', ['cherry-pick', '--quit']],
   ['REVERT_HEAD', ['revert', '--quit']],
   ['sequencer', ['cherry-pick', '--quit']],
-  ['rebase-merge', ['rebase', '--quit']],
-  ['rebase-apply', ['rebase', '--quit']],
-  ['rebase-apply/applying', ['am', '--quit']],
 ]
 
 /** Which in-progress markers exist now. @param {string} root */
@@ -404,6 +438,36 @@ function inProgress(root) {
   const args = IN_PROGRESS.flatMap(([m]) => ['--git-path', m])
   const at = git(['rev-parse', '--path-format=absolute', ...args], { cwd: root }).stdout.split('\n')
   return IN_PROGRESS.filter((_, i) => at[i] && existsSync(String(at[i]))).map(([m]) => m)
+}
+
+/** The branch HEAD is on (`refs/heads/...`), or '' when detached. @param {string} root */
+function symbolicHead(root) {
+  const r = git(['symbolic-ref', '--quiet', 'HEAD'], { cwd: root, allowFail: true })
+  return r.ok ? r.stdout.trim() : ''
+}
+
+/**
+ * The commits every local and remote-tracking branch points at, so a revert
+ * can tell commits the round made from ones that were already there.
+ *
+ * @param {string} root
+ */
+function refTips(root) {
+  const out = git(['for-each-ref', '--format=%(objectname)', 'refs/heads', 'refs/remotes'], { cwd: root }).stdout
+  return [...new Set(out.split('\n').filter(Boolean))]
+}
+
+/**
+ * Paths the index holds as intent-to-add (`git add -N`): `tree` is the index
+ * written as a tree, which leaves them out.
+ *
+ * @param {string} root
+ * @param {string} tree
+ * @param {Record<string, string>} [env]
+ */
+function intentToAdd(root, tree, env) {
+  const args = ['diff-index', '--cached', '--name-only', '-z', '--no-renames', '--ita-visible-in-index', tree, '--', '.', EXCLUDE]
+  return nulList(gitRaw(args, { cwd: root, env }).stdout)
 }
 
 /**
@@ -438,31 +502,35 @@ export function snapshotTree(root) {
 /**
  * A snapshot a round can be reverted to. Under `.quality-loop/checkpoint/`
  * (never part of a diff) the tree also records what a faithful revert needs:
- * the time, HEAD, the real index as a tree, git operations in progress, the
- * paths on disk that the tree does not hold (ignored as matched by an ignore
- * rule, or unreadable), the state of nested repositories and the raw bytes of
- * files that a filter or eol conversion changes on the way in.
+ * the time, HEAD and the branch it is on, the branch tips, the real index as a tree and its
+ * intent-to-add entries, git operations in progress, the paths on disk that
+ * the tree does not hold (ignored as matched by an ignore rule, or
+ * unreadable), the state of nested repositories and the raw bytes of files
+ * that a filter or eol conversion changes on the way in.
  *
  * @param {string} root
  */
 export function checkpointTree(root) {
   const time = Date.now()
   const head = revParse(root, 'HEAD') ?? ''
+  const branch = symbolicHead(root)
+  const tips = refTips(root)
   const indexTree = realIndexTree(root)
+  const ita = indexTree ? intentToAdd(root, indexTree) : []
   const ops = inProgress(root)
   return withTempIndex(root, env => {
-    stageWorktree(root, env)
+    const skipped = stageWorktree(root, env)
     const entries = listIndex(root, env)
     // After staging, what is still untracked could not be read; `matching`
     // lists an ignored directory only when a rule ignores it as a whole, and
     // otherwise the ignored files in it, so an empty directory or one holding
-    // only ignored files does not cover files created in it later.
-    const offTree = untrackedAndIgnored(
-      gitRaw(
-        ['status', '--porcelain=v2', '-z', '--no-renames', '--ignored=matching', '--untracked-files=all', '--ignore-submodules=all', '--', '.', EXCLUDE],
-        { cwd: root, env },
-      ).stdout,
-    )
+    // only ignored files does not cover files created in it later. A
+    // directory git cannot open shows up in neither list but in `skipped`.
+    const status = gitRaw(
+      ['status', '--porcelain=v2', '-z', '--no-renames', '--ignored=matching', '--untracked-files=all', '--ignore-submodules=all', '--', '.', EXCLUDE],
+      { cwd: root, env },
+    ).stdout
+    const offTree = [...new Set([...untrackedAndIgnored(status), ...skipped])]
     const nested = entries
       .filter(e => e.mode === GITLINK)
       .map(e => `${e.path}\0${nestedState(root, e.path)}\0`)
@@ -471,7 +539,10 @@ export function checkpointTree(root) {
     const blobs = [
       ['time', String(time)],
       ['head', head],
+      ['branch', branch],
+      ['refs', tips.join('\n')],
       ['index', indexTree],
+      ['ita', ita.map(p => `${p}\0`).join('')],
       ['ops', ops.map(o => `${o}\0`).join('')],
       ['off-tree', offTree.map(p => `${p}\0`).join('')],
       ['nested', nested],
@@ -489,7 +560,10 @@ export function checkpointTree(root) {
  * @typedef {{
  *   time: number,
  *   head: string,
+ *   branch: string | null,
+ *   refs: string[] | null,
  *   index: string,
+ *   ita: Set<string> | null,
  *   ops: string[] | null,
  *   offTree: Set<string>,
  *   nested: Map<string, string>,
@@ -521,7 +595,11 @@ function readCheckpoint(root, tree) {
     // no record (an older checkpoint): every kept file counts as touched
     time: Number(text('time')) || 0,
     head: text('head'),
+    // null: an older checkpoint that did not record it
+    branch: files.has('branch') ? text('branch') : null,
+    refs: files.has('refs') ? text('refs').split('\n').filter(Boolean) : null,
     index: text('index'),
+    ita: files.has('ita') ? new Set(nulList(text('ita'))) : null,
     ops: files.has('ops') ? nulList(text('ops')) : null,
     offTree: new Set(nulList(text('off-tree'))),
     nested,
@@ -597,7 +675,7 @@ function writeEntry(root, p, mode, data, trash) {
 
 /**
  * Puts the user's real index back to its state at the checkpoint, entry by
- * entry, and reports a HEAD that moved (the loop never rewrites history).
+ * entry, intent-to-add entries included.
  *
  * @param {string} root
  * @param {CheckpointMeta} meta
@@ -606,13 +684,8 @@ function writeEntry(root, p, mode, data, trash) {
 function restoreIndex(root, meta, problems) {
   // No record: a legacy checkpoint, or an index with conflicts at the time.
   if (!meta.index) return
-  const head = revParse(root, 'HEAD') ?? ''
-  if (meta.head && head !== meta.head) {
-    problems.push(
-      `HEAD moved during the round (${meta.head.slice(0, 12)} -> ${head.slice(0, 12) || 'none'}): its commits were not undone. ` +
-        `The working tree and index are back at the round start; review those commits, then \`git reset --soft ${meta.head}\`.`,
-    )
-  }
+  // Intent-to-add entries are not in meta.index: leave them out of this
+  // comparison and put them back as recorded below.
   const diff = gitRaw(['diff-index', '--cached', '--raw', '-z', '--no-renames', '--ita-invisible-in-index', meta.index, '--', '.', EXCLUDE], {
     cwd: root,
     allowFail: true,
@@ -640,39 +713,173 @@ function restoreIndex(root, meta, problems) {
     input += `0 ${zero}\t${c.path}\0`
     if (was) input += `${was.mode} ${was.sha}\t${c.path}\0`
   }
-  if (!input) return
-  const r = gitRaw(['update-index', '-z', '--index-info'], { cwd: root, input, allowFail: true })
-  if (!r.ok) problems.push(`could not restore the index to the round start: ${r.stderr.trim()}`)
+  if (input) {
+    const r = gitRaw(['update-index', '-z', '--index-info'], { cwd: root, input, allowFail: true })
+    if (!r.ok) {
+      problems.push(`could not restore the index to the round start: ${r.stderr.trim()}`)
+      return
+    }
+  }
+  restoreIntentToAdd(root, meta, problems)
 }
 
 /**
- * Forgets a merge, cherry-pick, revert, rebase or am that the round started,
- * leaving HEAD, index and working tree alone: otherwise a later plain
- * `git commit` would record, say, a merge whose changes the revert dropped.
+ * Now that every other entry matches meta.index, what still differs from it
+ * is intent-to-add: drop the ones the round made, re-add the user's.
  *
  * @param {string} root
  * @param {CheckpointMeta} meta
  * @param {string[]} problems
  */
-function quitOperations(root, meta, problems) {
-  if (!meta.ops) return
+function restoreIntentToAdd(root, meta, problems) {
+  if (!meta.ita) return
+  const was = meta.ita
+  const now = intentToAdd(root, meta.index)
+  const made = now.filter(p => !was.has(p))
+  if (made.length) {
+    const r = gitRaw(['update-index', '-z', '--force-remove', '--stdin'], { cwd: root, input: made.map(p => `${p}\0`).join(''), allowFail: true })
+    if (!r.ok) problems.push(`could not remove the intent-to-add entries the round made: ${r.stderr.trim()}`)
+  }
+  const nowSet = new Set(now)
+  const lost = [...was].filter(p => !nowSet.has(p))
+  if (lost.length) {
+    const r = gitRaw(['add', '--intent-to-add', '--force', '--pathspec-from-file=-', '--pathspec-file-nul'], {
+      cwd: root,
+      env: { GIT_LITERAL_PATHSPECS: '1' },
+      input: lost.map(p => `${p}\0`).join(''),
+      allowFail: true,
+    })
+    if (!r.ok) problems.push(`could not put back the intent-to-add entries of ${lost.map(shown).join(', ')}: ${r.stderr.trim()}`)
+  }
+}
+
+/**
+ * Ends a merge, cherry-pick, revert, rebase or am that the round started (see
+ * IN_PROGRESS for how): otherwise a later plain `git commit` would record, say,
+ * a merge whose changes the revert dropped. Runs before the working tree and
+ * index are restored, since an abort rewrites them. Returns whether none is
+ * left in progress.
+ *
+ * @param {string} root
+ * @param {CheckpointMeta} meta
+ * @param {string[]} problems
+ */
+function endOperations(root, meta, problems) {
+  if (!meta.ops) return true
   const before = new Set(meta.ops)
   const started = () => inProgress(root).filter(m => !before.has(m))
-  const now = started()
-  if (!now.length) return
-  // `git am` keeps its state in rebase-apply too; it must be quit as an am
-  const am = now.includes('rebase-apply/applying')
-  const commands = new Set(
-    IN_PROGRESS.filter(([m]) => now.includes(m) && !(am && m === 'rebase-apply')).map(([, cmd]) => cmd.join(' ')),
-  )
+  if (!started().length) return true
+  // A file ignored at the checkpoint that the operation now tracks (the other
+  // side has it) was overwritten by it, and an abort removes it again.
+  const offTree = meta.offTree.size
+    ? [...new Set(nulList(gitRaw(['ls-files', '-z', '--', '.', EXCLUDE], { cwd: root }).stdout))].filter(p => wasOffTree(meta.offTree, p))
+    : []
   /** @type {string[]} */ const errors = []
-  for (const cmd of commands) {
-    const r = git(cmd.split(' '), { cwd: root, allowFail: true })
-    if (!r.ok) errors.push(`git ${cmd}: ${r.stderr.trim()}`)
+  for (const [marker, ...commands] of IN_PROGRESS) {
+    for (const cmd of commands) {
+      // one command can end several markers (`am --quit` clears rebase-apply too)
+      if (!started().includes(marker)) break
+      const r = git(cmd, { cwd: root, allowFail: true })
+      if (!r.ok) errors.push(`git ${cmd.join(' ')}: ${r.stderr.trim()}`)
+    }
+  }
+  // One still tracked and on disk is reported with the rest of the working tree.
+  const tracked = offTree.length ? new Set(nulList(gitRaw(['ls-files', '-z', '--', '.', EXCLUDE], { cwd: root }).stdout)) : new Set()
+  for (const p of offTree) {
+    if (!lstatOrNull(onDisk(root, p))) {
+      problems.push(
+        `${shown(p)} was outside the checkpoint (ignored or unreadable), a git operation the round started overwrote it, ` +
+          'and ending that operation removed it: the original cannot be restored from the checkpoint',
+      )
+    } else if (!tracked.has(p) && touchedSince(root, p, meta.time)) {
+      problems.push(
+        `${shown(p)} was left in place: it was outside the checkpoint (ignored or unreadable), ` +
+          'so a version a git operation the round started wrote cannot be told apart from the original',
+      )
+    }
   }
   const left = started()
-  if (left.length) {
-    problems.push(`a git operation the round started is still in progress (${left.join(', ')}); ${errors.join('; ') || 'quitting it had no effect'}`)
+  if (!left.length) return true
+  problems.push(`a git operation the round started is still in progress (${left.join(', ')}); ${errors.join('; ') || 'ending it had no effect'}`)
+  return false
+}
+
+/** @param {string} ref */
+function branchName(ref) {
+  return ref.replace(/^refs\/heads\//, '')
+}
+
+/**
+ * Does `head` hold commits that no branch held at the checkpoint? A round that
+ * only checked out an existing branch made none. Without a record (an older
+ * checkpoint) or an answer from git, assume it did.
+ *
+ * @param {string} root
+ * @param {CheckpointMeta} meta
+ * @param {string} head
+ */
+function madeCommits(root, meta, head) {
+  if (!meta.refs || !head) return true
+  const input = [meta.head, ...meta.refs].filter(Boolean).map(sha => `^${sha}\n`).join('')
+  const r = git(['rev-list', '--count', head, '--stdin'], { cwd: root, input, allowFail: true })
+  return !r.ok || r.stdout.trim() !== '0'
+}
+
+/**
+ * Puts HEAD back on the branch (or detached commit) it was on at the
+ * checkpoint when that is safe, and reports what it cannot undo: the loop
+ * never moves a branch, so commits made during the round stay and pause it.
+ *
+ * @param {string} root
+ * @param {CheckpointMeta} meta
+ * @param {string[]} problems
+ * @param {boolean} mayMove false while an operation the round started is still in progress
+ */
+function restoreHead(root, meta, problems, mayMove) {
+  if (!meta.head) return
+  const head = revParse(root, 'HEAD') ?? ''
+  const branch = symbolicHead(root)
+  const at = (/** @type {string} */ ref, /** @type {string} */ sha) =>
+    `${ref ? branchName(ref) : 'detached HEAD'} at ${sha.slice(0, 12) || 'none'}`
+  const restored = 'The working tree and index are back at the round start'
+  if (meta.branch === null || meta.branch === branch) {
+    if (head !== meta.head) {
+      problems.push(
+        `HEAD moved during the round (${meta.head.slice(0, 12)} -> ${head.slice(0, 12) || 'none'}): its commits were not undone. ` +
+          `${restored}; review those commits, then \`git reset --soft ${meta.head}\`.`,
+      )
+    }
+    return
+  }
+  // HEAD is on another branch, or detached, or attached when it was detached.
+  const startNow = meta.branch ? revParse(root, meta.branch) ?? '' : meta.head
+  // Back onto the start branch while it is still where it was; back to a
+  // detached HEAD only when nothing moved but the attachment.
+  const canReturn = mayMove && startNow === meta.head && (meta.branch !== '' || head === meta.head)
+  if (!canReturn) {
+    const moved = startNow === meta.head ? '' : startNow ? `, and ${branchName(meta.branch)} moved to ${startNow.slice(0, 12)}` : `, and ${branchName(meta.branch)} was deleted`
+    const back = meta.branch
+      ? `\`git symbolic-ref HEAD ${meta.branch}\`, then \`git reset --soft ${meta.head}\``
+      : `\`git update-ref --no-deref HEAD ${meta.head}\``
+    problems.push(
+      `HEAD moved during the round (${at(meta.branch, meta.head)} -> ${at(branch, head)})${moved}: its commits were not undone. ` +
+        `${restored}; review those commits, then ${back}.`,
+    )
+    return
+  }
+  // Only HEAD itself moved: point it back. The index and working tree already
+  // match the round start, and no branch changes.
+  const message = 'quality-loop: revert round'
+  const r = meta.branch
+    ? git(['symbolic-ref', '-m', message, 'HEAD', meta.branch], { cwd: root, allowFail: true })
+    : git(['update-ref', '--no-deref', '-m', message, 'HEAD', meta.head], { cwd: root, allowFail: true })
+  if (!r.ok) {
+    problems.push(`could not put HEAD back on ${at(meta.branch, meta.head)}: ${r.stderr.trim()}`)
+  } else if (head !== meta.head && madeCommits(root, meta, head)) {
+    problems.push(
+      `HEAD was moved during the round to ${at(branch, head)}; it is back on ${at(meta.branch, meta.head)}, and those commits were not undone ` +
+        `(${branch ? `${branchName(branch)} still holds them` : 'find them with `git reflog`'}).`,
+    )
   }
 }
 
@@ -691,6 +898,8 @@ function quitOperations(root, meta, problems) {
  */
 export function restoreTree(root, tree) {
   const meta = readCheckpoint(root, tree)
+  /** @type {string[]} */ const problems = []
+  const settled = endOperations(root, meta, problems)
   const { tree: current, skipped } = worktreeTree(root)
   const changes = parseRawDiff(
     gitRaw(['diff-tree', '-r', '-z', '--no-renames', current, tree, '--', '.', EXCLUDE], { cwd: root }).stdout,
@@ -699,7 +908,6 @@ export function restoreTree(root, tree) {
   /** @type {string[]} */ const restored = []
   /** @type {string[]} */ const deleted = []
   /** @type {string[]} */ const kept = []
-  /** @type {string[]} */ const problems = []
   /** @type {Set<string>} */ const reportedNested = new Set()
   /** @type {{ path: string, mode: string, sha: string }[]} */ const writes = []
 
@@ -777,7 +985,7 @@ export function restoreTree(root, tree) {
   }
 
   restoreIndex(root, meta, problems)
-  quitOperations(root, meta, problems)
+  restoreHead(root, meta, problems, settled)
   return { restored: restored.map(shown), deleted: deleted.map(shown), kept: kept.map(shown), problems }
 }
 
