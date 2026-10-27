@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, realpathSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 import { handleHook } from '../plugins/quality-loop/scripts/lib/hooks.mjs'
@@ -146,8 +146,10 @@ test('a `ql start` that never ran (declined, failed, --help) does not bind a lat
   for (const command of ['ql start --mode review', 'ql start --help']) {
     const root = makeRepo({ 'README.md': 'x\n' })
     assert.equal(bash(root, command, 'A'), null)
-    // A's start is declined or fails, and A moves on
+    // A's start is declined or fails, and A moves on: its turn ends (a
+    // PreToolUse is not moving on; it may be a call made in parallel with the start)
     assert.equal(bash(root, 'ls', 'A'), null)
+    assert.equal(hook('stop', { cwd: root, session_id: 'A' }), null)
     // the user then starts a loop by hand and works on it in session B
     await loop.start(root, { mode: 'review' })
     hook('user-prompt-submit', { cwd: root, session_id: 'B', prompt: 'go' })
@@ -194,10 +196,193 @@ test('a non-numeric loop.maxStopNudges cannot make Stop block forever (n27)', as
   assert.equal(hook('stop', { cwd: root }), null)
 })
 
+// --- round 2: the round cap survives `.quality-loop/` being deleted
+
+/** @param {string} root @param {Record<string, any>} patch saved the way ql saves it */
+const saveAs = (root, patch) => loop.saveState(root, { ...state(root), ...patch })
+
+/** @param {string} cwd @param {string[]} args */
+const gitIn = (cwd, args) => {
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8' })
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`)
+  return r.stdout.trim()
+}
+
+test('deleting .quality-loop/ does not reset the round cap: ql start reads the tombstone in the git dir (n16, n22)', async () => {
+  for (const status of ['capped', 'stalled', 'paused', 'aborted', 'active']) {
+    const root = await started()
+    saveAs(root, { status, round: 2 })
+    rmSync(join(root, '.quality-loop'), { recursive: true, force: true })
+    await assert.rejects(loop.start(root, { mode: 'review' }), /only the user/, status)
+    // the agent can neither force the restart nor remove the tombstone
+    const decision = (/** @type {string} */ c) => bash(root, c, 'A')?.hookSpecificOutput.permissionDecision
+    assert.equal(decision('ql start --mode review --force'), 'deny', status)
+    assert.equal(decision('rm -rf .git/quality-loop'), 'deny', status)
+    assert.equal(decision(`rm "$(git rev-parse --git-common-dir)"/quality-loop/*.json`), 'deny', status)
+    assert.equal(decision('ql start --mode review'), undefined, `${status}: a plain start is ql's to refuse`)
+    // the user can start over
+    assert.equal((await loop.start(root, { mode: 'review', force: true })).round, 0, status)
+    await assert.rejects(loop.start(root, { mode: 'review' }), /already active/, status)
+  }
+})
+
+test('a replaced state file does not hide the tombstone of the loop it replaced (n16, n22)', async () => {
+  const root = await started()
+  saveAs(root, { status: 'capped', round: 3 })
+  // an old finished loop's state put back in place
+  writeFileSync(join(root, '.quality-loop/state.json'), JSON.stringify({ ...state(root), id: 'old', status: 'done' }))
+  await assert.rejects(loop.start(root, { mode: 'review' }), /only the user/)
+})
+
+test('deleting the state of a loop with no cap to dodge still lets ql start (n16, n22)', async () => {
+  for (const patch of [{ status: 'done', round: 2 }, { status: 'aborted', round: 0 }, { status: 'capped', round: 1, reviewOnly: true }]) {
+    const root = await started()
+    saveAs(root, patch)
+    rmSync(join(root, '.quality-loop'), { recursive: true, force: true })
+    assert.equal((await loop.start(root, { mode: 'review' })).status, 'active', JSON.stringify(patch))
+  }
+})
+
+test('each worktree keeps its own tombstone in the shared git dir (n16, n22)', async () => {
+  const main = makeRepo({ 'README.md': 'x\n' })
+  const wt = `${main}-wt`
+  gitIn(main, ['worktree', 'add', '-q', '--detach', wt])
+  await loop.start(wt, { mode: 'review' })
+  saveAs(wt, { status: 'capped', round: 3 })
+  rmSync(join(wt, '.quality-loop'), { recursive: true, force: true })
+  await assert.rejects(loop.start(wt, { mode: 'review' }), /only the user/)
+  assert.equal((await loop.start(main, { mode: 'review' })).status, 'active', 'the main worktree is not held by it')
+  const common = resolve(wt, gitIn(wt, ['rev-parse', '--git-common-dir']))
+  assert.equal(bash(wt, `rm -rf ${join(common, 'quality-loop')}`, 'A')?.hookSpecificOutput.permissionDecision, 'deny')
+})
+
+test('a decoy .quality-loop in a subdirectory does not hide the real loop from the guard (n16, n22)', async () => {
+  const root = await started()
+  saveAs(root, { status: 'capped', round: 3 })
+  mkdirSync(join(root, 'sub/.quality-loop'), { recursive: true })
+  const sub = join(root, 'sub')
+  const decision = (/** @type {string} */ c) =>
+    hook('pre-tool-use', { cwd: sub, session_id: 'A', tool_name: 'Bash', tool_input: { command: c } })?.hookSpecificOutput.permissionDecision
+  assert.equal(decision('rm ../.quality-loop/state.json'), 'deny')
+  assert.equal(decision(`rm ${root}/.quality-loop/state.json`), 'deny')
+  assert.equal(decision('ql start --mode review --force'), 'deny')
+  const write = hook('pre-tool-use', { cwd: sub, tool_name: 'Write', tool_input: { file_path: join(root, '.quality-loop/state.json') } })
+  assert.equal(write?.hookSpecificOutput.permissionDecision, 'deny')
+})
+
+test('git clean is judged by what git would delete in the real repository (verifier: over-blocking)', async () => {
+  const root = await started()
+  loop.beginRound(root)
+  loop.abort(root, 'x')
+  writeFileSync(join(root, 'junk.tmp'), 'x')
+  const decision = (/** @type {string} */ c) => bash(root, c, 'A')?.hookSpecificOutput.permissionDecision
+  for (const c of ['git clean -fd', 'git clean -f', `find . -name '*.pyc' -delete`, 'find /tmp/scratch -name state.json | xargs rm']) {
+    assert.equal(decision(c), undefined, c)
+  }
+  for (const c of ['git clean -fdx', 'git clean -fdX', `find . -name '*.json' -delete`]) assert.equal(decision(c), 'deny', c)
+  // what git clean -fd really does: the ignored state stays
+  gitIn(root, ['clean', '-fd'])
+  assert.ok(existsSync(join(root, '.quality-loop/state.json')))
+})
+
+test('a parallel tool call next to `ql start` does not drop the session claim (verifier: settleClaim race)', async () => {
+  const root = makeRepo({ 'README.md': 'x\n' })
+  loop.init(root)
+  assert.equal(bash(root, '"$P/bin/ql" start --mode review --base HEAD', 'A'), null)
+  // A's other call in the same message: its PreToolUse fires before ql has written the state
+  assert.equal(bash(root, 'git status', 'A'), null)
+  await loop.start(root, { mode: 'review' })
+  const promptB = hook('user-prompt-submit', { cwd: root, session_id: 'B', prompt: 'hi' })
+  assert.doesNotMatch(promptB?.hookSpecificOutput.additionalContext ?? '', /Next:/)
+  assert.equal(state(root).sessionId, 'A')
+})
+
 test('ql start rejects a config whose loop.maxStopNudges is not a whole number (n27)', async () => {
   const root = makeRepo({ 'README.md': 'x\n' })
   loop.init(root)
   const cfg = join(root, '.quality-loop/config.json')
   writeFileSync(cfg, JSON.stringify({ ...JSON.parse(readFileSync(cfg, 'utf8')), loop: { maxStopNudges: 'unlimited' } }))
   await assert.rejects(loop.start(root, { mode: 'review' }), /maxStopNudges/)
+})
+
+// --- round 3: the verifier's findings on round 2
+
+test('a decoy .git in a subdirectory does not turn the guard off (verifier r2: gitLayout decoy)', async () => {
+  for (const decoy of ['empty .git directory', 'junk .git file', 'nested repository']) {
+    const root = await started()
+    saveAs(root, { status: 'capped', round: 3 })
+    const sub = join(root, 'sub')
+    mkdirSync(sub, { recursive: true })
+    if (decoy === 'empty .git directory') mkdirSync(join(sub, '.git'))
+    else if (decoy === 'junk .git file') writeFileSync(join(sub, '.git'), 'gitdir: /nonexistent\n')
+    else gitIn(sub, ['init', '-q'])
+    const decision = (/** @type {string} */ c) =>
+      hook('pre-tool-use', { cwd: sub, session_id: 'A', tool_name: 'Bash', tool_input: { command: c } })?.hookSpecificOutput.permissionDecision
+    for (const c of [
+      'rm ../.quality-loop/state.json',
+      `rm ${root}/.quality-loop/state.json`,
+      'rm -rf ../.quality-loop',
+      `rm -rf ${root}/.git/quality-loop`,
+      'ql start --force --mode review',
+    ]) {
+      assert.equal(decision(c), 'deny', `${decoy}: ${c}`)
+    }
+  }
+  // while the loop runs, from below a decoy
+  const root = await started()
+  mkdirSync(join(root, 'sub/.git'), { recursive: true })
+  const sub = join(root, 'sub')
+  const decision = (/** @type {string} */ c) =>
+    hook('pre-tool-use', { cwd: sub, session_id: 'A', tool_name: 'Bash', tool_input: { command: c } })?.hookSpecificOutput.permissionDecision
+  assert.equal(decision('git -C .. reset --hard'), 'deny')
+  assert.equal(decision('echo {} > ../.quality-loop/config.json'), 'deny')
+  // the other hooks find the outer loop too, as ql does
+  assert.equal(hook('stop', { cwd: sub, session_id: 'A' })?.decision, 'block')
+})
+
+test('editing the state in place to look finished does not lift the cap (verifier r2: same-id state edit)', async () => {
+  for (const status of ['capped', 'stalled', 'aborted']) {
+    const root = await started()
+    saveAs(root, { status, round: 3 })
+    writeFileSync(join(root, '.quality-loop/state.json'), JSON.stringify({ ...state(root), status: 'done' }))
+    await assert.rejects(loop.start(root, { mode: 'review' }), /only the user/, status)
+  }
+  // a loop ql itself finished starts over freely
+  const root = await started()
+  saveAs(root, { status: 'done', round: 3 })
+  assert.equal((await loop.start(root, { mode: 'review' })).status, 'active')
+})
+
+test('moving a worktree keeps its tombstone (verifier r2: tombstone keyed by path)', async () => {
+  const main = makeRepo({ 'README.md': 'x\n' })
+  const wt = `${main}-wt`
+  gitIn(main, ['worktree', 'add', '-q', '--detach', wt])
+  await loop.start(wt, { mode: 'review' })
+  saveAs(wt, { status: 'capped', round: 3 })
+  const moved = `${main}-wt2`
+  gitIn(main, ['worktree', 'move', wt, moved])
+  rmSync(join(moved, '.quality-loop'), { recursive: true, force: true })
+  await assert.rejects(loop.start(moved, { mode: 'review' }), /only the user/)
+  assert.equal((await loop.start(main, { mode: 'review' })).status, 'active', 'the main worktree is not held by it')
+  // the main worktree, moved with its .git
+  const root = await started()
+  saveAs(root, { status: 'capped', round: 3 })
+  rmSync(join(root, '.quality-loop'), { recursive: true, force: true })
+  const elsewhere = `${root}-moved`
+  assert.equal(spawnSync('mv', [root, elsewhere]).status, 0)
+  await assert.rejects(loop.start(elsewhere, { mode: 'review' }), /only the user/)
+})
+
+test('ql init --force cannot reset a protected config (verifier r2: init --force)', async () => {
+  const root = await started()
+  saveAs(root, { status: 'done', round: 1 })
+  mkdirSync(join(root, '.quality-loop/evals'), { recursive: true })
+  writeFileSync(join(root, '.quality-loop/evals/hillclimb.json'), JSON.stringify({ active: true }))
+  const decision = (/** @type {string} */ c) => bash(root, c, 'A')?.hookSpecificOutput.permissionDecision
+  assert.equal(decision('node "$P/scripts/ql.mjs" init --force'), 'deny')
+  assert.equal(decision('ql init'), undefined, 'a plain init leaves an existing config alone')
+  rmSync(join(root, '.quality-loop/evals/hillclimb.json'))
+  assert.equal(decision('ql init --force'), undefined, "no loop running and no hill climb: the config is the user's")
+  const active = await started()
+  assert.equal(bash(active, 'ql init --force', 'A')?.hookSpecificOutput.permissionDecision, 'deny', 'while a loop runs')
 })

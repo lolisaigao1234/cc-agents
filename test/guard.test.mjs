@@ -323,3 +323,162 @@ test('config.json is protected only while the loop runs; the state until it fini
   // a configured list without the state file is respected
   assert.equal(g({ tool: 'Write', input: { file_path: '/repo/.quality-loop/state.json' }, loopStatus: 'capped', protectedPaths: [] }), null)
 })
+
+// --- round 2: the cap is held by a tombstone; the guard is a seatbelt around it
+
+test("brace expansion, scripts and rsync --delete cannot remove an unfinished loop's state (n16, n22)", () => {
+  for (const status of ['capped', 'stalled', 'paused', 'aborted', 'active']) {
+    for (const c of [
+      'rm .quality-loop/{state,x}.json',
+      'rm .quality-loop/{x,state}.json',
+      'mv .quality-loop/state.json{,.bak}',
+      'rm .quality-loop/st{a,}te.json',
+      `node -e "require('fs').rmSync('.quality-loop',{recursive:true})"`,
+      `node -e "require('fs').renameSync('.quality-loop', '/tmp/old')"`,
+      `python3 -c "import shutil; shutil.rmtree('.quality-loop')"`,
+      'mkdir -p /tmp/qlempty && rsync -a --delete /tmp/qlempty/ .quality-loop/',
+      'rsync -a --delete-after /tmp/qlempty/ ./.quality-loop',
+      'rsync -a --remove-source-files .quality-loop/ /tmp/moved/',
+      'mv .quality-loop /tmp/ql-old',
+    ]) {
+      assert.ok(bash(c, { loopStatus: status }), `${status}: ${c}`)
+    }
+  }
+  for (const c of [
+    'rm src/{a,b}.tmp',
+    'echo {a,b}',
+    'rsync -a --delete /tmp/x/ build/',
+    'rsync -a .quality-loop/ /tmp/backup/',
+    `node -e "require('fs').writeFileSync('out.txt', 'x')"`,
+  ]) {
+    assert.equal(bash(c, { loopStatus: 'capped' }), null, c)
+  }
+})
+
+/** A repository with a tombstone directory in its git dir. */
+function tombRepo() {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'ql-tomb-')))
+  mkdirSync(join(root, '.git/quality-loop'), { recursive: true })
+  writeFileSync(join(root, '.git/quality-loop/0123456789abcdef.json'), '{}')
+  return { root, tombstone: join(root, '.git/quality-loop') }
+}
+
+test('the tombstone that holds the round cap cannot be removed or edited by the agent, loop or no loop (n16, n22)', () => {
+  const { root, tombstone } = tombRepo()
+  for (const status of [null, 'done', 'capped', 'active']) {
+    const o = { root, cwd: root, tombstone, loopStatus: status }
+    for (const c of [
+      'rm -rf .git/quality-loop',
+      'rm .git/quality-loop/0123456789abcdef.json',
+      'rm .git/quality-loop/*.json',
+      `rm "$(git rev-parse --git-common-dir)/quality-loop/0123456789abcdef.json"`,
+      'mv .git/quality-loop /tmp/x',
+      'echo {} > .git/quality-loop/0123456789abcdef.json',
+      `node -e "require('fs').rmSync('.git/quality-loop', {recursive: true})"`,
+      `node -e "const d=require('child_process').execSync('git rev-parse --git-common-dir')+''; require('fs').rmSync(d.trim()+'/quality-loop',{recursive:true})"`,
+      'find .git -name "*.json" -delete',
+      'find . -delete',
+      'rm -rf .git',
+      'cd .git && rm -r quality-loop',
+    ]) {
+      assert.ok(bash(c, o), `${status}: ${c}`)
+    }
+    assert.ok(g({ tool: 'Write', input: { file_path: join(tombstone, '0123456789abcdef.json') }, ...o }), String(status))
+    assert.ok(g({ tool: 'Edit', input: { file_path: '.git/quality-loop/0123456789abcdef.json' }, ...o }), String(status))
+    for (const c of ['ls .git/quality-loop', 'cat .git/quality-loop/*.json', 'find . -name "*.pyc" -delete', 'git status']) {
+      assert.equal(bash(c, { ...o, loopStatus: null }), null, c)
+    }
+  }
+})
+
+test('a loop whose state is gone but whose tombstone refuses a restart still keeps --force from the agent (n16, n22)', () => {
+  assert.ok(bash('ql start --mode review --force', { loopStatus: null, restartLocked: true }))
+  assert.equal(bash('ql start --mode review --force', { loopStatus: null, restartLocked: false }), null)
+  assert.match(bash('rm -r .quality-loop', { loopStatus: null, restartLocked: true }) ?? '', /only the user/)
+})
+
+test('config.json stays protected while hill climbing, loop or no loop (verifier: hill-climb regression)', () => {
+  for (const status of [null, 'done', 'capped', 'aborted']) {
+    const o = { loopStatus: status, hillclimbActive: true }
+    assert.ok(g({ tool: 'Write', input: { file_path: '/repo/.quality-loop/config.json' }, ...o }), String(status))
+    assert.ok(bash(`sed -i '' 's/"minDelta": 0.05/"minDelta": 0/' .quality-loop/config.json`, o), String(status))
+    assert.ok(g({ tool: 'Write', input: { file_path: '/repo/.quality-loop/evals/cases/c1/expected.json' }, ...o }), String(status))
+    assert.equal(g({ tool: 'Edit', input: { file_path: '/repo/.quality-loop/REVIEW.md' }, ...o }), null, String(status))
+  }
+})
+
+test('find -delete and git clean are judged by what they can actually delete (verifier: over-blocking)', () => {
+  for (const status of ['active', 'aborted', 'capped']) {
+    for (const c of [
+      `find . -name '*.pyc' -delete`,
+      `find . -type f -name '*.pyc' -delete`,
+      `find src -name '*.tmp' -delete`,
+      `find . -maxdepth 1 -name '*.json' -delete`,
+      `find . -type d -name '__pycache__' -exec rm -rf {} +`,
+      `find . -name '*.log' -mtime +3 -delete`,
+      'find /tmp/scratch -name state.json | xargs rm',
+      'find /tmp/scratch -name state.json -delete',
+    ]) {
+      assert.equal(bash(c, { loopStatus: status }), null, `${status}: ${c}`)
+    }
+    for (const c of [
+      `find . -name 'state.json' -delete`,
+      `find . -name '*.json' -delete`,
+      `find . -iname 'STATE.JSON' -delete`,
+      `find . -name '*' -delete`,
+      `find . -path '*quality-loop*' -delete`,
+      `find . -name '*.pyc' -o -name '*.json' -delete`,
+      `find . ! -name '*.pyc' -delete`,
+      `find . -type d -name '.quality-loop' -exec rm -rf {} +`,
+      `find . -name 'state.json' -exec rm {} \\;`,
+      'find . -delete',
+      'find .quality-loop -delete',
+      'find . -name state.json | xargs rm',
+    ]) {
+      assert.ok(bash(c, { loopStatus: status }), `${status}: ${c}`)
+    }
+  }
+  for (const status of ['aborted', 'capped', 'stalled']) {
+    // state.json is ignored (the loop's own .gitignore): a plain clean leaves it
+    for (const c of ['git clean -fd', 'git clean -f', 'git clean -fd .quality-loop', 'git stash -u']) {
+      assert.equal(bash(c, { loopStatus: status }), null, `${status}: ${c}`)
+    }
+    for (const c of ['git clean -fdx', 'git clean -fdX', 'git clean -fX .quality-loop', 'git stash --all']) {
+      assert.ok(bash(c, { loopStatus: status }), `${status}: ${c}`)
+    }
+  }
+  // as git sees it: untracked and not ignored, a plain clean deletes it; tracked, no clean does
+  assert.ok(bash('git clean -fd', { loopStatus: 'capped', gitStatus: () => 'untracked' }))
+  assert.equal(bash('git clean -fdx', { loopStatus: 'capped', gitStatus: () => 'tracked' }), null)
+})
+
+// --- round 3
+
+test("a `**` glob (zero or more directories) reaches the tombstone and the state (verifier r2: globstar)", () => {
+  const { root, tombstone } = tombRepo()
+  for (const status of ['capped', 'aborted', 'active']) {
+    const o = { root, cwd: root, tombstone, loopStatus: status }
+    for (const c of [
+      'rm -rf .git/**/quality-loop',
+      'rm -rf .git/**/quality-loop .quality-loop/**/state.json',
+      'rm .quality-loop/**/state.json',
+      'rm .quality-loop/**/*.json',
+      'rm -rf **/.quality-loop',
+      'rm .git/**/**/*.json',
+    ]) {
+      assert.ok(bash(c, o), `${status}: ${c}`)
+    }
+  }
+  // `**` does not enter hidden directories unless the pattern spells the dot
+  for (const c of ['rm -rf **/node_modules', 'rm **/*.pyc', 'rm **/*.json', 'rm -rf src/**/build']) {
+    assert.equal(bash(c, { root, cwd: root, tombstone, loopStatus: 'capped' }), null, c)
+  }
+})
+
+test('ql init --force, which rewrites config.json, is denied while the config is protected (verifier r2: init --force)', () => {
+  assert.ok(bash('ql init --force', { loopStatus: 'active' }))
+  assert.ok(bash('node /p/scripts/ql.mjs init --force', { loopStatus: 'done', hillclimbActive: true }))
+  assert.equal(bash('ql init', { loopStatus: 'active' }), null)
+  assert.equal(bash('ql init --force', { loopStatus: 'done' }), null)
+  assert.equal(bash('ql init --force', { loopStatus: 'active', protectedPaths: ['.quality-loop/state.json'] }), null)
+})

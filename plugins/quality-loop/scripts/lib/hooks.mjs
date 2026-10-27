@@ -2,28 +2,51 @@
 // stdin and answers on stdout. Every handler fails open: a hook that cannot
 // read its state says nothing rather than breaking the session.
 
-import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { DEFAULTS, resolveConfig } from './config.mjs'
 import { LOOP_DIR } from './git.mjs'
 import { evaluateGuard, qlInvocations } from './guard.mjs'
-import { restartRefusal, saveState } from './loop.mjs'
+import { saveState, startRefusal } from './loop.mjs'
 import { isActive, nextAction, statusLine } from './report.mjs'
 import { paths, readJson } from './store.mjs'
+import { gitLayout, gitLayouts, tombstoneDir } from './tombstone.mjs'
 
 /**
- * The nearest directory at or above `start` that holds `.quality-loop/`.
+ * The working tree whose loop `start` belongs to: the git top level, as `ql`
+ * itself resolves it, when it holds `.quality-loop/`. A `.quality-loop/`
+ * deeper down is not a loop and cannot stand in for the real one.
  *
  * @param {string} start
  */
 export function findLoopRoot(start) {
-  let dir = start
-  for (;;) {
-    if (existsSync(join(dir, LOOP_DIR))) return dir
-    const up = dirname(dir)
-    if (up === dir) return null
-    dir = up
+  const top = gitLayout(start)?.top
+  return top && existsSync(join(top, LOOP_DIR)) ? top : null
+}
+
+/**
+ * How git sees a path of the working tree `root`, for judging what
+ * `git clean` and `git stash -u` would delete. Asked only when such a
+ * command comes up, two `git ls-files` per top-level directory.
+ *
+ * @param {string} root
+ * @returns {import('./guard.mjs').GitStatus}
+ */
+const gitStatusIn = root => {
+  /** @type {Map<string, { tracked: Set<string>, ignored: Set<string> }>} */
+  const byTop = new Map()
+  const list = (/** @type {string[]} */ args) =>
+    new Set(spawnSync('git', ['ls-files', '-z', ...args], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).stdout?.split('\0') ?? [])
+  return rel => {
+    const seg = rel.split('/')[0] ?? rel
+    let known = byTop.get(seg)
+    if (!known) {
+      known = { tracked: list(['--cached', '--', seg]), ignored: list(['--others', '--ignored', '--exclude-standard', '--', seg]) }
+      byTop.set(seg, known)
+    }
+    return known.tracked.has(rel) ? 'tracked' : known.ignored.has(rel) ? 'ignored' : 'untracked'
   }
 }
 
@@ -39,22 +62,13 @@ const DRIVING = new Set(['round', 'ingest', 'vote', 'mark', 'resume', 'pause', '
 /**
  * Where a session's claim on the loop it is starting is kept: in the git
  * directory, so a `ql start` that never runs leaves nothing in the working
- * tree. Found without running git: the nearest `.git` directory, or the one
- * a `.git` file (a worktree, a submodule) points to.
+ * tree. Found without running git, as git finds it (`gitLayout`).
  *
  * @param {string} start
  */
 export function claimFile(start) {
-  for (let dir = start; ; dir = dirname(dir)) {
-    const dotGit = join(dir, '.git')
-    try {
-      if (statSync(dotGit).isDirectory()) return join(dotGit, 'quality-loop-claim.json')
-      const to = /^gitdir:\s*(.+)$/m.exec(readFileSync(dotGit, 'utf8'))?.[1]?.trim()
-      return to ? join(resolve(dir, to), 'quality-loop-claim.json') : null
-    } catch {
-      if (dirname(dir) === dir) return null
-    }
-  }
+  const l = gitLayout(start)
+  return l ? join(l.gitDir, 'quality-loop-claim.json') : null
 }
 
 /** @param {string | null} file */
@@ -88,9 +102,10 @@ const dropClaim = file => {
  * --help, and not one ql will refuse).
  *
  * @param {ReturnType<typeof qlInvocations>[number]} q
+ * @param {string} root
  * @param {any} state
  */
-const claimsLoop = (q, state) => q.sub === 'start' && !q.flags.has('help') && (q.flags.has('force') || !restartRefusal(state))
+const claimsLoop = (q, root, state) => q.sub === 'start' && !q.flags.has('help') && (q.flags.has('force') || !startRefusal(root, state))
 
 /** @param {any} input */
 const sessionOf = input => (typeof input?.session_id === 'string' && input.session_id ? input.session_id : null)
@@ -123,7 +138,10 @@ function ownsLoop(root, state, sid) {
 /**
  * Drops `sid`'s claim once that session has moved on and no loop started
  * after it: the `ql start` was declined, failed or only printed help, and
- * must not bind a loop someone starts later.
+ * must not bind a loop someone starts later. A session has moved on when
+ * its turn ends or a new one begins (Stop, UserPromptSubmit, SessionStart),
+ * never at a PreToolUse: a tool call made in parallel with `ql start` runs
+ * its PreToolUse before ql has written the state.
  *
  * @param {string} cwd
  * @param {any} state
@@ -142,8 +160,46 @@ function nudgeLimit(v) {
   return Math.min(n, HARD_MAX_NUDGES)
 }
 
+/**
+ * Why the guard denies a tool call made in `cwd`, or null. It asks for the
+ * loop of every repository whose working tree holds `cwd`, not only the
+ * nearest: a `.git` made below the loop (empty, junk, or a nested `git
+ * init`) must not hide it. The tombstone outlives `.quality-loop/`, so a
+ * repository with only a tombstone is guarded too.
+ *
+ * @param {string} cwd
+ * @param {any} input the hook's stdin JSON
+ */
+function guardReason(cwd, input) {
+  for (const l of gitLayouts(cwd)) {
+    const top = l.top
+    const loopDir = existsSync(join(top, LOOP_DIR))
+    const tomb = tombstoneDir(top)
+    if (!loopDir && !(tomb && existsSync(tomb))) continue
+    const p = paths(top)
+    const state = loopDir ? readJson(p.state) : null
+    const config = state?.config ?? resolveConfig(loopDir ? readJson(p.config) : null)
+    const hillclimb = loopDir ? readJson(join(p.evals, 'hillclimb.json')) : null
+    const reason = evaluateGuard({
+      tool: String(input?.tool_name ?? ''),
+      input: input?.tool_input ?? {},
+      root: top,
+      cwd,
+      loopStatus: state?.status ?? null,
+      protectedPaths: config.guard.protectedPaths,
+      blockDestructive: config.guard.blockDestructive,
+      hillclimbActive: !!hillclimb?.active,
+      tombstone: tomb,
+      restartLocked: !!startRefusal(top, state),
+      gitStatus: gitStatusIn(top),
+    })
+    if (reason) return reason
+  }
+  return null
+}
+
 /** @param {string} root @param {any} state */
-const elsewhere = (root, state) => `A quality loop is running in another session in ${root} (${statusLine(state)}); it is not this session's task.`
+const elsewhere =(root, state) => `A quality loop is running in another session in ${root} (${statusLine(state)}); it is not this session's task.`
 
 /**
  * @param {string} event pre-tool-use | stop | session-start | user-prompt-submit
@@ -152,13 +208,27 @@ const elsewhere = (root, state) => `A quality loop is running in another session
  */
 export function handleHook(event, input) {
   const cwd = input?.cwd || process.cwd()
+  // The loop is the git top level's, as for ql itself.
+  const top = gitLayout(cwd)?.top ?? null
   const root = findLoopRoot(cwd)
   const sid = sessionOf(input)
-  const command = event === 'pre-tool-use' && input?.tool_name === 'Bash' ? String(input.tool_input?.command ?? '') : ''
+  const tool = String(input?.tool_name ?? '')
+  const command = event === 'pre-tool-use' && tool === 'Bash' ? String(input.tool_input?.command ?? '') : ''
   const p = root ? paths(root) : null
   const state = p ? readJson(p.state) : null
-  const starts = sid ? qlInvocations(command).filter(q => claimsLoop(q, state)) : []
-  if (sid && !starts.length) settleClaim(root ?? cwd, state, sid)
+  const starts = sid && top ? qlInvocations(command).filter(q => claimsLoop(q, top, state)) : []
+  if (sid && event !== 'pre-tool-use') settleClaim(top ?? cwd, state, sid)
+
+  if (event === 'pre-tool-use') {
+    const reason = guardReason(cwd, input)
+    if (reason) {
+      return {
+        stdout: JSON.stringify({
+          hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason },
+        }),
+      }
+    }
+  }
 
   if (!root || !p) {
     // The first `ql start` in a repository creates `.quality-loop/`: claim the loop it will start.
@@ -167,31 +237,11 @@ export function handleHook(event, input) {
   }
 
   if (event === 'pre-tool-use') {
-    const config = state?.config ?? resolveConfig(readJson(p.config))
-    const hillclimb = readJson(join(p.evals, 'hillclimb.json'))
-    const tool = String(input.tool_name ?? '')
-    const reason = evaluateGuard({
-      tool,
-      input: input.tool_input ?? {},
-      root,
-      cwd: typeof input.cwd === 'string' && input.cwd ? input.cwd : root,
-      loopStatus: state?.status ?? null,
-      protectedPaths: config.guard.protectedPaths,
-      blockDestructive: config.guard.blockDestructive,
-      hillclimbActive: !!hillclimb?.active,
-    })
-    if (reason) {
-      return {
-        stdout: JSON.stringify({
-          hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason },
-        }),
-      }
-    }
     if (sid) {
       if (isActive(state)) ownsLoop(root, state, sid)
       if (tool === 'Bash') {
-        for (const q of qlInvocations(String(input.tool_input?.command ?? ''))) {
-          if (claimsLoop(q, state)) {
+        for (const q of qlInvocations(command)) {
+          if (claimsLoop(q, root, state)) {
             // The new loop does not exist yet: leave a claim for it.
             writeClaim(claimFile(root), sid)
           } else if (q.sub && DRIVING.has(q.sub) && state && state.status !== 'done' && state.sessionId !== sid) {
