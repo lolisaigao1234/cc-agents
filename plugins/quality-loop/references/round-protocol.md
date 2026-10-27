@@ -14,12 +14,14 @@ Done when: the round number and scope are printed.
 
 ## 2. Review: parallel bug hunters
 
-Empty scope: `ql ingest --none --lens scope` and go to step 3.
+Run `ql scope --json` now and brief the hunters from its output: it rewrites the round's scope diff, so it includes any edit made since `ql round begin` (debug's fix).
+
+Empty scope (`"empty": true`): `ql ingest --none --lens scope` and go to step 3.
 
 Otherwise spawn one `bug-hunter` subagent per lens, **all in one message** so they run in parallel. Each brief holds:
 
-- the lens name and its one-line focus, both printed by `ql round begin` (again with `ql scope --json`)
-- the scope diff path, and that the hunter may read any file for context
+- the lens name and its one-line focus, from `lenses`
+- the scope diff path (`diffFile`), and that the hunter may read any file for context
 - the change's intent (the user's words, the PR description, or the commit messages)
 - the paths of `REVIEW.md` and `CLAUDE.md` if present
 - the output path: `.quality-loop/work/round-<n>/hunter-<lens>.json`
@@ -59,7 +61,7 @@ Done when: every confirmed finding is marked or explicitly left for the next att
 | `CONTINUE` | Next round from step 1. |
 | `REVERTED` (with `CONTINUE`) | The round's edits are gone. Read the reasons; the next attempt takes a different approach — the same fix reverts again. |
 | `REVERTED` (with `PAUSED`) | The revert could not undo everything: the `revert incomplete:` reasons say what is still on disk (commits, nested repositories, unreadable files). Make no edits. Show the user those reasons and wait for them. |
-| `DONE` | The finish line is met. `ql report`, present it. |
+| `DONE` | ql's criterion is met: required checks pass and nothing important is open (in debug, the repro passes). Check a custom finish line as the calling skill says, then `ql report` and present it. |
 | `CAPPED` | Stop. Report, and ask the user to reconsider the approach. Only the user can extend (`! ql extend`). |
 | `STALLED` | Stall analysis: read every remaining open or stuck finding and bucket it by root cause (wrong approach, ambiguous requirement, flaky check, finding that is really a false positive, needs a design decision). Make no edits. Report the buckets. |
 
