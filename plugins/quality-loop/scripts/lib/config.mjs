@@ -145,6 +145,7 @@ export function validateConfig(c) {
   if (!(c.review?.verifiers >= c.review?.quorum)) errors.push('review.verifiers must be >= review.quorum')
   if (!(c.loop?.maxRounds >= 1)) errors.push('loop.maxRounds must be >= 1')
   if (!(c.loop?.stallRounds >= 1)) errors.push('loop.stallRounds must be >= 1')
+  if (!(Number.isInteger(c.loop?.maxStopNudges) && c.loop.maxStopNudges >= 0)) errors.push('loop.maxStopNudges must be a whole number >= 0')
   const cap = c.loop?.maxContextTokens
   if (cap !== null && !(Number.isInteger(cap) && cap >= MIN_WINDOW && cap <= MAX_WINDOW)) {
     errors.push(`loop.maxContextTokens must be an integer from ${MIN_WINDOW} to ${MAX_WINDOW}, or null`)
