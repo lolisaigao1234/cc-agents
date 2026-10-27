@@ -74,18 +74,37 @@ function hash(s) {
 }
 
 /**
- * Line-insensitive identity: the file, the offending code and the class of
- * bug. Line numbers drift as fixes land; the quoted code does not.
+ * Identity that survives line drift: the file, the offending code, the class
+ * of bug and, when the same code appears more than once in the file, which
+ * occurrence it is (0-based, counted from the top). Line numbers drift as
+ * fixes land; the quoted code and its order among its copies do not. The
+ * first occurrence carries no suffix, so a quote that appears once keeps the
+ * plain file|quote|class identity.
  *
- * @param {Record<string, unknown> & { file: string, quote: string, bugClass?: string, category: string }} f
+ * @param {Record<string, unknown> & { file: string, quote: string, bugClass?: string, category: string, occurrence?: number }} f
  */
 export function fingerprint(f) {
-  return hash(`${normalizePath(f.file)}|${normalizeQuote(f.quote)}|${slug(f.bugClass || f.category)}`)
+  const occ = typeof f.occurrence === 'number' && f.occurrence > 0 ? `#${f.occurrence}` : ''
+  return hash(`${normalizePath(f.file)}|${normalizeQuote(f.quote)}|${slug(f.bugClass || f.category)}${occ}`)
 }
 
 // A quote within this many lines of the cited line is relocated to where it
 // actually is; further away, the finding is refused.
 const RELOCATE_WINDOW = 25
+
+/**
+ * @param {string} rawQuote
+ * @param {string[]} lines
+ * @returns {(start: number) => boolean} whether the quote starts at a 1-based line
+ */
+function quoteMatcher(rawQuote, lines) {
+  const quote = normalizeQuote(rawQuote)
+  const quoteLines = Math.max(1, rawQuote.trim().split('\n').length)
+  return start =>
+    start >= 1 &&
+    start <= lines.length &&
+    normalizeQuote(lines.slice(start - 1, start - 1 + quoteLines).join(' ')).includes(quote)
+}
 
 /**
  * Checks a finding's evidence against the file: the quoted code must appear
@@ -99,35 +118,141 @@ const RELOCATE_WINDOW = 25
  */
 export function checkEvidence(f, lines) {
   if (lines === null) return { ok: false, reason: 'file-missing' }
-  if (f.line > lines.length) return { ok: false, reason: 'line-out-of-range' }
-  const quote = normalizeQuote(f.quote)
-  const quoteLines = Math.max(1, f.quote.trim().split('\n').length)
-  /** @param {number} start 1-based */
-  const startsAt = start =>
-    normalizeQuote(lines.slice(start - 1, start - 1 + quoteLines).join(' ')).includes(quote)
+  // A file that shrank since the hunter read it still gets the relocation
+  // window; only a line no relocation could reach is out of range.
+  if (f.line > lines.length + RELOCATE_WINDOW) return { ok: false, reason: 'line-out-of-range' }
+  const startsAt = quoteMatcher(f.quote, lines)
   for (let d = 0; d <= RELOCATE_WINDOW; d++) {
     for (const cand of d === 0 ? [f.line] : [f.line - d, f.line + d]) {
-      if (cand >= 1 && cand <= lines.length && startsAt(cand)) return { ok: true, line: cand }
+      if (startsAt(cand)) return { ok: true, line: cand }
     }
   }
   return { ok: false, reason: 'quote-not-found' }
 }
 
 /**
- * Whether two findings describe the same issue: the same identity; the same
- * offending code and category (two lenses naming one bug with different
- * labels); or the same bug class on overlapping lines. Different code on
- * nearby lines is kept apart: adjacent lines often hold distinct bugs, and
- * a duplicate costs one extra vote where a wrong merge loses a bug.
+ * Which copy of its quote a finding at `line` is: the number of earlier
+ * lines where the same quote starts.
  *
- * @param {Pick<Finding, 'file' | 'fingerprint' | 'category' | 'bugClass' | 'line' | 'endLine' | 'quote'>} a
- * @param {Pick<Finding, 'file' | 'fingerprint' | 'category' | 'bugClass' | 'line' | 'endLine' | 'quote'>} b
+ * @param {string} quote
+ * @param {number} line 1-based, where the quote starts
+ * @param {string[]} lines
  */
-export function isSameIssue(a, b) {
-  if (a.fingerprint === b.fingerprint) return true
-  if (normalizePath(a.file) !== normalizePath(b.file)) return false
-  if (normalizeQuote(a.quote) === normalizeQuote(b.quote) && a.category === b.category) return true
-  return a.bugClass === b.bugClass && a.line <= b.endLine + 2 && b.line <= a.endLine + 2
+function occurrenceAt(quote, line, lines) {
+  const startsAt = quoteMatcher(quote, lines)
+  let n = 0
+  for (let l = 1; l < line; l++) if (startsAt(l)) n++
+  return n
+}
+
+/** @typedef {{ line: number, endLine: number }} Span */
+
+/** @param {Span} a @param {Span} b */
+const overlaps = (a, b) => a.line <= b.endLine && b.line <= a.endLine
+
+// Statuses whose issue is still open. A settled finding (rejected, fixed,
+// wontfix, stuck) absorbs a new report only when it quotes the same code.
+const OPEN = ['candidate', 'confirmed']
+
+/**
+ * Where a recorded finding's code is now: its stored line is from the round
+ * it was reported in, and fixes have moved code since. Null when the quote
+ * is no longer near the stored line.
+ *
+ * @param {Pick<Finding, 'line' | 'endLine' | 'quote'>} f
+ * @param {string[] | null} lines
+ * @returns {Span | null}
+ */
+function locate(f, lines) {
+  const ev = checkEvidence(f, lines)
+  return ev.ok ? { line: ev.line, endLine: ev.line + Math.max(0, f.endLine - f.line) } : null
+}
+
+/**
+ * @typedef {Pick<Finding, 'file' | 'fingerprint' | 'category' | 'bugClass' | 'line' | 'endLine' | 'quote' | 'status'>} Comparable
+ */
+
+/**
+ * How `report` (a fresh finding, its lines current) matches the recorded
+ * finding `known`, or null when they are different issues. Lower rank is a
+ * stronger match. Known code is first relocated in the current file, so
+ * stale line numbers never decide:
+ *
+ * - rank 0: the same code at the same place, under the same category or bug
+ *   class (two lenses naming one bug with different labels);
+ * - rank 1: different code of the same bug class on overlapping lines, while
+ *   the known finding is still open. A rejected or fixed finding never
+ *   absorbs different code: that is a new report, not a repeat;
+ * - rank 2: the known code is no longer near its old line (it moved far, or
+ *   it was rewritten), and the identity — file, code, class, occurrence — is
+ *   the same.
+ *
+ * Different code on nearby lines is kept apart, and so is the same code at
+ * another place: adjacent lines and repeated snippets often hold distinct
+ * bugs, and a duplicate costs one extra vote where a wrong merge loses one.
+ *
+ * @param {Comparable} known
+ * @param {Comparable} report
+ * @param {string[] | null} lines the current contents of report.file
+ * @returns {{ rank: number, at: Span | null } | null}
+ */
+function matchIssue(known, report, lines) {
+  if (normalizePath(known.file) !== normalizePath(report.file)) return null
+  const at = locate(known, lines)
+  if (!at) return known.fingerprint === report.fingerprint ? { rank: 2, at } : null
+  if (!overlaps(at, report)) return null
+  if (normalizeQuote(known.quote) === normalizeQuote(report.quote)) {
+    return known.category === report.category || known.bugClass === report.bugClass ? { rank: 0, at } : null
+  }
+  return known.bugClass === report.bugClass && OPEN.includes(known.status) ? { rank: 1, at } : null
+}
+
+/**
+ * Whether a fresh report describes the same issue as a recorded finding.
+ * See matchIssue for the rules.
+ *
+ * @param {Comparable} known
+ * @param {Comparable} report
+ * @param {string[] | null} lines the current contents of report.file
+ */
+export function isSameIssue(known, report, lines) {
+  return matchIssue(known, report, lines) !== null
+}
+
+/**
+ * The recorded finding that best matches a report: strongest rank, then the
+ * one whose stored line is nearest.
+ *
+ * @template {Comparable} T
+ * @param {T[]} known
+ * @param {Comparable} report
+ * @param {string[] | null} lines
+ * @returns {{ finding: T, at: Span | null } | null}
+ */
+function bestMatch(known, report, lines) {
+  /** @type {{ finding: T, at: Span | null, rank: number, dist: number } | null} */
+  let best = null
+  for (const finding of known) {
+    const m = matchIssue(finding, report, lines)
+    if (!m) continue
+    const dist = Math.abs(finding.line - report.line)
+    if (!best || m.rank < best.rank || (m.rank === best.rank && dist < best.dist)) {
+      best = { finding, at: m.at, rank: m.rank, dist }
+    }
+  }
+  return best && { finding: best.finding, at: best.at }
+}
+
+/**
+ * Decodes the octal escapes git writes for non-ASCII bytes in a quoted path
+ * (`caf\303\251.js` → `café.js`) when core.quotePath is on.
+ *
+ * @param {string} path
+ */
+export function decodeGitPath(path) {
+  return path.replace(/(?:\\[0-7]{3})+/g, run =>
+    new TextDecoder().decode(Uint8Array.from(run.slice(1).split('\\'), o => parseInt(o, 8))),
+  )
 }
 
 /**
@@ -164,15 +289,16 @@ export function ingestFindings(ledger, raws, ctx) {
       report.rejected.push({ ...label, reason: 'dropped-category' })
       continue
     }
-    const ev = checkEvidence(raw, ctx.readLines(file))
-    if (!ev.ok) {
-      report.rejected.push({ ...label, reason: ev.reason })
+    const lines = ctx.readLines(file)
+    const ev = checkEvidence(raw, lines)
+    if (!ev.ok || !lines) {
+      report.rejected.push({ ...label, reason: ev.ok ? 'file-missing' : ev.reason })
       continue
     }
     const span = Math.max(0, (raw.endLine ?? raw.line) - raw.line)
     const line = ev.line
     const endLine = line + span
-    const diffFile = ctx.diffFiles.find(d => d.path === file)
+    const diffFile = ctx.diffFiles.find(d => d.path === file || normalizePath(decodeGitPath(d.path)) === file)
     /** @type {Finding} */
     const f = {
       id: '',
@@ -199,28 +325,48 @@ export function ingestFindings(ledger, raws, ctx) {
       lastRound: ctx.round,
       resolution: '',
     }
-    f.fingerprint = fingerprint(f)
+    f.fingerprint = fingerprint({ ...f, occurrence: occurrenceAt(f.quote, line, lines) })
 
-    const existing = Object.values(ledger.findings).find(o => isSameIssue(o, f))
-    if (existing) {
+    const match = bestMatch(Object.values(ledger.findings), f, lines)
+    if (match) {
+      const existing = match.finding
       existing.lastRound = ctx.round
       if (!existing.lenses.includes(ctx.lens)) existing.lenses.push(ctx.lens)
+      if (match.at) {
+        // Keep the recorded location current, so later rounds compare against it.
+        existing.line = match.at.line
+        existing.endLine = match.at.endLine
+      }
       if (existing.status === 'rejected' || existing.status === 'wontfix') {
         report.repeats.push(existing.id)
       } else if (existing.status === 'fixed') {
-        // A fix that did not hold: verify it again from scratch.
+        // A fix that did not hold: verify it again from scratch, as the new
+        // report describes it now.
+        Object.assign(existing, {
+          title: f.title,
+          line: f.line,
+          endLine: f.endLine,
+          quote: f.quote,
+          category: f.category,
+          severity: f.severity,
+          bugClass: f.bugClass,
+          explanation: f.explanation,
+          failureScenario: f.failureScenario,
+          suggestedFix: f.suggestedFix,
+          confidence: f.confidence,
+          origin: f.origin,
+          fingerprint: f.fingerprint,
+        })
         existing.status = 'candidate'
         existing.votes = []
         existing.reopens += 1
-        existing.line = f.line
-        existing.endLine = f.endLine
         report.reopened.push(existing.id)
       } else {
         report.merged.push(existing.id)
       }
       continue
     }
-    const dup = fresh.find(o => isSameIssue(o, f))
+    const dup = bestMatch(fresh, f, lines)?.finding
     if (dup) {
       if (!dup.lenses.includes(ctx.lens)) dup.lenses.push(ctx.lens)
       continue
@@ -265,7 +411,10 @@ export function tallyVotes(votes, opts) {
 }
 
 /**
- * Records verifier votes and settles each finding they touch.
+ * Records verifier votes and settles each finding they touch. Votes settle
+ * in arrival order, so a batch decides exactly as the same votes recorded
+ * one at a time would: once quorum is reached or out of reach, later votes
+ * are kept for the record and change nothing.
  *
  * @param {Ledger} ledger
  * @param {any[]} votes
@@ -274,7 +423,8 @@ export function tallyVotes(votes, opts) {
 export function recordVotes(ledger, votes, opts) {
   /** @type {{ vote: any, reason: string }[]} */
   const invalid = []
-  const touched = new Set()
+  /** @type {Set<string>} */
+  const settledNow = new Set()
   /** @type {Record<string, string>} */
   const outcome = {}
   for (const v of votes) {
@@ -291,7 +441,13 @@ export function recordVotes(ledger, votes, opts) {
       invalid.push({ vote: v, reason: 'a vote needs its evidence in reason' })
       continue
     }
-    const voter = isText(v.voter) ? v.voter : `voter-${f.votes.length + 1}`
+    // Independence is counted by voter name: a vote without one could not be
+    // told apart from the same vote recorded twice.
+    if (!isText(v.voter)) {
+      invalid.push({ vote: v, reason: 'a vote needs its voter name' })
+      continue
+    }
+    const voter = v.voter
     f.votes = f.votes.filter(o => o.voter !== voter)
     /** @type {Vote} */
     const vote = { voter, verdict: v.verdict, reason: v.reason }
@@ -299,22 +455,21 @@ export function recordVotes(ledger, votes, opts) {
     f.votes.push(vote)
     // A vote arriving after the finding settled is kept for the record and
     // changes nothing: the quorum already decided.
-    if (f.status === 'candidate') touched.add(f.id)
-    else outcome[f.id] = `already ${f.status}`
-  }
-  for (const id of touched) {
-    const f = ledger.findings[id]
-    if (!f) continue
+    if (f.status !== 'candidate') {
+      if (!settledNow.has(f.id)) outcome[f.id] = `already ${f.status}`
+      continue
+    }
     const verdict = tallyVotes(f.votes, opts)
     if (verdict === 'confirmed') {
       f.status = 'confirmed'
-      const sev = f.votes.filter(v => v.verdict === 'confirm' && v.severity)
-      const important = sev.filter(v => v.severity === 'important').length
+      const sev = f.votes.filter(o => o.verdict === 'confirm' && o.severity)
+      const important = sev.filter(o => o.severity === 'important').length
       if (sev.length) f.severity = important * 2 >= sev.length ? 'important' : 'nit'
     } else if (verdict === 'rejected') {
       f.status = 'rejected'
     }
-    outcome[id] = verdict
+    if (verdict !== 'undecided') settledNow.add(f.id)
+    outcome[f.id] = verdict
   }
   return { outcome, invalid }
 }
