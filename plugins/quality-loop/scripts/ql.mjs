@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { briefLine, fixBriefs, hunterBriefs, investigateBrief, verifierBriefs } from './lib/brief.mjs'
+import { briefLine, clearRoundWork, fixBriefs, hunterBriefs, investigateBrief, resolveLens, verifierBriefs } from './lib/brief.mjs'
 import { runChecks } from './lib/checks.mjs'
 import { ensureCompactWindow } from './lib/compact.mjs'
 import { DEPTHS } from './lib/config.mjs'
@@ -255,6 +255,8 @@ async function main(argv) {
         reviewOnly: !!flags['review-only'],
         depth: str(flags.depth),
       })
+      // Work paths are built from round numbers and finding ids, which restart here.
+      clearRoundWork(root)
       const capped = capContext(root, s.config)
       if (flags.json) return print(s)
       if (capped) print(capped)
@@ -310,7 +312,9 @@ async function main(argv) {
       if (!flags.none && !source) throw new loop.LoopError('ql ingest <file|-> --lens L, or ql ingest --none --lens L')
       // A --none stands for one lens's hunter (or an empty scope): it must say which.
       if (flags.none && !str(flags.lens)) throw new loop.LoopError('ql ingest --none needs --lens: the lens whose hunter found nothing, or `scope` for an empty scope')
-      const lens = str(flags.lens) ?? 'general'
+      const lenses = /** @type {string[]} */ (loop.loadState(root)?.config.review.lenses ?? [])
+      // A hunter brief's file name carries the lens as a slug: that names the lens too.
+      const lens = resolveLens(lenses, str(flags.lens) ?? 'general')
       let raws = null
       if (!flags.none && source) {
         const parsed = readJsonInput(source)
@@ -323,6 +327,7 @@ async function main(argv) {
       print(
         `lens ${lens}: ${n(report.accepted, 'new')}, ${n(report.merged, 'merged')}, ${n(report.reopened, 'reopened')}, ${n(report.repeats, 'repeats ignored')}, ${report.rejected.length} rejected`,
       )
+      if (lens !== 'scope' && !lenses.includes(lens)) print(`note: "${lens}" is not a configured lens (${lenses.join(', ')}): it counts toward no lens's review`)
       for (const r of report.rejected) {
         print(clip(`  rejected ${r.reason}${r.detail ? ` (${String(r.detail).slice(0, 80)})` : ''}: ${r.file} ${String(r.title ?? '').slice(0, 80)}`))
       }

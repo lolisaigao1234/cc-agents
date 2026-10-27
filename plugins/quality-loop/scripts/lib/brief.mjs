@@ -5,7 +5,7 @@
 // prints one line per brief. The Agent prompt is then just "Brief: <path>".
 // Reads the state; never changes it (ql stays the single writer of state).
 
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 import * as loop from './loop.mjs'
@@ -26,8 +26,38 @@ export const STANCES = {
 
 const MAX_FILES_LISTED = 40
 
-/** @param {string} s */
-const slug = s => s.replace(/[^\w.-]+/g, '_').slice(0, 80) || '_'
+/** The file-name form of a lens, finding id or bug class. @param {string} s */
+export const slug = s => s.replace(/[^\w.-]+/g, '_').slice(0, 80) || '_'
+
+/**
+ * Removes every round's work files (briefs, agents' outputs, scope diffs).
+ * Round numbers and finding ids restart with each loop and the output paths
+ * are built from them, so a file left by an earlier loop sits at the very
+ * path a new agent writes to, and a glob over the round directory would
+ * record it as this loop's. `ql start` calls this once the new loop exists.
+ *
+ * @param {string} root
+ */
+export function clearRoundWork(root) {
+  const work = paths(root).work
+  if (!existsSync(work)) return
+  for (const name of readdirSync(work)) {
+    if (/^round-\d+$/.test(name)) rmSync(join(work, name), { recursive: true, force: true })
+  }
+}
+
+/**
+ * The configured lens a --lens value names: itself, or the configured lens
+ * whose file-name form (the one in a hunter brief's path) it is.
+ *
+ * @param {string[]} lenses
+ * @param {string} given
+ */
+export function resolveLens(lenses, given) {
+  if (lenses.includes(given)) return given
+  const bySlug = lenses.filter(l => slug(l) === given)
+  return bySlug.length === 1 ? /** @type {string} */ (bySlug[0]) : given
+}
 
 /** @param {string} root */
 function context(root) {
@@ -149,7 +179,7 @@ export function hunterBriefs(root, opts = {}) {
           '',
         ].join('\n'),
       )
-      return { agent: 'bug-hunter', brief: rel(brief), output: rel(output) }
+      return { agent: 'bug-hunter', brief: rel(brief), output: rel(output), note: `lens ${JSON.stringify(lens.name)}` }
     }),
   }
 }

@@ -13,6 +13,6 @@ Empty scope (it prints `scope is empty`): `ql ingest --none --lens scope` and go
 
 Otherwise spawn one `bug-hunter` subagent per printed line, **all in one message** so they run in parallel, each prompted `Brief: <brief path>`.
 
-As each hunter reports back, `ql ingest <its output path> --lens <lens>`. Read the rejected lines: `quote-not-found` and `file-missing` are hallucinations the evidence check caught; `skip-path`, `dropped-category` and `nit-cap` are policy. A hunter whose file is missing or invalid gets one re-run with the error message.
+As each hunter reports back, `ql ingest <its output path> --lens "<lens>"`, with the lens its brief line names (`lens "<name>"`). Read the rejected lines: `quote-not-found` and `file-missing` are hallucinations the evidence check caught; `skip-path`, `dropped-category` and `nit-cap` are policy. A hunter whose file is missing or invalid gets one re-run with the error message.
 
 Done when: every lens has been ingested (or recorded with `--none`).

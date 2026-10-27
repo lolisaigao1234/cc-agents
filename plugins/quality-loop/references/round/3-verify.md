@@ -4,7 +4,7 @@
 
 Spawn one `finding-verifier` subagent per printed line, all in one message (batch past ten), each prompted `Brief: <brief path>`.
 
-Record the vote files with `ql vote <file> [file ...]`; several at once is fine (`ql vote .quality-loop/work/round-<n>/vote-*.json`), and votes arriving after a finding settled are kept and change nothing. It prints one line per finding: the outcome and the tally. A candidate left `undecided` (a verifier failed or wrote nothing) gets its missing votes re-spawned with new stances: run `ql brief verifiers` again.
+Record the vote files with `ql vote <file> [file ...]`; several at once is fine (`ql vote .quality-loop/work/round-<n>/vote-*.json`: `ql start` clears earlier loops' round directories, so the glob matches this loop's votes only), and votes arriving after a finding settled are kept and change nothing. It prints one line per finding: the outcome and the tally. A candidate left `undecided` (a verifier failed or wrote nothing) gets its missing votes re-spawned with new stances: run `ql brief verifiers` again.
 
 `ql pending` lists the candidates still waiting, one line each; the full JSON is in the file it names.
 

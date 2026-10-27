@@ -428,3 +428,66 @@ test('report: a confirmed nit still open after DONE is listed under Found, not "
   assert.match(found, /\[Nit\] F1 `src\/many\.js:1`/)
   assert.doesNotMatch(found, /Nothing beyond the above/)
 })
+
+// --- 8. work files belong to one loop
+
+test('a new loop starts with no work files from an earlier loop: a stale vote file cannot vote on a new finding with the same id', () => {
+  const root = project(2)
+  const dir = join(root, '.quality-loop/work/round-1')
+  const voterOf = (/** @type {string} */ brief) => `${/verify-F1-([a-z-]+)\.md$/.exec(brief)?.[1]}-F1`
+  qlOk(root, ['start', '--mode', 'review', '--review-only'])
+  qlOk(root, ['round', 'begin'])
+  review(root, 1)
+  const first = briefLines(qlOk(root, ['brief', 'verifiers']))
+  for (const b of first) {
+    writeFileSync(join(root, b.output), JSON.stringify({ id: 'F1', voter: voterOf(b.brief), verdict: 'confirm', reason: 'loop 1 evidence', severity: 'important' }))
+  }
+  qlOk(root, ['vote', ...first.map(b => b.output)])
+  qlOk(root, ['finish'])
+
+  // Loop 2: a different finding, numbered F1 again.
+  qlOk(root, ['start', '--mode', 'review', '--review-only', '--force'])
+  const outputs = () => (existsSync(dir) ? readdirSync(dir).filter(f => /^(vote|hunter|fix|hypothesis)-/.test(f)) : [])
+  assert.deepEqual(outputs(), [], 'no output files from loop 1')
+  qlOk(root, ['round', 'begin'])
+  qlOk(root, ['ingest', '-', '--lens', 'correctness'], JSON.stringify([{ ...finding(1), title: 'a different bug' }]))
+  for (const lens of LENSES.slice(1)) qlOk(root, ['ingest', '--none', '--lens', lens])
+  const one = /** @type {{ brief: string, output: string }} */ (briefLines(qlOk(root, ['brief', 'verifiers']))[0])
+  writeFileSync(join(root, one.output), JSON.stringify({ id: 'F1', voter: voterOf(one.brief), verdict: 'reject', reason: 'not reproducible' }))
+  // The protocol's glob: only this loop's vote file is there to match.
+  const files = readdirSync(dir).filter(f => /^vote-.*\.json$/.test(f)).map(f => join(dir, f))
+  assert.equal(files.length, 1)
+  qlOk(root, ['vote', ...files])
+  assert.equal(state(root).ledger.findings.F1.status, 'candidate', 'one reject of three decides nothing')
+})
+
+// --- 9. a hunter brief line names its lens exactly
+
+test("a hunter brief line names its lens, and ingesting under the brief file's lens slug counts as that lens", () => {
+  const root = project(2, { review: { lenses: ['edge cases/io', 'correctness'], customLenses: { 'edge cases/io': 'boundaries' } } })
+  qlOk(root, ['start', '--mode', 'review'])
+  qlOk(root, ['round', 'begin'])
+  const briefs = briefLines(qlOk(root, ['brief', 'hunters']))
+  assert.match(/** @type {any} */ (briefs[0]).line, /lens "edge cases\/io"/, 'the line names the --lens to ingest under')
+  assert.match(/** @type {any} */ (briefs[1]).line, /lens "correctness"/)
+  const out = qlOk(root, ['ingest', '-', '--lens', 'edge_cases_io'], JSON.stringify([finding(0)]))
+  assert.match(out, /^lens edge cases\/io: 1 new/m, 'the slug resolves to the configured lens')
+  assert.match(qlOk(root, ['next']), /1 of 2 lenses in; still to come: correctness/)
+  // A lens that is not configured is still accepted, and ql says it counts toward no lens.
+  assert.match(qlOk(root, ['ingest', '-', '--lens', 'other'], JSON.stringify([finding(1)])), /"other" is not a configured lens/)
+})
+
+// --- 10. every stopped state has a row in the step file ql names
+
+test('`ql next` after an abort or a pause names a step file whose table has a row for that state', () => {
+  for (const stop of [['abort', '--reason', 'x'], ['pause', '--reason', 'need input']]) {
+    const root = project(1)
+    qlOk(root, ['start', '--mode', 'review'])
+    qlOk(root, stop)
+    const [step] = stepsNamed(qlOk(root, ['next']))
+    if (!step) continue
+    const status = state(root).status.toUpperCase()
+    const rows = readFileSync(step, 'utf8').split('\n').filter(l => l.startsWith('| `'))
+    assert.ok(rows.some(l => l.startsWith(`| \`${status}\``)), `${step} has a ${status} row`)
+  }
+})
