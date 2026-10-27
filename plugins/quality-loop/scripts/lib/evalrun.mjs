@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { parseUnifiedDiff } from './diff.mjs'
-import { gradeCase, splitCases, summarize } from './evals.mjs'
+import { extendSplit, gradeCase, splitCases, summarize } from './evals.mjs'
 import { git } from './git.mjs'
 import { paths, readJson, writeJson } from './store.mjs'
 
@@ -15,9 +15,35 @@ import { paths, readJson, writeJson } from './store.mjs'
  * @typedef {{
  *   id: string, kind: 'bug' | 'clean', status: 'draft' | 'confirmed', intent?: string, whyHard?: string,
  *   source: { type: 'git', base: string, head: string } | { type: 'files' },
- *   dir: string, expected: import('./evals.mjs').Expected,
+ *   dir: string, expected: import('./evals.mjs').Expected, problem?: string,
  * }} EvalCase
  */
+
+/**
+ * The case's source, inferred when `type` is left out: a source naming
+ * `base`/`head` commits is a git case, otherwise the case's `before/` and
+ * `after/` folders are. A case that has neither gets a `problem` instead of
+ * crashing the run.
+ *
+ * @param {any} meta
+ * @param {string} caseDir
+ * @returns {{ source: EvalCase['source'], problem?: string }}
+ */
+function resolveSource(meta, caseDir) {
+  const s = meta.source && typeof meta.source === 'object' ? meta.source : {}
+  if (s.type === 'git' || (s.type === undefined && (s.base !== undefined || s.head !== undefined))) {
+    const isRev = (/** @type {unknown} */ v) => typeof v === 'string' && v !== '' && !v.startsWith('-')
+    return {
+      source: { type: 'git', base: String(s.base ?? ''), head: String(s.head ?? '') },
+      ...(isRev(s.base) && isRev(s.head) ? {} : { problem: 'a git source needs both "base" and "head" commits' }),
+    }
+  }
+  if (s.type !== undefined && s.type !== 'files') return { source: { type: 'files' }, problem: `unknown source type "${s.type}" (use "git" or "files")` }
+  if (!existsSync(join(caseDir, 'before')) || !existsSync(join(caseDir, 'after'))) {
+    return { source: { type: 'files' }, problem: 'needs a git source { "base", "head" } or before/ and after/ folders' }
+  }
+  return { source: { type: 'files' } }
+}
 
 /** @param {string} root */
 export function evalPaths(root) {
@@ -47,7 +73,10 @@ export function loadCases(root, opts = {}) {
     const meta = readJson(join(caseDir, 'case.json'))
     if (!meta) continue
     const expected = readJson(join(caseDir, 'expected.json')) ?? { bugs: [] }
-    const c = { ...meta, id: meta.id ?? name, dir: caseDir, expected: { kind: meta.kind, bugs: expected.bugs ?? [] } }
+    const { source, problem } = resolveSource(meta, caseDir)
+    const kindProblem = meta.kind === 'bug' || meta.kind === 'clean' ? undefined : `"kind" must be "bug" or "clean", got ${JSON.stringify(meta.kind)}`
+    const c = { ...meta, id: meta.id ?? name, dir: caseDir, source, expected: { kind: meta.kind, bugs: expected.bugs ?? [] } }
+    if (problem || kindProblem) c.problem = [problem, kindProblem].filter(Boolean).join('; ')
     if (c.status === 'confirmed' || opts.includeDrafts) out.push(c)
   }
   return out
@@ -66,9 +95,7 @@ export function ensureSplit(root, cases, opts) {
   // would leak test cases into training.
   if (existing && !opts.reset && ids.every(id => existing.train.includes(id) || existing.test.includes(id))) return existing
   if (existing && !opts.reset) {
-    const known = new Set([...existing.train, ...existing.test])
-    const added = splitCases(cases.filter(c => !known.has(c.id)), opts)
-    const merged = { seed: existing.seed, train: [...existing.train, ...added.train].sort(), test: [...existing.test, ...added.test].sort() }
+    const merged = extendSplit(existing, cases, opts)
     writeJson(p, merged)
     return merged
   }
@@ -87,12 +114,30 @@ function g(args, cwd) {
  * change on top of it. Nothing from the source repository's later history
  * (the fix, the revert, their messages) is reachable from it.
  *
+ * The reviewer must not learn the answer from its surroundings: the
+ * workspace's name is random (case ids like `clean-…` or `revert-…` would
+ * give the verdict away), and any `.quality-loop/` directory the case's
+ * trees carry, committed eval cases and their answer keys included, is
+ * dropped. Only the surface under test and the config are placed there.
+ * On failure the workspace is removed before the error is rethrown.
+ *
  * @param {string} root
  * @param {EvalCase} c
  * @param {string} surface REVIEW.md text to place in the workspace
  */
 export function materialize(root, c, surface) {
-  const ws = mkdtempSync(join(tmpdir(), `ql-eval-${c.id}-`))
+  const ws = mkdtempSync(join(tmpdir(), 'ql-eval-'))
+  try {
+    return materializeInto(root, ws, c, surface)
+  } catch (err) {
+    rmSync(ws, { recursive: true, force: true })
+    throw err
+  }
+}
+
+/** @param {string} root @param {string} ws @param {EvalCase} c @param {string} surface */
+function materializeInto(root, ws, c, surface) {
+  if (c.problem) throw new Error(`invalid case: ${c.problem}`)
   const run = (/** @type {string[]} */ args) => g(args, ws)
   run(['init', '-q', '-b', 'main'])
   run(['config', 'user.email', 'eval@quality-loop.invalid'])
@@ -108,17 +153,22 @@ export function materialize(root, c, surface) {
   const clear = () => {
     for (const e of readdirSync(ws)) if (e !== '.git') rmSync(join(ws, e), { recursive: true, force: true })
   }
+  // The plugin's own directory (eval cases, answer keys, old REVIEW.md) is
+  // never part of the change under review.
+  const dropPluginDir = () => rmSync(join(ws, '.quality-loop'), { recursive: true, force: true })
   if (c.source.type === 'git') {
     extract(c.source.base)
   } else {
     cpSync(join(c.dir, 'before'), ws, { recursive: true })
   }
+  dropPluginDir()
   run(['add', '-A'])
   run(['commit', '-q', '--allow-empty', '-m', 'base'])
   const base = run(['rev-parse', 'HEAD'])
   clear()
   if (c.source.type === 'git') extract(c.source.head)
   else cpSync(join(c.dir, 'after'), ws, { recursive: true })
+  dropPluginDir()
   run(['add', '-A'])
   run(['commit', '-q', '--allow-empty', '-m', 'change under review'])
   mkdirSync(join(ws, '.quality-loop'), { recursive: true })
@@ -130,29 +180,83 @@ export function materialize(root, c, surface) {
 
 /**
  * Runs one trial: materialise, run the runner command with a timeout, read
- * its JSON findings and grade them. Plumbing failures (timeout, crash, no or
- * invalid output) are infra errors, kept apart from model failures.
+ * its JSON findings and grade them. Plumbing failures (an invalid case, a
+ * workspace that cannot be built, timeout, crash, no or invalid output) are
+ * infra errors, kept apart from model failures; they never throw, so one bad
+ * case cannot discard a run's finished trials. The workspace is always
+ * removed unless `keep` is set.
  *
  * @param {string} root
  * @param {EvalCase} c
- * @param {{ runner: string, repeat: number, timeoutSec: number, tolerance: number, surface: string, transcriptDir: string, pluginRoot: string, maxContextTokens?: number | null, keep?: boolean }} o
+ * @param {{ runner: string, repeat: number, timeoutSec: number, tolerance: number, surface: string, transcriptDir: string, pluginRoot: string, maxContextTokens?: number | null, keep?: boolean, depth?: string }} o
  */
 export async function runTrial(root, c, o) {
   const started = Date.now()
-  const { ws, base } = materialize(root, c, o.surface)
-  const output = join(ws, '.quality-loop', 'eval-output.json')
   mkdirSync(o.transcriptDir, { recursive: true })
-  const transcript = join(o.transcriptDir, `${c.id}.r${o.repeat}.log`)
+  const transcript = join(o.transcriptDir, `${transcriptName(c.id)}.r${o.repeat}.log`)
+  /** @type {string | null} */
+  let ws = null
+  /** @type {string | null} */
+  let infraError = null
+  /** @type {any[]} */
+  let predicted = []
+  try {
+    let base = ''
+    try {
+      ;({ ws, base } = materialize(root, c, o.surface))
+    } catch (err) {
+      const msg = /** @type {Error} */ (err)?.message ?? String(err)
+      writeFileSync(transcript, `could not build the case workspace: ${msg}\n`)
+      infraError = `workspace setup failed: ${msg.split('\n')[0]}`
+    }
+    if (ws) ({ infraError, predicted } = await execRunner(ws, base, c, o, transcript))
+  } catch (err) {
+    infraError = `trial failed: ${/** @type {Error} */ (err)?.message ?? err}`
+  } finally {
+    if (ws && !o.keep) rmSync(ws, { recursive: true, force: true })
+  }
+  const grade = infraError ? { tp: 0, fp: 0, fn: 0, duplicates: 0, pass: false } : gradeCase(c.expected, predicted, { tolerance: o.tolerance })
+  // The grader is programmatic; grading twice must agree.
+  const again = infraError ? grade : gradeCase(c.expected, predicted, { tolerance: o.tolerance })
+  return {
+    caseId: c.id,
+    kind: c.kind,
+    repeat: o.repeat,
+    ...grade,
+    graderConsistent: JSON.stringify(grade) === JSON.stringify(again),
+    infraError,
+    durationMs: Date.now() - started,
+    predicted,
+    transcript,
+    workspace: o.keep ? ws : null,
+  }
+}
+
+/**
+ * Runs the runner command in a materialised workspace and reads its findings.
+ * The runner learns the base, the output path and the change's intent, never
+ * the case id: ids such as `clean-…` would give the verdict away.
+ *
+ * @param {string} ws
+ * @param {string} base
+ * @param {EvalCase} c
+ * @param {{ runner: string, timeoutSec: number, pluginRoot: string, maxContextTokens?: number | null, depth?: string }} o
+ * @param {string} transcript
+ * @returns {Promise<{ infraError: string | null, predicted: any[] }>}
+ */
+async function execRunner(ws, base, c, o, transcript) {
+  const output = join(ws, '.quality-loop', 'eval-output.json')
   /** @type {NodeJS.ProcessEnv} */
   const env = {
     ...process.env,
     QL_WORKSPACE: ws,
     QL_BASE: base,
     QL_OUTPUT: output,
-    QL_CASE_ID: c.id,
     QL_INTENT: c.intent ?? '',
     QL_PLUGIN_ROOT: o.pluginRoot,
   }
+  delete env.QL_CASE_ID
+  if (o.depth) env.QL_DEPTH = o.depth
   // The context cap (compact.mjs), unless the caller set a lower window.
   const window = Number(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW)
   if (o.maxContextTokens && !(window > 0 && window <= o.maxContextTokens)) env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(o.maxContextTokens)
@@ -200,22 +304,8 @@ export async function runTrial(root, c, o) {
       infraError = `output is not JSON: ${/** @type {Error} */ (err).message}`
     }
   }
-  if (!o.keep) rmSync(ws, { recursive: true, force: true })
-  const grade = infraError ? { tp: 0, fp: 0, fn: 0, duplicates: 0, pass: false } : gradeCase(c.expected, predicted, { tolerance: o.tolerance })
-  // The grader is programmatic; grading twice must agree.
-  const again = infraError ? grade : gradeCase(c.expected, predicted, { tolerance: o.tolerance })
-  return {
-    caseId: c.id,
-    kind: c.kind,
-    repeat: o.repeat,
-    ...grade,
-    graderConsistent: JSON.stringify(grade) === JSON.stringify(again),
-    infraError,
-    durationMs: Date.now() - started,
-    predicted,
-    transcript,
-    workspace: o.keep ? ws : null,
-  }
+  if (infraError) predicted = []
+  return { infraError, predicted }
 }
 
 /**
@@ -253,7 +343,7 @@ function hash(s) {
  * @param {{
  *   label: string, split: 'train' | 'test' | 'all', repeats: number, runner: string, concurrency: number,
  *   timeoutSec: number, tolerance: number, seed: number, testFraction: number, pluginRoot: string,
- *   surfacePath: string, caseIds?: string[], maxContextTokens?: number | null, keep?: boolean,
+ *   surfacePath: string, caseIds?: string[], maxContextTokens?: number | null, keep?: boolean, depth?: string,
  * }} o
  */
 export async function runEval(root, o) {
@@ -266,7 +356,7 @@ export async function runEval(root, o) {
   const jobs = selected.flatMap(c => Array.from({ length: o.repeats }, (_, r) => ({ c, r })))
   const transcriptDir = join(evalPaths(root).results, o.label, 'transcripts')
   const trials = await pool(jobs, o.concurrency, ({ c, r }) =>
-    runTrial(root, c, { runner: o.runner, repeat: r, timeoutSec: o.timeoutSec, tolerance: o.tolerance, surface, transcriptDir, pluginRoot: o.pluginRoot, maxContextTokens: o.maxContextTokens, keep: o.keep }),
+    runTrial(root, c, { runner: o.runner, repeat: r, timeoutSec: o.timeoutSec, tolerance: o.tolerance, surface, transcriptDir, pluginRoot: o.pluginRoot, maxContextTokens: o.maxContextTokens, keep: o.keep, depth: o.depth }),
   )
   const bySplit = (/** @type {string} */ s) => trials.filter(t => which(t.caseId) === s)
   const result = {
@@ -275,6 +365,7 @@ export async function runEval(root, o) {
     surfacePath: o.surfacePath,
     surfaceHash: hash(surface),
     runner: o.runner,
+    depth: o.depth ?? null,
     repeats: o.repeats,
     split: o.split,
     trials,
@@ -318,14 +409,90 @@ function addedRanges(files) {
   return out
 }
 
+/**
+ * Groups lines into contiguous ranges per file.
+ *
+ * @param {{ file: string, line: number }[]} lines
+ */
+function lineRanges(lines) {
+  const sorted = [...lines].sort((a, b) => (a.file === b.file ? a.line - b.line : a.file < b.file ? -1 : 1))
+  /** @type {{ file: string, line: number, endLine: number }[]} */
+  const out = []
+  /** @type {{ file: string, line: number, endLine: number } | null} */
+  let cur = null
+  for (const l of sorted) {
+    if (cur && cur.file === l.file && l.line <= cur.endLine + 1) cur.endLine = Math.max(cur.endLine, l.line)
+    else {
+      cur = { file: l.file, line: l.line, endLine: l.line }
+      out.push(cur)
+    }
+  }
+  return out
+}
+
+/**
+ * Blames the lines a fix removed, at the fix's parent: which commit
+ * introduced each of them, and where the line sat in that commit. One
+ * `git blame` per file, with one `-L` per run of removed lines.
+ *
+ * @param {string} root
+ * @param {string} sha the fix commit
+ * @returns {Map<string, { file: string, line: number }[]>} intro commit -> its lines
+ */
+function blameRemoved(root, sha) {
+  /** @type {Map<string, { file: string, line: number }[]>} */
+  const byIntro = new Map()
+  const fixDiff = parseUnifiedDiff(git(['diff', '-U0', `${sha}^`, sha], { cwd: root }).stdout)
+  for (const f of fixDiff) {
+    if (f.status !== 'modified' && f.status !== 'renamed') continue
+    const ranges = lineRanges(f.removed.map(l => ({ file: f.oldPath, line: l.line })))
+    if (!ranges.length) continue
+    const b = git(['blame', '--line-porcelain', ...ranges.flatMap(r => ['-L', `${r.line},${r.endLine}`]), `${sha}^`, '--', f.oldPath], {
+      cwd: root,
+      allowFail: true,
+    })
+    if (!b.ok) continue
+    /** @type {{ sha: string, line: number, file: string } | null} */
+    let cur = null
+    for (const text of b.stdout.split('\n')) {
+      const head = /^([0-9a-f]{40}) (\d+) \d+/.exec(text)
+      if (head?.[1] && head[2]) cur = { sha: head[1], line: Number(head[2]), file: f.oldPath }
+      else if (cur && text.startsWith('filename ')) cur.file = text.slice('filename '.length)
+      else if (cur && text.startsWith('\t')) {
+        const list = byIntro.get(cur.sha) ?? []
+        list.push({ file: cur.file, line: cur.line })
+        byIntro.set(cur.sha, list)
+        cur = null
+      }
+    }
+  }
+  return byIntro
+}
+
 /** @param {string} id */
 const safeId = id => id.replace(/[^\w.-]+/g, '-').slice(0, 60)
+
+/**
+ * A file name for a case's transcripts that no other case id maps to. An id
+ * that is already a safe name is used as is; any other id ('a/b', a long id)
+ * gets a hash of the full id after a '~', which no safe id contains, so it
+ * cannot collide with another case's transcript.
+ *
+ * @param {string} id
+ */
+const transcriptName = id => (safeId(id) === id ? id : `${safeId(id)}~${hash(id)}`)
+
+const FIX_SUBJECT = /^(?:fix|bugfix|hotfix)\b|\bfix(?:es|ed)?\s+(?:#\d+|bug|crash|regression)/i
 
 /**
  * Proposes draft eval cases from history: reverted commits (the revert marks
  * the bug), fix commits (blame the lines the fix replaced to find the commit
  * that introduced them) and, as should-not-fire cases, commits nothing later
  * reverted or fixed. Drafts need a human to confirm them before they count.
+ *
+ * Every revert and fix in the scanned history marks the commits it
+ * implicates before any case is written, so `--limit` never lets a
+ * reverted or fixed commit through as a clean case.
  *
  * @param {string} root
  * @param {{ limit: number, clean: number, maxLines?: number }} opts
@@ -344,7 +511,10 @@ export function harvest(root, opts) {
   const dir = evalPaths(root).cases
   /** @type {string[]} */
   const written = []
+  /** @type {Set<string>} full shas a later revert or fix implicates */
   const implicated = new Set()
+  /** @type {string[]} revert targets that do not resolve: matched by prefix */
+  const implicatedPrefixes = []
   /**
    * @param {string} id
    * @param {any} meta
@@ -358,72 +528,75 @@ export function harvest(root, opts) {
     written.push(safeId(id))
   }
 
+  // Pass 1: every revert and fix, newest first. Implication is recorded for
+  // all of them; the drafts themselves are built lazily, up to the limit.
+  /** @type {(() => void)[]} */
+  const bugDrafts = []
   for (const c of commits) {
-    if (written.length >= opts.limit) break
-    const reverted = /This reverts commit ([0-9a-f]{7,40})/.exec(c.body)?.[1]
-    if (reverted) {
-      const parent = git(['rev-parse', '--verify', '--quiet', `${reverted}^`], { cwd: root, allowFail: true })
-      if (!parent.ok) continue
-      const diff = parseUnifiedDiff(git(['diff', '-U0', `${reverted}^`, reverted], { cwd: root }).stdout)
-      const ranges = addedRanges(diff)
-      if (!ranges.length || ranges.reduce((a, r) => a + r.endLine - r.line + 1, 0) > maxLines) continue
-      const subject = git(['log', '-1', '--format=%s', reverted], { cwd: root }).stdout.trim()
+    const revertedRef = /This reverts commit ([0-9a-f]{7,40})/.exec(c.body)?.[1]
+    if (revertedRef) {
+      const resolved = git(['rev-parse', '--verify', '--quiet', `${revertedRef}^{commit}`], { cwd: root, allowFail: true })
+      if (!resolved.ok) {
+        implicatedPrefixes.push(revertedRef)
+        continue
+      }
+      const reverted = resolved.stdout.trim()
       implicated.add(reverted)
+      bugDrafts.push(() => {
+        const parent = git(['rev-parse', '--verify', '--quiet', `${reverted}^`], { cwd: root, allowFail: true })
+        if (!parent.ok) return
+        const diff = parseUnifiedDiff(git(['diff', '-U0', `${reverted}^`, reverted], { cwd: root }).stdout)
+        const ranges = addedRanges(diff)
+        if (!ranges.length || ranges.reduce((a, r) => a + r.endLine - r.line + 1, 0) > maxLines) return
+        const subject = git(['log', '-1', '--format=%s', reverted], { cwd: root }).stdout.trim()
+        write(
+          `revert-${reverted.slice(0, 10)}`,
+          {
+            kind: 'bug',
+            intent: subject,
+            whyHard: 'TODO: say why a reviewer would miss this',
+            source: { type: 'git', base: parent.stdout.trim(), head: reverted },
+            provenance: `reverted by ${c.sha.slice(0, 10)}: ${c.subject}`,
+          },
+          ranges.map(r => ({ ...r, description: `TODO: narrow to the actual defect (reverted in ${c.sha.slice(0, 10)})` })),
+        )
+      })
+      continue
+    }
+    if (!FIX_SUBJECT.test(c.subject) || c.parents.length !== 1) continue
+    const byIntro = blameRemoved(root, c.sha)
+    // Every commit the fix's lines came from is suspect, not only the main one.
+    for (const intro of byIntro.keys()) implicated.add(intro)
+    const best = [...byIntro.entries()].sort((a, b) => b[1].length - a[1].length)[0]
+    if (!best) continue
+    const [intro, lines] = best
+    bugDrafts.push(() => {
+      const parent = git(['rev-parse', '--verify', '--quiet', `${intro}^`], { cwd: root, allowFail: true })
+      if (!parent.ok) return
+      const subject = git(['log', '-1', '--format=%s', intro], { cwd: root }).stdout.trim()
       write(
-        `revert-${reverted.slice(0, 10)}`,
+        `fix-${c.sha.slice(0, 10)}`,
         {
           kind: 'bug',
           intent: subject,
           whyHard: 'TODO: say why a reviewer would miss this',
-          source: { type: 'git', base: parent.stdout.trim(), head: reverted },
-          provenance: `reverted by ${c.sha.slice(0, 10)}: ${c.subject}`,
+          source: { type: 'git', base: parent.stdout.trim(), head: intro },
+          provenance: `introduced by ${intro.slice(0, 10)}, fixed by ${c.sha.slice(0, 10)}: ${c.subject}`,
         },
-        ranges.map(r => ({ ...r, description: `TODO: narrow to the actual defect (reverted in ${c.sha.slice(0, 10)})` })),
+        lineRanges(lines).map(r => ({ ...r, description: `TODO: describe the defect fixed in ${c.sha.slice(0, 10)}` })),
       )
-      continue
-    }
-    if (!/^(?:fix|bugfix|hotfix)\b|\bfix(?:es|ed)?\s+(?:#\d+|bug|crash|regression)/i.test(c.subject) || c.parents.length !== 1) continue
-    // Blame the lines the fix removed, at the fix's parent, to find the commit
-    // that introduced them and where they sat in it.
-    const fixDiff = parseUnifiedDiff(git(['diff', '-U0', `${c.sha}^`, c.sha], { cwd: root }).stdout)
-    /** @type {Map<string, { file: string, line: number }[]>} */
-    const byIntro = new Map()
-    for (const f of fixDiff) {
-      if (f.status !== 'modified' && f.status !== 'renamed') continue
-      for (const l of f.removed) {
-        const b = git(['blame', '--porcelain', '-L', `${l.line},${l.line}`, `${c.sha}^`, '--', f.oldPath], { cwd: root, allowFail: true })
-        const m = /^([0-9a-f]{40}) (\d+) \d+/.exec(b.stdout)
-        if (!b.ok || !m || !m[1] || !m[2]) continue
-        const fileInIntro = /^filename (.+)$/m.exec(b.stdout)?.[1] ?? f.oldPath
-        const list = byIntro.get(m[1]) ?? []
-        list.push({ file: fileInIntro, line: Number(m[2]) })
-        byIntro.set(m[1], list)
-      }
-    }
-    const best = [...byIntro.entries()].sort((a, b) => b[1].length - a[1].length)[0]
-    if (!best) continue
-    const [intro, lines] = best
-    const parent = git(['rev-parse', '--verify', '--quiet', `${intro}^`], { cwd: root, allowFail: true })
-    if (!parent.ok) continue
-    implicated.add(intro)
-    const subject = git(['log', '-1', '--format=%s', intro], { cwd: root }).stdout.trim()
-    write(
-      `fix-${c.sha.slice(0, 10)}`,
-      {
-        kind: 'bug',
-        intent: subject,
-        whyHard: 'TODO: say why a reviewer would miss this',
-        source: { type: 'git', base: parent.stdout.trim(), head: intro },
-        provenance: `introduced by ${intro.slice(0, 10)}, fixed by ${c.sha.slice(0, 10)}: ${c.subject}`,
-      },
-      lines.map(l => ({ file: l.file, line: l.line, description: `TODO: describe the defect fixed in ${c.sha.slice(0, 10)}` })),
-    )
+    })
+  }
+  for (const draft of bugDrafts) {
+    if (written.length >= opts.limit) break
+    draft()
   }
 
+  const isImplicated = (/** @type {string} */ sha) => implicated.has(sha) || implicatedPrefixes.some(p => sha.startsWith(p))
   let cleanCount = 0
   for (const c of commits.slice(20)) {
     if (cleanCount >= opts.clean) break
-    if (implicated.has(c.sha) || c.parents.length !== 1 || /revert|fix/i.test(c.subject)) continue
+    if (isImplicated(c.sha) || c.parents.length !== 1 || /revert|fix/i.test(c.subject)) continue
     const stat = git(['diff', '--numstat', `${c.sha}^`, c.sha], { cwd: root }).stdout.trim().split('\n').filter(Boolean)
     const added = stat.reduce((a, l) => a + (Number(l.split('\t')[0]) || 0), 0)
     if (!stat.length || added === 0 || added > maxLines) continue
