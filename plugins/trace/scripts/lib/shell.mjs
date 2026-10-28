@@ -12,8 +12,10 @@
  * is a directory a wrapper runs it in (`env -C`, `sudo -D`). `level` is
  * how deep in subshells and nested scripts it runs, and `op` the operator
  * after it (`&&`, `||`, `;`, `|`, `&`), so a rule can follow a `cd`.
+ * `stdin` is the text a heredoc or here-string feeds it, and `piped` says
+ * another command's output does.
  *
- * @typedef {{ name: string, args: string[], files: string[], chdir?: string, level: number, op?: string }} SimpleCommand
+ * @typedef {{ name: string, args: string[], files: string[], chdir?: string, level: number, op?: string, stdin?: string, piped?: boolean }} SimpleCommand
  */
 
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'fish'])
@@ -183,8 +185,11 @@ export function parseCommands(src, depth = 0) {
   let word = null
   /** `dup`: after `>&`, where a descriptor number or `-` names no file. @type {'file' | 'dup' | 'data' | null} */
   let redirect = null
-  /** @type {{ delim: string, strip: boolean, words: string[] }[]} */
+  /** @type {{ delim: string, strip: boolean, words: string[], cmd?: SimpleCommand }[]} */
   let heredocs = []
+  /** @type {string | undefined} a here-string's text */
+  let herestring
+  let prevOp = ''
 
   const append = (/** @type {string} */ s) => {
     word = (word ?? '') + s
@@ -193,6 +198,7 @@ export function parseCommands(src, depth = 0) {
     if (word === null) return
     const expanded = expandBraces(word)
     if (redirect === 'file' || (redirect === 'dup' && !/^(?:\d+-?|-)$/.test(word))) files.push(...expanded)
+    else if (redirect === 'data') herestring = word
     else if (redirect === null) words.push(...expanded)
     redirect = null
     word = null
@@ -208,6 +214,9 @@ export function parseCommands(src, depth = 0) {
       const cmd = { name, args, files: [...files, ...inputs], level: parens }
       if (chdir !== undefined) cmd.chdir = chdir
       if (op) cmd.op = op
+      if (herestring !== undefined) cmd.stdin = herestring
+      if (prevOp === '|') cmd.piped = true
+      for (const h of heredocs) h.cmd ??= cmd
       out.push(cmd)
       if (split !== undefined) nested(split)
       if (SHELLS.has(name)) {
@@ -227,6 +236,8 @@ export function parseCommands(src, depth = 0) {
     }
     words = []
     files = []
+    herestring = undefined
+    prevOp = op
   }
 
   const n = src.length
@@ -249,6 +260,7 @@ export function parseCommands(src, depth = 0) {
         }
         // A heredoc fed to a shell is a script; fed to anything else it is data.
         if (SHELLS.has(base(unwrap(h.words).words[0]))) nested(body.join('\n'))
+        else if (h.cmd) h.cmd.stdin = body.join('\n')
       }
       heredocs = []
       continue

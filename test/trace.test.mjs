@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { editVerdict } from '../plugins/trace/scripts/lib/trace.mjs'
+import { commandVerdict, editVerdict } from '../plugins/trace/scripts/lib/trace.mjs'
 
 const HOOK = fileURLToPath(new URL('../plugins/trace/scripts/hook.mjs', import.meta.url))
 
@@ -14,10 +14,10 @@ const HOOK = fileURLToPath(new URL('../plugins/trace/scripts/hook.mjs', import.m
  * In-memory git and GitHub: a repository at /repo, traced unless `traced` is
  * false, and an untraced one nested at /repo/sub.
  *
- * @param {{ traced?: boolean, branch?: string | null, defaultBranch?: string | null, issues?: Record<number, 'OPEN' | 'CLOSED'>, offline?: boolean, env?: Record<string, string> }} [o]
+ * @param {{ traced?: boolean, branch?: string | null, defaultBranch?: string | null, issues?: Record<number, 'OPEN' | 'CLOSED'>, offline?: boolean, env?: Record<string, string>, messages?: Record<string, string>, aliases?: Record<string, string>, ghAliases?: Record<string, string> }} [o]
  */
 function world(o = {}) {
-  const { traced = true, branch = 'main', defaultBranch = 'main', issues = {}, offline = false, env = {} } = o
+  const { traced = true, branch = 'main', defaultBranch = 'main', issues = {}, offline = false, env = {}, messages = {}, aliases = {}, ghAliases = {} } = o
   return {
     git: {
       root: (/** @type {string} */ path) =>
@@ -25,8 +25,13 @@ function world(o = {}) {
       traced: (/** @type {string} */ root) => root === '/repo' && traced,
       branch: () => branch,
       defaultBranch: () => defaultBranch,
+      message: (/** @type {string} */ _root, /** @type {string} */ rev) => messages[rev] ?? null,
+      alias: (/** @type {string} */ _root, /** @type {string} */ name) => aliases[name] ?? null,
     },
-    github: { issueState: (/** @type {string} */ _root, /** @type {number} */ n) => (offline ? null : issues[n] ?? 'MISSING') },
+    github: {
+      issueState: (/** @type {string} */ _root, /** @type {number} */ n) => (offline ? null : issues[n] ?? 'MISSING'),
+      alias: (/** @type {string} */ name) => ghAliases[name] ?? null,
+    },
     env,
   }
 }
@@ -262,4 +267,130 @@ test('the hook refuses settings changes it cannot read, wherever the settings li
   assert.equal(run('Edit', { file_path: join(dir, '.claude/settings.json'), old_string: 'not there', new_string: 'x' }), 'deny', 'old_string not found')
   assert.equal(run('NotebookEdit', { notebook_path: join(dir, '.claude/settings.json'), new_source: off }), 'deny', 'NotebookEdit')
   assert.equal(run('Edit', { file_path: join(dir, '.claude/settings.json'), old_string: '{ "permissions": {} }', new_string: '{ "permissions": { "deny": [] } }' }), undefined, 'a permissions change')
+})
+
+// --- the commit and PR gates (#7) ----------------------------------------------
+
+/** On the branch of open issue #7, in /repo. @param {Parameters<typeof world>[0]} [o] */
+const onSeven = (o = {}) => world({ branch: '7-gates', issues: { 7: 'OPEN', 8: 'OPEN' }, ...o })
+/** @param {string} command @param {Parameters<typeof world>[0]} [o] */
+const verdict = (command, o) => commandVerdict(command, '/repo', onSeven(o))
+
+test('a commit whose message references the branch issue is allowed, in any message form', () => {
+  for (const command of [
+    'git commit -m "Add the gate (#7)"',
+    'git commit -m "Add the gate" -m "Part of #7."',
+    'git commit -am "Add the gate #7"',
+    'git commit --message="Add the gate #7"',
+    'git commit --message "#7: add the gate"',
+    "git commit -F - <<'EOF'\nAdd the gate\n\nRefs #7\nEOF",
+    'git commit -F - <<< "Add the gate (#7)"',
+    'git commit --amend -m "Reword (#7)"',
+    'git -C /repo/src commit -m "x (#7)"',
+    'git commit -m "x" -m "y #7" && echo done',
+  ]) {
+    assert.equal(verdict(command), null, command)
+  }
+})
+
+test('a commit whose message does not reference the branch issue is refused, naming the issue and the text to add', () => {
+  for (const command of ['git commit -m "Add the gate"', 'git commit -m a -m b', 'git commit -m "Add the gate #70"', 'git commit -m "see #77"', "git commit -F - <<'EOF'\nAdd the gate\nEOF", 'bash -c \'git commit -m "x"\'', 'true && git commit -m x']) {
+    const why = String(verdict(command))
+    assert.match(why, /#7\b/, command)
+    assert.match(why, /Implement step/, command)
+  }
+})
+
+test('an amend that keeps the message is judged by the commit it rewrites', () => {
+  assert.equal(verdict('git commit --amend --no-edit', { messages: { HEAD: 'Add the gate (#7)' } }), null)
+  assert.match(String(verdict('git commit --amend --no-edit', { messages: { HEAD: 'Add the gate' } })), /#7/)
+  assert.equal(verdict('git commit -C abc123', { messages: { abc123: 'x (#7)' } }), null)
+  assert.match(String(verdict('git commit --fixup=abc123', { messages: { abc123: 'x' } })), /#7/)
+})
+
+test('a commit whose message cannot be told from the command is refused with a reason', () => {
+  for (const command of [
+    'git commit',
+    'git commit -a',
+    'git commit -m "$(cat msg)"',
+    'git commit -m "`cat msg`"',
+    'echo "x #7" | git commit -F -',
+    'git commit -F -',
+    'git commit -e -m "x #7"',
+    'git commit -t tmpl.txt',
+    'cd "$DIR" && git commit -m x',
+    'git --git-dir=/x/.git commit -m "x #7"',
+    'git commit --amend --no-edit',
+  ]) {
+    assert.match(String(verdict(command)), /cannot tell/, command)
+  }
+})
+
+test('a commit through a git alias is judged as the command it runs', () => {
+  assert.match(String(verdict('git ci -m x', { aliases: { ci: 'commit -a' } })), /#7/)
+  assert.equal(verdict('git ci -m "x #7"', { aliases: { ci: 'commit -a' } }), null)
+  assert.match(String(verdict('git -c alias.k=commit k -m x')), /#7/)
+  assert.match(String(verdict('git sh', { aliases: { sh: '!git commit -m x' } })), /cannot tell/)
+  assert.match(String(verdict('cd "$X" && git ci -m x', { aliases: { ci: 'commit' } })), /cannot tell/)
+  assert.equal(verdict('git st', { aliases: { st: 'status' } }), null)
+})
+
+test('the commit gate follows the branch rules and the trace switches of the edit gate', () => {
+  assert.match(String(verdict('git commit -m "x #7"', { branch: 'main' })), /default branch/)
+  assert.match(String(verdict('git commit -m "x #9"', { branch: '9-closed', issues: { 9: 'CLOSED' } })), /#9/)
+  assert.equal(verdict('git commit -m x', { traced: false }), null)
+  assert.equal(verdict('git commit -m x', { env: { TRACE_BYPASS: '1' } }), null)
+  assert.equal(commandVerdict('git commit -m x', '/elsewhere', onSeven()), null)
+  assert.equal(verdict('cd /elsewhere && git commit -m x'), null)
+  assert.equal(verdict('git status && git log -1 && rg "git commit"'), null)
+})
+
+test('a PR whose body closes the branch issue is allowed', () => {
+  for (const command of [
+    'gh pr create --title t --body "Closes #7"',
+    'gh pr create -t t -b "Some text.\n\nFixes #7"',
+    'gh pr create --title t --body="resolves: #7"',
+    "gh pr create --title t --body-file - <<'EOF'\n## Summary\n\nCloses #7.\nEOF",
+    'gh pr create --base main --head 8-other --title t --body "Closes #8"',
+  ]) {
+    assert.equal(verdict(command), null, command)
+  }
+})
+
+test('a PR whose body does not close the branch issue is refused, naming the issue and the text to add', () => {
+  for (const command of ['gh pr create --title t --body "Refs #7"', 'gh pr create -t t -b "Closes #70"', 'gh pr create --head 8-other -t t -b "Closes #7"', 'gh pr create -t t -b "Closes #7 and more" --head 8-other']) {
+    const why = String(verdict(command))
+    assert.match(why, /Closes #(7|8)\b/, command)
+    assert.match(why, /Review step/, command)
+  }
+})
+
+test('a PR whose body cannot be told from the command is refused with a reason', () => {
+  for (const command of ['gh pr create', 'gh pr create --fill', 'gh pr create -f', 'gh pr create --web', 'gh pr create -t t -b "$(cat body.md)"', 'cat body.md | gh pr create -t t -F -', 'gh pr create -t t --template t.md', 'gh prc', 'gh pc -t t']) {
+    assert.match(String(verdict(command, { ghAliases: { prc: 'pr create --fill', pc: "!gh pr create \"$@\"" } })), /cannot tell|Closes #7/, command)
+  }
+  assert.equal(verdict('gh pr view 7 && gh issue create -t t -b x && gh pr list'), null)
+})
+
+test('the hook refuses an unreferenced commit or PR in a traced repository, in a subagent too, reading files from cwd', () => {
+  const { dir, git } = repo()
+  git('checkout', '-qb', '16-gates')
+  const issues = { 'owner/name#16': { state: 'open' } }
+  writeFileSync(join(dir, 'msg.txt'), 'Add the gate (#16)\n')
+  writeFileSync(join(dir, 'bare.txt'), 'Add the gate\n')
+  writeFileSync(join(dir, 'body.md'), '## Summary\n\nCloses #16\n')
+  const bash = (/** @type {string} */ command, /** @type {object} */ extra = {}) => hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir, ...extra }, {}, issues)
+  for (const extra of [{}, { agent_id: 'sub-1', agent_type: 'general-purpose' }]) {
+    assert.match(String(bash('git commit -m "Add the gate"', extra)?.permissionDecisionReason), /trace: .*#16/)
+    assert.equal(bash('git commit -m "Add the gate (#16)"', extra), null)
+    assert.match(String(bash('gh pr create -t t -b "Refs #16"', extra)?.permissionDecisionReason), /trace: .*Closes #16/)
+    assert.equal(bash('gh pr create -t t -b "Closes #16"', extra), null)
+  }
+  assert.equal(bash('git commit -F msg.txt'), null)
+  assert.match(String(bash('git commit -F bare.txt')?.permissionDecisionReason), /#16/)
+  assert.match(String(bash('git commit -F missing.txt')?.permissionDecisionReason), /cannot tell/)
+  assert.equal(bash('gh pr create -t t --body-file body.md'), null)
+  assert.match(String(bash('git commit --amend --no-edit')?.permissionDecisionReason), /#16/, 'HEAD says "init"')
+  assert.equal(hook({ tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: dir }, { TRACE_BYPASS: '1' }), null)
+  assert.equal(hook({ tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: repo(false).dir }), null)
 })
