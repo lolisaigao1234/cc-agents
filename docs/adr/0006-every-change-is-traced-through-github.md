@@ -1,6 +1,10 @@
-# 0006: Every change is traced through GitHub, and hooks enforce it
+---
+status: accepted
+date: 2026-10-28
+issue: "#3"
+---
 
-Date: 2026-10-28 · Status: accepted · Issue: #3
+# 0006: Every change is traced through GitHub, and hooks enforce it
 
 A change that cannot be tied to the reason it was made is how drift and hallucinated work get in. In a traced repository, every change follows one pipeline, the **trace**:
 
@@ -18,7 +22,7 @@ Hooks hard-block, in the main session and in every subagent:
 - `git commit` without `#<n>`;
 - `gh pr create` without `Closes #<n>`.
 
-The Stop hook blocks stopping once when commits were pushed after the issue's last comment. Every deny names the pipeline step to go back to.
+When commits were pushed after the issue's last comment, the Stop hook nudges for a progress comment: it blocks stopping once. Every deny names the pipeline step to go back to.
 
 The issue is also the record that survives compaction. At start, after compaction, on resume and when a subagent starts, hooks inject the issue's title, acceptance criteria and latest progress comment.
 
@@ -30,7 +34,7 @@ The issue is also the record that survives compaction. At start, after compactio
 
 ## Consequences
 
-- The trace applies only in repositories opted in by `/trace:setup`, and only to files inside that repository's working tree. The archive block and the git guard apply everywhere.
+- The trace applies only in repositories opted in by `/trace:setup`, and only to files inside that repository's working tree. The archive block and the guard apply everywhere.
 - The only bypass is an environment variable the human sets when launching Claude Code. Nothing the model can write turns the trace off, so there is no state to defend.
 - Because the human merges, a ticket blocked by an unmerged one is built on a stacked branch.
 - Repositories without a GitHub remote cannot be traced.

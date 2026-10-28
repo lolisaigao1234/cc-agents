@@ -1,77 +1,83 @@
 # cc-agents
 
-This repository ships **trace**, a Claude Code plugin that keeps a model's work tied to its reason and to the project's decisions. It does this with hard-blocking guardrails and a view of where the work stands, and leaves the work itself to existing skills.
+This repository ships **trace**, a Claude Code plugin that keeps a model's work tied to the reason for it and to the project's decisions.
 
 ## The trace
 
 **Trace**:
-The chain that ties a change to its reason: issue → branch → commits → pull request → progress comments → close.
+The chain of records that ties a change to its reason: an issue, its branch, its commits, its pull request, and the progress comments on the issue.
 _Avoid_: audit trail, traceability chain
 
 **Pipeline step**:
-One of the trace's seven steps, in order: Read, Track, Branch, Implement, Review, Update, Close.
+One stage of producing a traced change. The steps are listed in ADR 0006.
 _Avoid_: phase, stage
 
 **Traced repository**:
-A repository whose owner opted it in to the trace. Outside one, only the archive block and the guard apply.
+A repository whose owner has opted it in to the trace.
 _Avoid_: enabled repo
 
 **Linked issue**:
-The open issue the current branch belongs to, named by the number the branch starts with.
+The open issue that the current branch belongs to.
 _Avoid_: current ticket
 
 **Ticket**:
-An issue describing one vertical slice of work, published as a sub-issue of a parent issue.
-_Avoid_: task, story
+An issue describing one vertical slice of work, under a parent issue.
+_Avoid_: story
 
 **Parent issue**:
-The issue that holds an effort's goal and decisions; its tickets are its sub-issues.
-_Avoid_: epic, map
+The issue that holds an effort's goal and decisions, whose tickets are its sub-issues.
+_Avoid_: epic
 
 **Progress comment**:
-The comment on the linked issue after each round of work, giving progress, decisions and verification results.
+A comment on the linked issue recording a round of work's progress, decisions and verification results.
 _Avoid_: status update, round comment
 
 **Bypass**:
-The switch the human sets when launching Claude Code to turn the trace off. Nothing the model can write sets it.
+The human's switch for turning the trace off for a session.
 _Avoid_: override, escape hatch
 
 ## Doc authority
 
 **Related docs**:
-The docs an agent must have read before it edits: the glossary, the linked issue with its comments, the active ADRs that apply to the edit, and the docs the issue links.
+The docs an agent must have read before it may change a file. Which docs these are is decided by ADR 0007, not by the agent.
 _Avoid_: governing docs, authoritative docs, relevant docs
 
 **Full read**:
-An agent's own read of every line of a file as it is now.
+An agent's own read of every line of a file in its current form.
 _Avoid_: skim, partial read
 
 **Stale read**:
-A read of a file whose content has changed since.
+A read of a file that has changed since it was read.
 
 **Active ADR**:
-An accepted decision record in the ADR folder, as opposed to a superseded one in the archive.
+A decision record still in force.
 
 ## Archive
 
 **Archive**:
-The human-only folder holding superseded docs. Agents may move files into it but never read, change or take anything out.
+The human's store of superseded docs, outside every agent's reach.
 _Avoid_: attic, old docs, deprecated folder
 
 **Superseded**:
-Replaced by a newer decision. A superseded doc lives in the archive with a header naming its successor.
+Replaced by a newer decision.
 _Avoid_: deprecated, obsolete
 
 ## Guardrails and view
 
 **Hard block**:
-A hook's refusal of a tool call, which the model cannot proceed past, as opposed to a notice it may ignore.
-_Avoid_: warning, nudge (a nudge blocks once, then lets go)
+A refusal of an agent's tool call, which the agent cannot proceed past.
+_Avoid_: warning, notice
+
+**Nudge**:
+A hard block that applies once, and lets the next attempt through.
 
 **Guard**:
-The hard block on destructive git and file commands.
-_Avoid_: safety hook
+The hard block on commands that destroy work or history.
+_Avoid_: safety hook, git guard
+
+**Archive block**:
+The hard block on agents touching the archive.
 
 **Band**:
-The line above the prompt that shows the trace: linked issue, pipeline step, related docs read, and pull-request state.
+The plugin's at-a-glance view of the trace.
 _Avoid_: status bar
