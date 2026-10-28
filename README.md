@@ -7,9 +7,13 @@ As this plugin is completely AI-generated. There will be chances that the AI did
 
 ## Reference blog posts and GitHub repos when creating the plugin:
 https://github.com/t3dotgg/tstack.git
+
 https://claude.dev/blog/solving-code-review-at-anthropic/
+
 https://claude.dev/blog/getting-started-with-claude-code-mods/
+
 https://claude.dev/blog/automating-eval-design-and-hillclimbing/
+
 https://claude.dev/blog/getting-the-most-out-of-opus-5-5/
 
 ## quality-loop
