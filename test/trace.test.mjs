@@ -532,6 +532,27 @@ test('the shell runs what the gates read: wrappers, case, shells fed a script, f
   }
 })
 
+test('ordinary commands that reference the linked issue, or create nothing, are allowed', () => {
+  for (const command of [
+    "git commit -m 'Fix $ handling (#7)'",
+    'git commit -m "Price \\$5 (#7)"',
+    'git commit -m "Costs $ 5 (#7)"',
+    "git commit -m 'A lone ` (#7)'",
+    'git commit -m "Off by $((1+1)) (#7)"',
+    "git commit -m \"$(cat <<'EOF'\nFix parser (#7)\n\nTest plan:\n1) Run \"npm test\"\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\"",
+    'git commit -m "$(cat <<EOF\nx (#7)\nEOF\n)"',
+    "gh pr create --title t --body \"$(cat <<'EOF'\n## Test plan\n1) run it\n\nCloses #7\nEOF\n)\"",
+    'gh pr list --label new --state open',
+    'gh pr merge 12 --squash --subject edit',
+    'git config user.email && git stage -A',
+    'gh alias list && gh pr view',
+    'pushd -q plugins && git commit -m "Fix (#7)"',
+  ]) {
+    assert.equal(verdict(command), null, command)
+  }
+  assert.match(String(verdict('git commit -m "$(cat <<EOF\nx (#7$(date)\nEOF\n)"')), /cannot tell/)
+})
+
 test('the hook refuses an unreferenced commit or PR in a traced repository, in a subagent too, reading files from cwd', () => {
   const { dir, git } = repo()
   git('checkout', '-qb', '16-gates')
@@ -552,6 +573,7 @@ test('the hook refuses an unreferenced commit or PR in a traced repository, in a
   execFileSync('mkfifo', [join(dir, 'fifo')])
   assert.match(String(bash('git commit -F fifo')?.permissionDecisionReason), /cannot tell/, 'a FIFO would block the hook')
   assert.equal(bash('gh pr create -t t --body-file body.md'), null)
+  assert.equal(bash('ls pr-body.md; gh pr create -t t --body-file body.md'), null, 'another file whose name ends the same')
   assert.match(String(bash('git commit --amend --no-edit')?.permissionDecisionReason), /#16/, 'HEAD says "init"')
   assert.equal(hook({ tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: dir }, { TRACE_BYPASS: '1' }), null)
   assert.equal(hook({ tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: repo(false).dir }), null)

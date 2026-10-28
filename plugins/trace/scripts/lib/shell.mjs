@@ -14,10 +14,9 @@
  * after it (`&&`, `||`, `;`, `|`, `&`), so a rule can follow a `cd`.
  * `stdin` is the text a heredoc or here-string feeds it, when that is its
  * last input redirection, and `piped` says another command's output does.
- * `stdinLiteral` says that text is a quoted heredoc's, which the shell does
- * not expand. `env` names the variables its assignments and `env` wrapper set.
+ * `env` names the variables its assignments and `env` wrapper set.
  *
- * @typedef {{ name: string, args: string[], files: string[], chdir?: string, level: number, op?: string, stdin?: string, stdinLiteral?: boolean, piped?: boolean, env?: string[] }} SimpleCommand
+ * @typedef {{ name: string, args: string[], files: string[], chdir?: string, level: number, op?: string, stdin?: string, piped?: boolean, env?: string[] }} SimpleCommand
  */
 
 import { homedir } from 'node:os'
@@ -36,6 +35,17 @@ const base = w => {
 
 /** @param {string} w @returns {boolean} whether the shell computes part of `w` */
 export const computed = w => /[$`]/.test(w)
+
+/**
+ * `$` and backticks the shell keeps as they are (quoted, escaped, or in a
+ * file), marked so they read as text, not expansions. `unliteral` turns
+ * them back.
+ *
+ * @param {string} t
+ */
+export const literal = t => t.replace(/\$/g, '\uE020').replace(/`/g, '\uE021')
+/** @param {string} t */
+export const unliteral = t => t.replace(/\uE020/g, '$').replace(/\uE021/g, '`')
 
 /**
  * Drops leading keywords, `VAR=value` assignments and wrapper commands, so
@@ -123,16 +133,35 @@ function unwrap(words) {
 }
 
 /**
- * Index of the `)` closing the `(` at `open`, skipping quoted text.
+ * Index of the `)` closing the `(` at `open`, skipping quoted text and
+ * heredoc bodies.
  *
  * @param {string} src
  * @param {number} open
  */
 function closingParen(src, open) {
   let depth = 0
+  /** @type {{ delim: string, strip: boolean }[]} */
+  let bodies = []
   for (let j = open; j < src.length; j++) {
     const c = src[j]
-    if (c === '\\') j++
+    if (c === '\n' && bodies.length) {
+      for (const { delim, strip } of bodies) {
+        for (;;) {
+          const e = src.indexOf('\n', j + 1)
+          const line = src.slice(j + 1, e < 0 ? src.length : e)
+          j = e < 0 ? src.length : e
+          if ((strip ? line.replace(/^\t+/, '') : line) === delim || e < 0) break
+        }
+      }
+      bodies = []
+    } else if (c === '<' && src[j + 1] === '<' && src[j + 2] !== '<') {
+      const m = /^<<(-?)[ \t]*((?:'[^'\n]*'|"[^"\n]*"|\\.|[^\s;&|<>()])+)/.exec(src.slice(j))
+      if (m) {
+        bodies.push({ delim: (m[2] ?? '').replace(/["'\\]/g, ''), strip: m[1] === '-' })
+        j += m[0].length - 1
+      }
+    } else if (c === '\\') j++
     else if (c === "'") {
       const k = src.indexOf("'", j + 1)
       j = k < 0 ? src.length : k
@@ -317,7 +346,7 @@ export function parseCommands(src, depth = 0) {
         const text = h.quoted ? body.join('\n') : body.join('\n').replace(/\\\n/g, '')
         // A heredoc fed to a shell is a script; fed to anything else it is data.
         if (SHELLS.has(base(unwrap(h.words).words[0]))) nested(text)
-        else if (h.owner && h.feeds) Object.assign(h.owner, { stdin: text, stdinLiteral: h.quoted })
+        else if (h.owner && h.feeds) h.owner.stdin = h.quoted ? literal(text) : text
       }
       heredocs = []
       continue
@@ -328,14 +357,14 @@ export function parseCommands(src, depth = 0) {
     } else if (c === '#' && word === null) {
       while (i < n && src[i] !== '\n') i++
     } else if (c === '\\') {
-      if (src[i + 1] !== '\n') append(src[i + 1] ?? '')
+      if (src[i + 1] !== '\n') append(literal(src[i + 1] ?? ''))
       i += 2
     } else if (c === '$' && src[i + 1] === "'") {
       // $'...' quoting, with its backslash escapes.
       let j = i + 2
       for (; j < n && src[j] !== "'"; j++) {
         if (src[j] !== '\\') {
-          append(/** @type {string} */ (src[j]))
+          append(literal(/** @type {string} */ (src[j])))
           continue
         }
         const e = src[++j] ?? ''
@@ -347,7 +376,7 @@ export function parseCommands(src, depth = 0) {
         } else if (oct) {
           append(String.fromCharCode(parseInt(oct[0], 8)))
           j += oct[0].length - 1
-        } else append({ n: '\n', t: '\t', r: '\r', a: '\x07', b: '\b', e: '\x1b', f: '\f', v: '\v' }[e] ?? e)
+        } else append(literal({ n: '\n', t: '\t', r: '\r', a: '\x07', b: '\b', e: '\x1b', f: '\f', v: '\v' }[e] ?? e))
       }
       i = j + 1
     } else if (c === '$' && src[i + 1] === '"') {
@@ -355,7 +384,7 @@ export function parseCommands(src, depth = 0) {
     } else if (c === "'") {
       const j = src.indexOf("'", i + 1)
       const end = j < 0 ? n : j
-      append(src.slice(i + 1, end))
+      append(literal(src.slice(i + 1, end)))
       i = end + 1
     } else if (c === '"') {
       append('')
@@ -364,7 +393,7 @@ export function parseCommands(src, depth = 0) {
         const d = src[j]
         if (d === '\\') {
           const e = src[j + 1] ?? ''
-          if ('$`"\\'.includes(e)) append(e)
+          if ('$`"\\'.includes(e)) append(literal(e))
           else if (e !== '\n') append(`\\${e}`)
           j++
         } else if (d === '$' && src[j + 1] === '(') {
@@ -513,7 +542,7 @@ const DECLARES = new Set(['export', 'declare', 'typeset', 'readonly', 'local'])
 export function cdTarget(c) {
   if (c.name !== 'cd' && c.name !== 'pushd' && c.name !== 'popd') return null
   if (c.name === 'popd') return 'back'
-  const ops = c.args.filter(a => !/^-[LPen@]+$/.test(a) && a !== '--')
+  const ops = c.args.filter(a => !/^-[LPen@qs]+$/.test(a) && a !== '--')
   const to = ops[0]
   // A bare pushd swaps the top two directories; zsh's `cd old new` substitutes.
   if (to === undefined) return c.name === 'pushd' ? 'back' : { to: '~' }

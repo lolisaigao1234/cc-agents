@@ -9,7 +9,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 
 import { fold, real, untilde } from './paths.mjs'
-import { GIT_COMMIT_OPTIONS, computed, gitParts, parseCommands, readOptions, withCwds } from './shell.mjs'
+import { GIT_COMMIT_OPTIONS, computed, gitParts, literal, parseCommands, readOptions, unliteral, withCwds } from './shell.mjs'
 
 /** @typedef {import('./shell.mjs').SimpleCommand} SimpleCommand */
 
@@ -182,24 +182,22 @@ function judge(text, accepts, { what, how, step, fix, refusal, hide = t => t }) 
 /**
  * `text` with each shell expansion replaced by `0`, which can neither start
  * nor finish a reference: `Closes ${X}#7` may become `Closes other/repo#7`.
- * `$(cat <<'EOF' … EOF)` is its heredoc's text. Null when an expansion is
- * left that this cannot follow.
+ * `$(cat <<EOF … EOF)` is its heredoc's text, and a `$` that starts no
+ * expansion is kept. Null when an expansion is left that this cannot follow.
  *
  * @param {string} text @returns {string | null}
  */
 function dropExpansions(text) {
-  let t = text.replace(/\$\(\s*cat\s*<<-?\s*(['"])([^'"\n]+)\1[ \t]*\n([\s\S]*?)\n[ \t]*\2[ \t]*\n\s*\)/g, (_, _q, _d, body) => literal(body))
+  let t = text
+    .replace(/\$\(\s*cat\s*<<-?[ \t]*(['"])([^'"\n]+)\1[ \t]*\n([\s\S]*?)\n[ \t]*\2[ \t]*\n\s*\)/g, (_, _q, _d, body) => literal(body))
+    .replace(/\$\(\s*cat\s*<<-?[ \t]*([A-Za-z_]\w*)[ \t]*\n([\s\S]*?)\n[ \t]*\1[ \t]*\n\s*\)/g, (_, _d, body) => body)
   for (let before = ''; before !== t; ) {
     before = t
-    t = t.replace(/\$\([^()]*\)|`[^`]*`|\$\{[^{}]*\}|\$(?:[A-Za-z_]\w*|[0-9@*#?$!-])|\{[^{},\s]*\.\.[^{},\s]*\}/g, '0')
+    t = t.replace(/\$\(\([^()]*(?:\([^()]*\)[^()]*)*\)\)|\$\[[^\]]*\]|\$\([^()]*\)|`[^`]*`|\$\{[^{}]*\}|\$(?:[A-Za-z_]\w*|[0-9@*#?$!-])|\{[^{},\s]*\.\.[^{},\s]*\}/g, '0')
   }
+  t = t.replace(/\$(?![A-Za-z_{(\[0-9@*#?$!'"-])/g, literal('$'))
   return /[$`]/.test(t) ? null : t
 }
-
-/** @param {string} t text the shell does not expand: a file's, or a quoted heredoc's */
-const literal = t => t.replace(/\$/g, '').replace(/`/g, '')
-/** @param {string} t */
-const unliteral = t => t.replace(//g, '$').replace(//g, '`')
 
 /** @param {string} s */
 const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -214,7 +212,7 @@ const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
  */
 function fileText(v, run, dir) {
   if (v === undefined || computed(v)) return null
-  if (v === '-') return run.c.piped || run.c.stdin === undefined ? null : run.c.stdinLiteral ? literal(run.c.stdin) : run.c.stdin
+  if (v === '-') return run.c.piped ? null : run.c.stdin ?? null
   const path = isAbsolute(untilde(v, '/')) ? untilde(v, '/') : dir === null ? null : resolve(dir, untilde(v, dir))
   if (path === null) return null
   const name = fold(basename(path))
@@ -224,12 +222,12 @@ function fileText(v, run, dir) {
     // A word the shell computes or globs may name this file; any other names it in some form.
     const words = PRINTS.has(e.name) ? e.files : [...e.args, ...e.files]
     if (words.some(w => /[$`*?[]/.test(w))) return null
-    if (!words.some(w => fold(w).includes(name))) continue
+    if (!words.some(w => new RegExp(`(?:^|[/=:])${escape(name)}$`).test(fold(w)))) continue
     // Only a `cat` that surely runs, and finishes, before this command writes known text.
     const chained = (/** @type {string | undefined} */ op) => op === '&&' || op === ';'
     const writes = e.name === 'cat' && !e.args.length && e.files.length === 1 && e.stdin !== undefined && !e.piped && chained(e.op) && (i === 0 || chained(run.earlier[i - 1]?.op)) && e.level === run.c.level
     if (!writes) return null
-    written = e.stdinLiteral ? literal(/** @type {string} */ (e.stdin)) : e.stdin
+    written = e.stdin
   }
   if (written !== undefined) return written
   try {
@@ -255,6 +253,16 @@ const setting = (config, key, root, git) => {
   return kv !== undefined ? kv.slice(key.length + 1) : root ? git.config(root, key) : null
 }
 
+/** @param {SimpleCommand} c @returns {boolean} whether `c` may set a git alias */
+function definesGitAlias(c) {
+  if (c.name !== 'git') return false
+  const { sub, rest } = gitParts(c.args)
+  if (sub !== 'config') return false
+  const words = rest[0] === 'set' ? rest.slice(1) : rest
+  if (words.some(w => /^(?:--get(?:-all|-regexp)?|--list|-l|--unset(?:-all)?|get|list)$/.test(w))) return false
+  return words.some(w => /^(?:alias\.|--file|-f$|--edit|-e$)/i.test(w) || computed(w))
+}
+
 /** @param {Run} run @param {World} world */
 function commitVerdict(run, world) {
   let parts = gitParts(run.c.args)
@@ -263,7 +271,7 @@ function commitVerdict(run, world) {
   const lookIn = place && (place.root ?? place.dir)
   let config = parts.config
   // Follow aliases, which may name other aliases; one defined earlier on the line is not known yet.
-  const defines = run.earlier.some(e => e.name === 'git' && gitParts(e.args).sub === 'config')
+  const defines = run.earlier.some(definesGitAlias)
   const fix = (/** @type {number} */ n) => `run \`git commit\` directly, with "#${n}" in its message`
   for (const seen = new Set(); parts.sub && !GIT_COMMANDS.has(parts.sub); ) {
     const name = parts.sub
@@ -399,13 +407,16 @@ function prVerdict(run, world) {
   const name = two !== null && world.github.alias(two) !== null ? two : first !== undefined && !GH_COMMANDS.has(first) ? first : null
   if (name !== null) {
     const alias = world.github.alias(name)
-    if (alias === null && !run.earlier.some(e => e.name === 'gh' && e.args.includes('alias'))) return null
+    if (alias === null && !run.earlier.some(e => e.name === 'gh' && e.args[0] === 'alias' && (e.args[1] === 'set' || e.args[1] === 'import'))) return null
     if (alias === null || alias.startsWith('!') || alias.includes('$')) return opaqueVerdict(`what \`gh ${name}\` runs`, place, world, fix, 'Review')
     const at = args.indexOf(first)
     args = [...args.slice(0, at), ...(parseCommands(`gh ${alias}`)[0]?.args ?? []), ...args.slice(at + name.split(' ').length)]
     ;({ opts, operands, unknown: unknownOption } = read(args))
   }
+  // An option this does not know may take the next word as its value, so the
+  // subcommand is only certain when it is one of gh pr's own.
   const sub = operands[0] === 'pr' ? operands[1] : undefined
+  if (sub !== undefined && GH_PR_COMMANDS.has(sub)) return null
   const loose = unknownOption !== null && args.includes('pr')
   if (!(sub === 'create' || sub === 'new' || sub === 'edit' || (loose && args.some(a => a === 'create' || a === 'new' || a === 'edit')))) return null
   /** @type {Record<string, string | undefined>} */
@@ -482,8 +493,11 @@ function computedVerdict(run, world) {
 
 // git's own subcommands: a word outside this set may be an alias.
 const GIT_COMMANDS = new Set(
-  'add am annotate apply archive bisect blame branch bundle cat-file check-attr check-ignore checkout checkout-index cherry cherry-pick citool clean clone commit commit-graph commit-tree config count-objects describe diff diff-files diff-index diff-tree difftool fetch fetch-pack for-each-ref format-patch fsck gc grep gui hash-object help init log ls-files ls-remote ls-tree maintenance merge merge-base mergetool mktag mktree mv notes pull push range-diff read-tree rebase reflog remote repack replace reset restore rev-list rev-parse revert rm shortlog show show-ref sparse-checkout stash status submodule switch symbolic-ref tag update-index update-ref var verify-commit verify-pack verify-tag whatchanged worktree write-tree'.split(' '),
+  'add am annotate apply archive backfill bisect blame branch bugreport bundle cat-file check-attr check-ignore check-mailmap check-ref-format checkout checkout-index cherry cherry-pick citool clean clone column commit commit-graph commit-tree config count-objects credential describe diagnose diff diff-files diff-index diff-tree difftool fast-export fast-import fetch fetch-pack filter-branch for-each-ref format-patch fsck gc grep gui hash-object help hook init instaweb interpret-trailers log ls-files ls-remote ls-tree mailinfo mailsplit maintenance merge merge-base merge-file merge-tree mergetool mktag mktree mv name-rev notes pack-objects pack-refs prune prune-packed pull push range-diff read-tree rebase reflog refs remote repack replace replay request-pull rerere reset restore rev-list rev-parse revert rm scalar send-email shortlog show show-branch show-ref sparse-checkout stage stash status submodule switch symbolic-ref tag unpack-objects update-index update-ref upload-pack var verify-commit verify-pack verify-tag version whatchanged worktree write-tree'.split(' '),
 )
+
+// gh pr's subcommands that never create a PR or change its body.
+const GH_PR_COMMANDS = new Set('checkout checks close comment diff list lock merge ready reopen revert review status unlock update-branch view'.split(' '))
 
 // gh's own top-level commands: a word outside this set may be an alias.
 const GH_COMMANDS = new Set(
