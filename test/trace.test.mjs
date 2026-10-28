@@ -255,17 +255,39 @@ test('the hook tells each agent about the linked issue when it starts, nudges on
   const session = `s-${process.pid}-${Math.random().toString(36).slice(2)}`
   const start = hook({ hook_event_name: 'SessionStart', source: 'compact', cwd: dir, session_id: session }, {}, issues, 'session-start')
   assert.equal(start?.hookEventName, 'SessionStart')
-  assert.match(String(start?.additionalContext), /^Trace: this branch belongs to issue #9, "Keep context" \(owner\/name\)\.\nAcceptance criteria:\n- \[ \] it works\n\nLatest comment, by h on 2026-01-01:\nStarted\.\n\nRelated docs, .*GLOSSARY\.md, and issue #9's title, body and 1 comment\./s)
+  assert.match(String(start?.additionalContext), /^Trace: this branch belongs to issue #9, "Keep context" \(owner\/name\)\. .*\nAcceptance criteria:\n> - \[ \] it works\n\nLatest comment, by h on 2026-01-01:\n> Started\.\n\nRelated docs, .*GLOSSARY\.md, and issue #9's title, body and 1 comment\./s)
   const sub = hook({ hook_event_name: 'SubagentStart', agent_id: 'a1', agent_type: 'general-purpose', cwd: dir, session_id: session }, {}, issues, 'subagent-start')
   assert.equal(sub?.hookEventName, 'SubagentStart')
   assert.match(String(sub?.additionalContext), /issue #9, "Keep context"/)
-  assert.equal(hook({ hook_event_name: 'SessionStart', source: 'startup', cwd: repo(false).dir, session_id: session }, {}, issues, 'session-start'), null, 'an untraced repository is told nothing')
+  const untraced = repo(false).dir
+  for (const [source, event] of [['startup', 'session-start'], ['resume', 'session-start'], ['compact', 'session-start'], [undefined, 'subagent-start']]) {
+    assert.equal(hook({ hook_event_name: 'x', source, agent_id: 'a1', cwd: untraced, session_id: session }, {}, issues, event), null, `an untraced repository is told nothing: ${event} ${source}`)
+  }
+  assert.equal(hook({ hook_event_name: 'Stop', stop_hook_active: false, cwd: untraced, session_id: session }, {}, issues, 'stop'), null)
 
   const stop = () => hook({ hook_event_name: 'Stop', stop_hook_active: false, cwd: dir, session_id: session }, {}, issues, 'stop')
   assert.equal(stop(), null, 'nothing pushed yet')
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD')
   git('update-ref', 'refs/remotes/origin/9-keep-context', 'HEAD')
-  assert.deepEqual(stop(), { decision: 'block', reason: 'trace: commits were pushed to 9-keep-context after the last comment on #9. Update step: post a progress comment on #9 (progress, decisions, verification results), with `gh issue comment 9 -R owner/name`. This asks once.' })
+  assert.equal(stop(), null, 'the pushed branch holds nothing beyond its base')
+  // Committed before the last comment, pushed after it.
+  process.env.GIT_COMMITTER_DATE = '2025-12-01T00:00:00Z'
+  try {
+    git('commit', '-q', '--allow-empty', '-m', 'old work (#9)')
+  } finally {
+    delete process.env.GIT_COMMITTER_DATE
+  }
+  git('update-ref', 'refs/remotes/origin/9-keep-context', 'HEAD')
+  const nudge = { decision: 'block', reason: 'trace: commits were pushed to 9-keep-context after the last comment on #9. Update step: post a progress comment on #9 (progress, decisions, verification results), with `gh issue comment 9 -R owner/name`. This asks once.' }
+  assert.deepEqual(stop(), nudge)
   assert.equal(stop(), null, 'then lets the stop through')
+  assert.equal(hook({ hook_event_name: 'Stop', stop_hook_active: false, cwd: dir, session_id: `${session}-2` }, {}, issues, 'stop'), null, 'and a new session too, for the same head')
+  // Pushed to an upstream of another name.
+  git('commit', '-q', '--allow-empty', '-m', 'more (#9)')
+  git('update-ref', 'refs/remotes/origin/keep-context', 'HEAD')
+  git('config', 'branch.9-keep-context.remote', 'origin')
+  git('config', 'branch.9-keep-context.merge', 'refs/heads/keep-context')
+  assert.deepEqual(stop(), nudge)
 
   const glossary = join(dir, 'GLOSSARY.md')
   const as = { cwd: dir, session_id: session }

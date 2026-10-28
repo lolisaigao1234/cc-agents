@@ -91,16 +91,23 @@ const INACTIVE = /^(?:superseded|deprecated|rejected)\b/i
  * @param {string} text @param {string[] | null} paths relative to the root
  */
 function adrApplies(text, paths) {
-  const head = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(lf(text))?.[1] ?? ''
-  if (INACTIVE.test(/^status:\s*["']?([^"'\n]*)/m.exec(head)?.[1]?.trim() ?? '')) return false
-  const at = /^applies-to:[ \t]*(.*)\n?((?:[ \t]+-.*\n?)*)/m.exec(head)
-  if (!at || !paths) return true
+  if (INACTIVE.test(/^status:\s*["']?([^"'\n]*)/m.exec(frontmatter(text))?.[1]?.trim() ?? '')) return false
+  const globs = appliesTo(text)
+  return !globs || !paths || paths.some(p => globs.some(g => globRe(g).test(p)))
+}
+
+/** @param {string} text @returns {string} an ADR's frontmatter, without its fences */
+const frontmatter = text => /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(lf(text))?.[1] ?? ''
+
+/** @param {string} text an ADR @returns {string[] | null} its `applies-to:` globs; null when it has none, or a list that cannot be read */
+function appliesTo(text) {
+  const at = /^applies-to:[ \t]*(.*)\n?((?:[ \t]+-.*\n?)*)/m.exec(frontmatter(text))
+  if (!at) return null
   const unquote = (/** @type {string} */ s) => s.replace(/\s+#.*$/, '').trim().replace(/^(["'])(.*)\1$/, '$2')
   const [, inline = '', block = ''] = at
   const value = unquote(inline)
   const globs = (value.startsWith('[') ? value.replace(/^\[|\]$/g, '').split(',') : value ? [value] : block.split('\n').map(l => l.replace(/^\s*-/, ''))).map(unquote).filter(Boolean)
-  if (!globs.length || globs.some(g => /[{}[\],]/.test(g))) return true
-  return paths.some(p => globs.some(g => globRe(g).test(p)))
+  return !globs.length || globs.some(g => /[{}[\],]/.test(g)) ? null : globs
 }
 
 /** @param {string} glob @returns {RegExp} a path glob: `**`, `*`, `?`; a pattern without them also matches what is under it */
@@ -178,11 +185,16 @@ const size = path => {
 
 /**
  * The names of the related docs for any change, for an agent to be told
- * what it must read.
+ * what it must read; a scoped ADR names the paths it is related to.
  *
  * @param {string} root @param {Issue} issue @param {HeadDocs} head @returns {string[]}
  */
-export const relatedDocNames = (root, issue, head) => relatedDocs(root, null, issue, head).map(d => d.name)
+export const relatedDocNames = (root, issue, head) =>
+  relatedDocs(root, null, issue, head).map(d => {
+    const scopes = [...('text' in d.now ? [d.now.text] : []), ...(d.head === null ? [] : [d.head])].map(appliesTo)
+    if (!d.name.startsWith('docs/adr/') || !scopes.length || scopes.some(s => s === null)) return d.name
+    return `${d.name} (for edits of ${[...new Set(scopes.flat())].join(', ')}, and any commit)`
+  })
 
 /** @param {Issue} issue @returns {{ what: string, text: string, hash: string, comment?: string }[]} the parts of an issue to read */
 const issueParts = issue =>

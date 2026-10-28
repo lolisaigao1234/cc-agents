@@ -37,17 +37,17 @@ A PostToolUse hook records what each agent read, separately for the main session
 
 The records live in the temp directory under `trace-reads/`, signed for the agent they belong to, so one copied from another agent or written by hand does not count. The hook refuses edits there and Bash commands that name it. A model that set out to read the signing key could still forge a record: the forced reads are a seatbelt against drift, not a sandbox.
 
-### The issue in context
-
-The issue is the record that survives compaction (ADR 0006). When a session starts, resumes or is compacted, and when a subagent starts, a hook tells the agent the linked issue's title, its acceptance criteria (or its body, when it has none), its latest comment, and the related docs it must read; off an issue's branch, it names the step to go back to. Long parts are cut, with the command that prints them whole. This is orientation: the forced reads still decide what may be changed. After a compaction, the agent's reads are forgotten, since its context no longer holds them, and it reads the docs again.
-
-When the agent stops after commits were pushed to the issue's branch since the issue's last comment, the Stop hook blocks once and asks for a progress comment: progress, decisions, verification results. It asks once per pushed head, and lets the next stop through. When GitHub cannot say, it lets the stop through.
-
-Nothing is injected, and nothing nudged, in a repository that has not opted in, or under `TRACE_BYPASS=1`.
-
 It resolves symlinks and `~` first, and a nested repository that is not traced itself is gated by the traced one around it. It asks GitHub about `origin`'s repository on every edit, commit and PR; when GitHub cannot answer in time, it refuses. Edits outside any traced repository are never gated.
 
 The human switches the trace off by launching Claude Code with `TRACE_BYPASS=1`. The edit tools cannot: everywhere, they are refused a change to `env`, `disableAllHooks`, `enabledPlugins` or `hooks` in any Claude Code settings file (user, `CLAUDE_CONFIG_DIR`, project, local or managed), any settings change the hook cannot read or predict, and any change to installed plugins. A plugin loaded with `--plugin-dir` is ordinary code in its own repository. A Bash command that writes those settings is still an open route (#13).
+
+### The issue in context
+
+The issue is the record that survives compaction (ADR 0006). When a session starts, resumes or is compacted, and when a subagent starts, a hook tells the agent the linked issue's title, its acceptance criteria (the section under that heading, or the body when it has none), its latest progress comment (one headed "Progress", else the latest comment), and the related docs it must read, with the paths a scoped ADR covers; off an issue's branch, it names the step to go back to. The issue's own text is quoted line by line, so nothing a GitHub user wrote reads as the hook's words. Long parts are cut, with the command that prints them whole. This is orientation: the forced reads still decide what may be changed. After a compaction, the agent's reads are forgotten, since its context no longer holds them, and it reads the docs again.
+
+When the agent stops after commits reached the issue's branch on its remote since the issue's last comment, the Stop hook blocks once and asks for a progress comment: progress, decisions, verification results. The branch is where git pushes it (its push destination, else its upstream, else origin's branch of its name), and it counts only when it holds commits the remote's other branches do not; the time is when that ref last moved here, else its commit date. It asks once per pushed head, in any session, and lets the next stop through. When git or GitHub cannot say, it lets the stop through.
+
+Nothing is injected, and nothing nudged, in a repository that has not opted in, or under `TRACE_BYPASS=1`.
 
 ## The guard
 

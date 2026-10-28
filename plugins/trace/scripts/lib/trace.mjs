@@ -24,8 +24,9 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
  * What the trace needs from git. `origin` is origin's GitHub repository as
  * `owner/name`, and `ghBase` the one gh opens PRs in when not told; `message`
  * a commit's message; `config` a setting's value; `headDocs` the glossary and
- * ADRs as HEAD has them; `pushed` the head of a branch as origin last had it
- * here, and when it was committed (ISO 8601).
+ * ADRs as HEAD has them; `pushed` the head of a branch as its remote last
+ * had it here, and when it got there (ISO 8601), or null when that holds
+ * nothing beyond the remote's other branches.
  *
  * @typedef {{
  *   root(path: string): string | null,
@@ -746,9 +747,18 @@ const realGit = {
     return [...remotes].filter(([, r]) => r.slug).sort(([a], [b]) => rank(a) - rank(b))[0]?.[1].slug ?? null
   },
   message: (root, rev) => git(root, ['log', '-1', '--format=%B', rev, '--']),
+  // Where the branch is pushed: its push destination, else its upstream,
+  // else origin's branch of its name. Null unless that holds commits no other
+  // branch of the remote has. Its time is when the ref last moved here (the
+  // reflog), else the commit's date.
   pushed(root, branch) {
-    const [sha, at] = (git(root, ['log', '-1', '--format=%H %cI', `refs/remotes/origin/${branch}`, '--']) ?? '').split(' ')
-    return sha && at ? { sha, at } : null
+    const full = (/** @type {string} */ rev) => git(root, ['rev-parse', '--symbolic-full-name', rev])
+    const ref = [full(`${branch}@{push}`), full(`${branch}@{upstream}`)].find(r => r?.startsWith('refs/remotes/')) ?? `refs/remotes/origin/${branch}`
+    const [, remote = '', name = ''] = /^refs\/remotes\/([^/]+)\/(.+)$/.exec(ref) ?? []
+    const [sha, committed] = (git(root, ['log', '-1', '--format=%H %cI', ref, '--']) ?? '').split(' ')
+    if (!sha || !committed || !git(root, ['rev-list', '-1', ref, '--not', `--exclude=${remote}/${name}`, `--remotes=${remote}`])) return null
+    const moved = /@\{(.+)\}$/.exec(git(root, ['reflog', 'show', '-1', '--format=%gd', '--date=iso-strict', ref, '--']) ?? '')?.[1]
+    return { sha, at: moved && !Number.isNaN(Date.parse(moved)) ? moved : committed }
   },
   config: (root, key) => git(root, ['config', '--get', key]),
   headDocs(root) {

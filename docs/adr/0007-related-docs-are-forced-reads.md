@@ -18,6 +18,7 @@ A doc counts as read only when the agent has read **the whole file itself**:
 - A partial view does not count.
 - A read goes stale when the file's content changes after it.
 - A subagent's reads are its own: its parent's context is not its context.
+- A compaction forgets the agent's reads: its summarised context no longer holds the docs.
 
 A hard deny on Edit, Write, MultiEdit and NotebookEdit, and on `git commit` as the backstop for changes made through Bash, lists exactly which docs are unread or stale. Where the hook's input is uncertain or undocumented, the check requires a re-read and never skips one.
 
