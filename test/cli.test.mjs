@@ -127,6 +127,10 @@ test('full review loop: hallucination rejected, finding confirmed, fixed, done',
   })
   qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'restored < bound; regression test added'])
 
+  // The fix came after the review: one more round reviews it.
+  assert.match(qlOk(root, ['round', 'end']), /decision: CONTINUE/)
+  qlOk(root, ['round', 'begin'])
+  finishReview(root)
   const end = qlOk(root, ['round', 'end'])
   assert.match(end, /decision: DONE/)
   const s = state(root)

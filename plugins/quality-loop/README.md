@@ -9,7 +9,7 @@ It runs **review → verify → fix → validate** rounds until a finish line is
 - **Fix:** one `fixer` per bug class, test-first, every instance of the class.
 - **Validate:** your repository's own checks run after every round; any regression, dropped test, skipped/focused test or deleted assertion **reverts the round** to its checkpoint.
 - **Keep it small:** review loops grow a change one cheap-looking fix at a time. Fixers make the smallest fix and prefer deleting or narrowing code; a defect on another path, in a rare case or a small cost is a nit. `ql` measures the change against the base at start and after every round, and tells you when the fixes grew its code past `loop.maxGrowth` (50%).
-- **Stop:** done when checks pass and nothing important is open; otherwise a round cap (3), stall, divergence and oscillation detection and a per-finding attempt limit stop the loop for a human.
+- **Stop:** done when checks pass, nothing important is open and a review has read every fix (fixes made after a round's review get one more round that reviews them); otherwise a round cap (3), stall, divergence and oscillation detection and a per-finding attempt limit stop the loop for a human.
 
 ## Install
 

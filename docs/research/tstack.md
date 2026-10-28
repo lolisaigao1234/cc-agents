@@ -45,7 +45,7 @@ Every tstack skill that reviews or fixes repeats the same warning: review loops 
 | Round budget 3; later rounds see only changed code and open findings | `loop.maxRounds` 3; diff-only re-review; `known-findings.json` in hunter briefs | Have |
 | Extend to 5 by itself for security, auth, data loss or concurrency | Only the user may extend (`ql extend`, guarded) | **No**: conflicts with "only the user may extend" |
 | Stop early if a round returns only nits | `DONE` ignores open nits; `maxNitsPerRound` | Have |
-| Next round if **approval does not cover the current behaviour diff** | When a round's fixes close the last important finding, `ql round end` says `DONE`, so those fixes are checked but never reviewed (`test/lifecycle.test.mjs`, "an unfixed confirmed nit…") | **Yes**: proposal 1 |
+| Next round if **approval does not cover the current behaviour diff** | Was: when a round's fixes closed the last important finding, `ql round end` said `DONE`, so those fixes were checked but never reviewed | **Taken**: `ql` records the tree each review ingest read; a round that ends with edits after it is `CONTINUE` (or `CAPPED` at the cap), and the next, diff-only round reviews them (`decide.mjs`) |
 | Answer each finding: agree, disagree with evidence, decline in one line | Quorum voting, `wontfix --reason`, the fixer's `outside` lines | Have, and stricter |
 | Disputed twice → show both sides; the user decides | Stuck findings → `STALLED` | Have |
 | Keep a ledger; never guess usage | `state.json`; the report says what could not be confirmed | Have |
@@ -55,7 +55,7 @@ Every tstack skill that reviews or fixes repeats the same warning: review loops 
 | Technique | quality-loop today | Take it? |
 |---|---|---|
 | **Proof** is evidence seen this session: repro fails → fix → passes; the CI checks; a focused test | `debug`'s red repro; test-first fixers; checks every round, revert on regression | Have |
-| Proof and review must cover **the final diff** | Checks do; review does not for the last round's fixes | Proposal 1 |
+| Proof and review must cover **the final diff** | Checks do, and now so does review: `DONE` needs a review that read every edit | Taken |
 | **Asking the user** with the question tool, because an ordinary message goes unseen; with no tool, take the safe path and lead with the question | `ql pause --reason`, then a plain-text question | **Yes**: proposal 3 |
 | Decide the rest with sensible defaults and **list those decisions** | No place in the report | **Yes**: proposal 5 |
 | Stay active to the end | The Stop hook keeps an active loop going (bounded) | Have |
@@ -106,7 +106,7 @@ Every tstack skill that reviews or fixes repeats the same warning: review loops 
 
 ## What to take next, in order
 
-1. **No `DONE` while fixes are unreviewed.** When a round fixed findings, `ql round end` returns `CONTINUE` for one round that reviews only the fixes (the diff-only scope already does that), unless the cap is reached; `CAPPED` then reports them as checked but not reviewed. Cost: an extra round in most loops.
+1. ~~No `DONE` while fixes are unreviewed.~~ Done: a round that edits the tree after its last review ingest returns `CONTINUE`, and the next, diff-only round reviews those edits; at the cap it is `CAPPED`, with the reason under **Blocked on me**. Cost: an extra round in most loops that fix something.
 2. **A lens run by another provider's model.** A runner command (like `scripts/runners/claude-review.sh`, for another provider's CLI) runs as one extra hunter. Its JSON goes through `ql ingest`, so the quote check and verifier quorum apply to it, which is stronger than sol-loop, where the author agent alone judges the other model's findings. Read-only, no subagents, never substitute a model, and no reply never counts as a pass. Needs config (`review.externalLenses`) and an ADR.
 3. **Ask with `AskUserQuestion`** after `ql pause --reason`, in `improve`, `debug` and `decisions.md`: the reason, what was tried, the options with the recommended one first. With no answer, the loop stays paused and the report leads with the question.
 4. **A lens that never answered is not a clean lens.** After the one re-run, the hunter's lens is reported under **Blocked on me** rather than recorded with `--none`.

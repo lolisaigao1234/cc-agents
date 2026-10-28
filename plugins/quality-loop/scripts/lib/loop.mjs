@@ -443,6 +443,9 @@ export function ingest(root, raws, lens) {
   } else if (raws === null && !lenses.includes(lens)) {
     throw new LoopError(`\`ql ingest --none\` needs --lens naming a configured lens (${lenses.join(', ')}), or --lens scope for an empty scope; got "${lens || '(none)'}"`)
   }
+  // The tree this round's review has read: an edit after the last ingest
+  // (the fix step's) is unreviewed until a later round reads it (endRound).
+  r.reviewedTree = tree
   const diffFiles = parseUnifiedDiff(diffTrees(root, s.baseCommit, tree, { context: 0 }))
   const { report } = ingestFindings(s.ledger, raws ?? [], {
     round: s.round,
@@ -624,6 +627,8 @@ export async function endRound(root, opts = {}) {
     )
   }
   const r = currentRound(s)
+  // Read before the checks run, so files a check writes are not taken for edits.
+  const unreviewedEdits = !!r.reviewedTree && !!now && diffTrees(root, r.reviewedTree, now.tree).trim() !== ''
   const specs = checkSpecs(s)
   const logDir = join(paths(root).runs, s.id, `round-${r.n}`)
   const run = await runChecks(specs, { cwd: root, logDir, label: `round-${r.n}` })
@@ -751,6 +756,7 @@ export async function endRound(root, opts = {}) {
       .map((/** @type {any} */ x) => ({ startScore: x.startScore, endScore: x.endScore, reverted: x.reverted, found: x.found })),
     startScore,
     found: live.filter(f => f.confirmedRound === r.n).length,
+    unreviewedEdits,
   })
   // What a revert could not undo (a moved HEAD, nested repositories, write
   // failures) needs a human before another round builds on it: the decision

@@ -6,6 +6,7 @@ This repository ships **quality-loop**, a Claude Code plugin that reviews, fixes
 
 - **Loop** — one run of review → verify → fix → validate rounds toward a finish line. Its state is `.quality-loop/state.json`; its human-readable anchor is `.quality-loop/LOOP.md`.
 - **Context cap** — the context size (`loop.maxContextTokens`, 300k) at which a loop's session and its agents compact, so attention stays on the goal; `LOOP.md` carries the loop across each compaction.
+- **Unreviewed edit** — a change to the tree after a round's last review ingest, usually the fix step's. A round that ends with one is not `DONE`: the next round reviews it (diff-only), or at the cap the loop is `CAPPED`.
 - **Finish line** — the loop's stated goal: what "done" means. Set once at `ql start`, immutable during the run.
 - **Round** — one pass: begin (checkpoint + scope), review, verify, fix, end (validate + decide).
 - **Scope** — the diff a round's reviewers read: the whole change vs the base in round 1, then only what changed since the last kept round (diff-only re-review).

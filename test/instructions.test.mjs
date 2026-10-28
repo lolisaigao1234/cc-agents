@@ -147,11 +147,12 @@ test('improve flow: after DONE the loop takes no more rounds, and `ql export --a
   ql(root, ['start', '--mode', 'review', '--goal', 'every finding fixed, nits included'])
   ql(root, ['round', 'begin'])
   const nit = { title: 'Stray TODO', file: 'a.js', line: 1, quote: 'export const x = 1 // TODO', category: 'conventions', severity: 'nit', bugClass: 'stray-todo', explanation: 'Leftover marker.', failureScenario: 'The TODO ships.' }
+  // Both files before the review: a file written after it is an unreviewed edit.
   writeFileSync(join(root, 'hunter.json'), JSON.stringify([nit]))
-  ql(root, ['ingest', 'hunter.json', '--lens', 'conventions'])
-  for (const lens of ['correctness', 'security', 'regressions-and-edge-cases']) ql(root, ['ingest', '--none', '--lens', lens])
   const votes = ['a', 'b', 'c'].map(v => ({ id: 'F1', verdict: 'confirm', voter: v, reason: 'seen', severity: 'nit' }))
   writeFileSync(join(root, 'votes.json'), JSON.stringify(votes))
+  ql(root, ['ingest', 'hunter.json', '--lens', 'conventions'])
+  for (const lens of ['correctness', 'security', 'regressions-and-edge-cases']) ql(root, ['ingest', '--none', '--lens', lens])
   ql(root, ['vote', 'votes.json'])
   assert.match(ql(root, ['round', 'end']), /DONE/, 'ql DONE ignores the open nit the finish line names')
   const open = JSON.parse(ql(root, ['export', '--all'])).filter((/** @type {any} */ f) => f.status === 'confirmed')

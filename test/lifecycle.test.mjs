@@ -215,6 +215,10 @@ test('an unfixed confirmed nit never makes the loop STALLED', () => {
   finishReview(root)
   writeFiles(root, { 'src/cart.js': BUGGY.replace('i <= items.length', 'i < items.length') })
   qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'bound is < again'])
+  assert.match(qlOk(root, ['round', 'end']), /decision: CONTINUE/, 'the fix is reviewed next round')
+
+  qlOk(root, ['round', 'begin'])
+  finishReview(root)
   const end = qlOk(root, ['round', 'end'])
   assert.match(end, /decision: DONE/)
   const s = state(root)
@@ -496,7 +500,10 @@ test("an empty scope recorded while findings are open stays valid for that round
   assert.match(qlOk(root, ['next']), /^Validate/)
   const end = ql(root, ['round', 'end'])
   assert.equal(end.code, 0, end.err)
-  assert.match(end.out, /decision: DONE/)
+  assert.match(end.out, /decision: CONTINUE/, 'the fix, made after the review, is reviewed next round')
+  qlOk(root, ['round', 'begin'])
+  finishReview(root)
+  assert.match(qlOk(root, ['round', 'end']), /decision: DONE/)
 })
 
 /**
@@ -781,6 +788,9 @@ test('size meter: round end, the fix brief and the report show the change growin
     assert.match(brief, /## Size\n\nThe change is 1 file, 4 code lines, 0 test lines against the base/)
     writeFiles(root, { 'src/cart.js': fixed })
     qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'bound is < again'])
+    assert.match(qlOk(root, ['round', 'end']), /decision: CONTINUE/)
+    qlOk(root, ['round', 'begin'])
+    finishReview(root)
     const end = qlOk(root, ['round', 'end'])
     assert.match(end, /decision: DONE/)
     return { root, end, report: qlOk(root, ['report']) }
@@ -811,4 +821,47 @@ test('size meter: a debug loop shows the sizes without the growth warning, since
   assert.match(end, /^size: 1 file, 4 code lines, 0 test lines at start → 1 file, 22 code lines, 0 test lines now$/m)
   assert.doesNotMatch(end, /WARNING/)
   assert.doesNotMatch(qlOk(root, ['report']), /grew/)
+})
+
+test('fixes made after the review are reviewed by one more round before the loop is DONE', () => {
+  const root = buggyProject()
+  qlOk(root, ['start', '--mode', 'review', '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  ingest(root, [FINDING], 'correctness')
+  finishReview(root)
+  voteAll(root, 'F1')
+  writeFiles(root, { 'src/cart.js': BUGGY.replace('i <= items.length', 'i < items.length') })
+  qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'bound is < again'])
+  const first = qlOk(root, ['round', 'end'])
+  assert.match(first, /decision: CONTINUE/, 'the fix has not been reviewed yet')
+  assert.match(first, /round 1 changed code after its review/)
+
+  // The next round reviews only the fix, finds nothing, edits nothing: DONE.
+  const begun = qlOk(root, ['round', 'begin'])
+  assert.match(begun, /diff-only/)
+  finishReview(root)
+  assert.match(qlOk(root, ['round', 'end']), /decision: DONE/)
+})
+
+test('a round that edits nothing after its review is DONE at once', () => {
+  const root = buggyProject()
+  qlOk(root, ['start', '--mode', 'review', '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  finishReview(root)
+  assert.match(qlOk(root, ['round', 'end']), /decision: DONE/)
+})
+
+test('unreviewed fixes in the last allowed round cap the loop, and the report says why', () => {
+  const root = buggyProject()
+  configure(root, { maxRounds: 1 })
+  qlOk(root, ['start', '--mode', 'review', '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  ingest(root, [FINDING], 'correctness')
+  finishReview(root)
+  voteAll(root, 'F1')
+  writeFiles(root, { 'src/cart.js': BUGGY.replace('i <= items.length', 'i < items.length') })
+  qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'bound is < again'])
+  assert.match(qlOk(root, ['round', 'end']), /decision: CAPPED/)
+  const blocked = qlOk(root, ['report']).split('## Changed')[0] ?? ''
+  assert.match(blocked, /pass the checks but no review has read them/)
 })

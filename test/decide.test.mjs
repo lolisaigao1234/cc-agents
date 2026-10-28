@@ -98,3 +98,23 @@ test('diverging: every round confirms at least as many new issues as the last', 
   assert.equal(d.status, 'stalled')
   assert.match(d.reasons.join(' '), /diverg/)
 })
+
+test('a clean round whose edits no review has read is not done: one more round reviews them', () => {
+  const d = decideRound(input({ startScore: 10, unreviewedEdits: true }))
+  assert.equal(d.status, 'continue')
+  assert.match(d.reasons.join(' '), /not been reviewed/)
+  assert.equal(decideRound(input({ startScore: 10, unreviewedEdits: false })).status, 'done')
+})
+
+test('at the round cap, unreviewed edits cap the loop rather than finish it', () => {
+  const d = decideRound(input({ round: 3, startScore: 10, unreviewedEdits: true }))
+  assert.equal(d.status, 'capped')
+  assert.match(d.reasons.join(' '), /pass the checks but no review has read them/)
+})
+
+test('unreviewed edits in a reverted round are gone, so they hold nothing up', () => {
+  const r = { newlyFailingRequired: ['test'], testCountDrops: [], blockingWeakening: [] }
+  const d = decideRound(input({ regressions: r, unreviewedEdits: true }))
+  assert.equal(d.revert, true)
+  assert.doesNotMatch(d.reasons.join(' '), /reviewed/)
+})
