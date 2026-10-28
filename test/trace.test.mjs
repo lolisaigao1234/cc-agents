@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -30,7 +31,7 @@ function world(o = {}) {
       message: (/** @type {string} */ _root, /** @type {string} */ rev) => messages[rev] ?? null,
       config: (/** @type {string} */ _root, /** @type {string} */ key) =>
         config[key] ?? (key.startsWith('alias.') ? aliases[key.slice('alias.'.length)] : undefined) ?? null,
-      changed: () => [],
+      headDocs: () => ({}),
     },
     github: {
       issueState: (/** @type {string} */ _root, /** @type {number} */ n) => (offline ? null : issues[n] ?? 'MISSING'),
@@ -211,22 +212,31 @@ test("the hook counts an agent's own full reads only, and only while the docs ar
   readAll()
   assert.equal(edit(), null)
   assert.match(String(edit('a1b2c3')?.permissionDecisionReason), /Unread: GLOSSARY\.md; issue #8/, "a parent's reads do not count for its subagent")
+  // A record copied from another agent, or written by hand, is not signed for this one.
+  const store = join(realpathSync(tmpdir()), 'trace-reads', session)
+  mkdirSync(join(store, 'f00d'), { recursive: true })
+  for (const name of readdirSync(join(store, 'main'))) copyFileSync(join(store, 'main', name), join(store, 'f00d', name))
+  const forged = { file: glossary, hash: createHash('sha256').update(readFileSync(glossary, 'utf8')).digest('hex'), from: 1, to: 4 }
+  writeFileSync(join(store, 'f00d', 'forged.json'), JSON.stringify({ record: forged, sig: 'x' }))
+  writeFileSync(join(store, 'f00d', 'bare.json'), JSON.stringify(forged))
+  assert.match(String(edit('f00d')?.permissionDecisionReason), /Unread: GLOSSARY\.md; issue #8/)
   readAll('a1b2c3')
   assert.equal(edit('a1b2c3'), null)
   writeFileSync(glossary, '# Terms\n\nA changed term.\n')
-  assert.match(String(edit()?.permissionDecisionReason), /Unread: GLOSSARY\.md \(changed since this agent read it\)\./)
-  assert.match(String(hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir }, {}, issues)?.permissionDecisionReason), /does not say which agent this is/)
-  assert.match(String(hook({ tool_name: 'Bash', tool_input: { command: 'git commit -m "x (#8)"' }, cwd: dir, ...as('') }, {}, issues)?.permissionDecisionReason), /GLOSSARY\.md \(changed/)
+  assert.match(String(edit()?.permissionDecisionReason), /Unread: GLOSSARY\.md \(stale: changed since this agent read it\)\./)
+  assert.match(String(hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir }, {}, issues)?.permissionDecisionReason), /cannot tell which agent this is/)
+  assert.match(String(hook({ tool_name: 'Bash', tool_input: { command: 'git commit -m "x (#8)"' }, cwd: dir, ...as('') }, {}, issues)?.permissionDecisionReason), /GLOSSARY\.md \(stale/)
 })
 
-test("the hook refuses tools that would touch the trace's read records", () => {
+test("the hook refuses tools that would touch the trace's read records, and only those", () => {
   const { dir } = repo(false)
-  for (const command of ['echo {} > "$TMPDIR/trace-reads/s/main/x.json"', `rm ${join(tmpdir(), 'trace-reads')}/s/main/x.json`]) {
+  for (const command of ['echo {} > "$TMPDIR/trace-reads/s/main/x.json"', `rm ${join(tmpdir(), 'trace-reads')}/s/main/x.json`, 'cd "$TMPDIR" && cat trace-reads/.key']) {
     assert.match(String(hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir })?.permissionDecisionReason), /records of what each agent has read/, command)
   }
   const out = hook({ tool_name: 'Write', tool_input: { file_path: join(tmpdir(), 'trace-reads', 's', 'main', 'x.json'), content: '{}' }, cwd: dir })
   assert.match(String(out?.permissionDecisionReason), /records of what each agent has read/)
-  assert.equal(hook({ tool_name: 'Bash', tool_input: { command: 'rg -n trace-reads plugins' }, cwd: dir }), null)
+  for (const command of ['rg -n trace-reads plugins', 'rg -n foo /tmp/trace-reads-notes']) assert.equal(hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir }), null, command)
+  assert.equal(hook({ tool_name: 'Write', tool_input: { file_path: join(dir, 'src/trace-reads/index.js'), content: '' }, cwd: dir }), null)
 })
 
 test('the hook resolves symlinks and ~ before deciding', () => {
