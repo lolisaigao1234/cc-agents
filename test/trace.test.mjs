@@ -33,10 +33,12 @@ function world(o = {}) {
         config[key] ?? (key.startsWith('alias.') ? aliases[key.slice('alias.'.length)] : undefined) ?? null,
       headDocs: () => ({}),
       pushed: () => null,
+      committed: () => false,
     },
     github: {
       issueState: (/** @type {string} */ _root, /** @type {number} */ n) => (offline ? null : issues[n] ?? 'MISSING'),
       issue: () => ({ title: '', body: '', comments: [] }),
+      pr: () => /** @type {const} */ ('NONE'),
       alias: (/** @type {string} */ name) => {
         if (ghAliases === null) throw new Error('gh alias list failed')
         return ghAliases[name] ?? null
@@ -133,6 +135,12 @@ const { appendFileSync } = require('node:fs')
 const args = process.argv.slice(2)
 appendFileSync(process.env.FAKE_GH_LOG, args.join(' ') + '\\n')
 if (args[0] === 'alias' && args[1] === 'list') process.exit(0)
+if (args[0] === 'pr' && args[1] === 'view') {
+  const pr = JSON.parse(process.env.FAKE_GH_PRS ?? '{}')[args[2]]
+  if (!pr) { process.stderr.write('no pull requests found for branch "' + args[2] + '"\\n'); process.exit(1) }
+  process.stdout.write(JSON.stringify(pr))
+  process.exit(0)
+}
 const m = /^repos\\/(.+)\\/issues\\/(\\d+)(\\/comments)?$/.exec(args[0] === 'api' ? args.find(a => a.startsWith('repos/')) ?? '' : '')
 const issue = m && JSON.parse(process.env.FAKE_GH_ISSUES)[m[1] + '#' + m[2]]
 if (!issue) { process.stderr.write('gh: Not Found (HTTP 404)\\n'); process.exit(1) }
@@ -305,6 +313,30 @@ test('the hook tells each agent about the linked issue when it starts, nudges on
   assert.equal(edit(), null, 'a resumed session keeps its context')
   hook({ hook_event_name: 'SessionStart', source: 'compact', ...as }, {}, issues, 'session-start')
   assert.match(String(edit()?.permissionDecisionReason), /Unread: GLOSSARY\.md; issue #9/)
+})
+
+test("the status event reports the trace from real git and gh: the commits, the PR and its checks", () => {
+  const { dir, git } = repo()
+  git('checkout', '-qb', '10-trace-band')
+  const issues = { 'owner/name#10': { state: 'open', title: 'Trace band', body: 'Show it.', comments: 0 } }
+  const status = (/** @type {Record<string, unknown>} */ prs = {}) => hook({ cwd: dir, session_id: `s-${process.pid}` }, { FAKE_GH_PRS: JSON.stringify(prs) }, issues, 'status')
+  const before = status()
+  console.log('DBG', JSON.stringify(before), hook.calls)
+  assert.deepEqual([before?.step, before?.docs, before?.issue], ['read', 'unread', { n: 10, title: 'Trace band', url: 'https://github.com/owner/name/issues/10' }])
+  assert.ok(!before?.done.includes('implement'))
+  git('commit', '-q', '--allow-empty', '-m', 'the band (#100)')
+  assert.ok(!status()?.done.includes('implement'), '#100 is not #10')
+  git('commit', '-q', '--allow-empty', '-m', 'the band (#10)')
+  assert.ok(status()?.done.includes('implement'))
+  const rollup = [
+    { __typename: 'CheckRun', name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' },
+    { __typename: 'CheckRun', name: 'lint', status: 'IN_PROGRESS', conclusion: '' },
+    { __typename: 'StatusContext', context: 'ci/legacy', state: 'FAILURE' },
+  ]
+  const after = status({ '10-trace-band': { number: 21, url: 'https://github.com/owner/name/pull/21', state: 'OPEN', statusCheckRollup: rollup } })
+  assert.deepEqual(after?.pr, { n: 21, url: 'https://github.com/owner/name/pull/21', state: 'OPEN', ci: 'failing', checks: [{ name: 'test', state: 'SUCCESS' }, { name: 'lint', state: 'PENDING' }, { name: 'ci/legacy', state: 'FAILURE' }] })
+  assert.ok(after?.done.includes('review'))
+  assert.equal(hook({ cwd: repo(false).dir, session_id: 's' }, {}, issues, 'status'), null, 'untraced: nothing')
 })
 
 test("the hook refuses tools that would touch the trace's read records, and only those", () => {

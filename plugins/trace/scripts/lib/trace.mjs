@@ -26,7 +26,8 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
  * a commit's message; `config` a setting's value; `headDocs` the glossary and
  * ADRs as HEAD has them; `pushed` the head of a branch as its remote last
  * had it here, and when it got there (ISO 8601), or null when that holds
- * nothing beyond the remote's other branches.
+ * nothing beyond the remote's other branches; `committed` whether HEAD has a
+ * commit referencing #n that the default branch does not.
  *
  * @typedef {{
  *   root(path: string): string | null,
@@ -39,17 +40,27 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
  *   config(root: string, key: string): string | null,
  *   headDocs(root: string): import('./docs.mjs').HeadDocs,
  *   pushed(root: string, branch: string): { sha: string, at: string } | null,
+ *   committed(root: string, n: number): boolean,
  * }} Git
+ */
+
+/**
+ * A pull request, and its checks by name and state (a check run's
+ * conclusion, `PENDING` until it completes, or a status's state).
+ *
+ * @typedef {{ n: number, url: string, state: 'OPEN' | 'MERGED' | 'CLOSED', checks: { name: string, state: string }[] }} PullRequest
  */
 
 /**
  * What the trace needs from GitHub: an issue's state, and its text, or null
  * when GitHub cannot be asked. A pull request is 'MISSING': it is not an issue.
+ * `pr` is the latest PR from a branch, 'NONE', or null when GitHub cannot say.
  *
  * @typedef {{
  *   issueState(root: string, n: number): 'OPEN' | 'CLOSED' | 'MISSING' | null,
  *   issue(root: string, n: number): import('./docs.mjs').Issue | null,
  *   alias(name: string): string | null,
+ *   pr(root: string, branch: string): PullRequest | 'NONE' | null,
  * }} GitHub
  */
 
@@ -80,7 +91,7 @@ export function editVerdict(path, world = REAL) {
 }
 
 /** @param {string} root @param {number} n @param {string[] | null} paths @param {World} world */
-const readVerdict = (root, n, paths, world) =>
+export const readVerdict = (root, n, paths, world) =>
   docsVerdict(root, n, paths, {
     issue: world.github.issue(root, n),
     slug: world.git.origin(root),
@@ -166,7 +177,7 @@ const postedTexts = command =>
     .flatMap(c => c.args.map(unliteral))
 
 /** @param {string | null} branch @returns {number | null} the issue a branch's `<n>-` prefix names */
-const branchIssue = branch => Number(/^(\d+)-/.exec(branch ?? '')?.[1]) || null
+export const branchIssue = branch => Number(/^(\d+)-/.exec(branch ?? '')?.[1]) || null
 
 /** @param {import('./docs.mjs').Reads} reads @returns {World} the real world, as the agent with `reads` sees it */
 export const worldFor = reads => ({ ...REAL, reads })
@@ -747,6 +758,11 @@ const realGit = {
     return [...remotes].filter(([, r]) => r.slug).sort(([a], [b]) => rank(a) - rank(b))[0]?.[1].slug ?? null
   },
   message: (root, rev) => git(root, ['log', '-1', '--format=%B', rev, '--']),
+  committed(root, n) {
+    const def = this.defaultBranch(root)
+    const base = def ? ['--not', `--branches=${def}`, `--remotes=origin/${def}`] : []
+    return !!git(root, ['rev-list', '-1', '-E', `--grep=#${n}([^0-9]|$)`, 'HEAD', ...base])
+  },
   // Where the branch is pushed: its push destination, else its upstream,
   // else origin's branch of its name. Null unless that holds commits no other
   // branch of the remote has. Its time is when the ref last moved here (the
@@ -853,6 +869,22 @@ const realGitHub = {
     try {
       const parsed = comments.split('\n').filter(Boolean).map(l => JSON.parse(l))
       return { title: String(issue.title ?? ''), body: String(issue.body ?? ''), comments: parsed.map(c => ({ id: String(c.id), author: String(c.author), body: String(c.body ?? ''), at: String(c.at ?? '') })) }
+    } catch {
+      return null
+    }
+  },
+  pr(root, branch) {
+    const slug = realGit.origin(root)
+    if (!slug) return null
+    const r = gh(root, ['pr', 'view', branch, '-R', slug, '--json', 'number,url,state,statusCheckRollup'])
+    if (r.status !== 0) return /no pull requests found/i.test(r.stderr ?? '') ? 'NONE' : null
+    try {
+      const pr = JSON.parse(r.stdout)
+      if (!Number.isInteger(pr.number) || typeof pr.url !== 'string') return null
+      /** @type {{ name?: string, context?: string, status?: string, conclusion?: string, state?: string }[]} */
+      const rollup = pr.statusCheckRollup ?? []
+      const checks = rollup.map(c => ({ name: String(c.name ?? c.context ?? ''), state: c.status && c.status !== 'COMPLETED' ? 'PENDING' : String(c.conclusion || c.state || 'PENDING') }))
+      return { n: Number(pr.number), url: String(pr.url), state: pr.state === 'MERGED' || pr.state === 'CLOSED' ? pr.state : 'OPEN', checks }
     } catch {
       return null
     }

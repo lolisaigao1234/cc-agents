@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Entry point for the plugin's hooks: `node hook.mjs <event>`, with the hook
-// input as JSON on stdin and the hook output as JSON on stdout.
+// input as JSON on stdin and the hook output as JSON on stdout. The event
+// `status` is the band's: it prints the trace's status.
 
 import { readFileSync } from 'node:fs'
 
@@ -9,6 +10,7 @@ import { issueContext, stopNudge } from './lib/context.mjs'
 import { readsOf, storeVerdict } from './lib/docs.mjs'
 import { guard } from './lib/guard.mjs'
 import { toolPath } from './lib/paths.mjs'
+import { traceStatus } from './lib/status.mjs'
 import { commandVerdict, editVerdict, readRecord, switchVerdict, worldFor } from './lib/trace.mjs'
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
@@ -38,6 +40,10 @@ function hookOutput(event, input) {
   if (event === 'stop') {
     const why = stopNudge(input, worldFor(readsOf(input)))
     return why ? { decision: 'block', reason: `trace: ${why}` } : null
+  }
+  if (event === 'status') {
+    // For the band and /trace: the main agent's view of the trace (ADR 0005).
+    return traceStatus(input.cwd ?? process.cwd(), worldFor(readsOf({ session_id: input.session_id })))
   }
   if (event === 'post-tool-use') {
     // What the agent read, for the edit and commit gates to check (ADR 0007).
