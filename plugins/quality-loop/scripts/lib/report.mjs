@@ -7,6 +7,8 @@
  * @typedef {any} LoopState
  */
 
+import { formatSize, growthWarning } from './size.mjs'
+
 const TERMINAL = ['done', 'capped', 'stalled', 'aborted', 'paused']
 
 /** @param {LoopState} s */
@@ -228,6 +230,7 @@ export function renderLoopMd(s) {
     `- **Status:** ${s.status}${s.statusReasons?.length ? ` (${s.statusReasons.join('; ')})` : ''}`,
     `- **Round:** ${s.round} of ${s.config.loop.maxRounds} · **phase:** ${phaseOf(s)}`,
     `- **Base:** \`${s.baseCommit.slice(0, 12)}\``,
+    ...(s.size?.start && s.size.now ? [`- **Size vs base:** ${formatSize(s.size.start)} at start → ${formatSize(s.size.now)} after the last round`] : []),
     '',
     '## Next action',
     '',
@@ -281,11 +284,14 @@ export function renderReport(s) {
   if (s.statusReasons?.length && s.status !== 'done') out.push(...s.statusReasons.map((/** @type {string} */ r) => `- ${r}`))
   out.push(...blocked.map(f => `- ${f.id} \`${f.file}:${f.line}\` ${f.title}${f.status === 'stuck' ? ' (stuck after max attempts)' : ''}`))
   out.push(...failing.map((/** @type {any} */ r) => `- check \`${r.name}\` fails (log: ${r.logFile})`))
+  const grew = s.mode === 'review' ? growthWarning(s.size, s.config?.loop?.maxGrowth ?? null) : null
+  if (grew) out.push(`- ${grew}`)
   if (out.at(-1) === '') out.push('Nothing.')
   out.push('', '## Changed', '')
   out.push(...(fixed.length ? fixed.map(f => `- ${f.id} \`${f.file}:${f.line}\` ${f.title} — ${f.resolution}`) : ['Nothing.']))
   const reverted = s.rounds.filter((/** @type {any} */ r) => r.reverted)
   if (reverted.length) out.push(`- ${reverted.length} round(s) reverted for regressions: ${reverted.map((/** @type {any} */ r) => r.n).join(', ')}`)
+  if (s.size?.start && s.size.now) out.push(`- size vs base: ${formatSize(s.size.start)} at start → ${formatSize(s.size.now)} now`)
   out.push('', '## Found', '')
   if (!pre.length && !wontfix.length && !nits.length) out.push('Nothing beyond the above.')
   out.push(...nits.map(f => `- [Nit] ${f.id} \`${f.file}:${f.line}\` ${f.title} (open)`))

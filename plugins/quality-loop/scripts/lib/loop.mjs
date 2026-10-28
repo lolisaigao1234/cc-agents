@@ -10,12 +10,13 @@ import { detectChecks, lensFocus, resolveConfig, validateConfig } from './config
 import { decideRound, scoreOf } from './decide.mjs'
 import { parseUnifiedDiff, rangeTouches } from './diff.mjs'
 import { checkEvidence, decodeGitPath, ingestFindings, newLedger, recordVotes } from './findings.mjs'
-import { checkpointTree, diffTrees, resolveBase, restoreTree, snapshotTree } from './git.mjs'
+import { checkpointTree, diffTrees, numstatTrees, resolveBase, restoreTree, snapshotTree } from './git.mjs'
 import { normalizePath } from './glob.mjs'
 import { lineTranslator } from './track.mjs'
 import { counts, currentRound, inScope, phaseOf, renderLoopMd } from './report.mjs'
 import { GITIGNORE, paths, readJson, writeJson, writeText } from './store.mjs'
 import { STOPPED, holdsCap, readTombstone, recordLoop } from './tombstone.mjs'
+import { growthWarning, sizeOf } from './size.mjs'
 import { scanWeakening } from './weakening.mjs'
 
 // Statuses the record keeps until the user extends the loop or starts over.
@@ -225,7 +226,10 @@ export async function start(root, opts) {
     reviewOnly: !!opts.reviewOnly,
     reproPassedAtStart: false,
     extendedAt: 0,
+    size: /** @type {{ start: import('./size.mjs').ChangeSize, now: import('./size.mjs').ChangeSize } | null} */ (null),
   }
+  const startSize = changeSize(root, s, s.baseline.checkpoint)
+  s.size = { start: startSize, now: startSize }
   if (s.reviewOnly) {
     if (s.mode !== 'review') throw new LoopError('--review-only applies to review mode')
     s.goal = opts.goal ?? 'report verified findings for the change; no fixes'
@@ -253,6 +257,31 @@ export async function start(root, opts) {
   }
   saveState(root, s, 'start')
   return s
+}
+
+/**
+ * The change's size against the base at `tree` (see size.mjs).
+ *
+ * @param {string} root
+ * @param {any} s
+ * @param {string} tree
+ */
+function changeSize(root, s, tree) {
+  return sizeOf(numstatTrees(root, s.baseCommit, tree), s.config.review.skipPaths)
+}
+
+/**
+ * The change's size at its start and in the working tree now, and the
+ * warning when the loop's fixes grew it past `loop.maxGrowth`. A debug loop
+ * starts before its fix, so all of the fix would read as growth: it gets the
+ * sizes without the warning. A loop started before the meter has no start.
+ *
+ * @param {string} root
+ */
+export function sizeNow(root) {
+  const s = requireState(root)
+  const size = { start: s.size?.start ?? null, now: changeSize(root, s, snapshotTree(root)) }
+  return { ...size, warning: s.mode === 'review' ? growthWarning(size, s.config.loop.maxGrowth) : null }
 }
 
 /** @param {string} root */
@@ -752,11 +781,13 @@ export async function endRound(root, opts = {}) {
     status: decision.status,
   })
   if (!decision.revert) s.lastRun = run
+  if (s.size) s.size.now = r.size = changeSize(root, s, snapshotTree(root))
   if (decision.status !== 'continue') s.status = decision.status
   s.statusReasons = decision.reasons
   s.stopNudges = 0
   saveState(root, s, 'end')
-  return { round: r.n, decision, compare: cmp, flaky, weakening, restored, discarded, run }
+  const size = s.size ? { ...s.size, warning: s.mode === 'review' ? growthWarning(s.size, s.config.loop.maxGrowth) : null } : null
+  return { round: r.n, decision, compare: cmp, flaky, weakening, restored, discarded, run, size }
 }
 
 /**

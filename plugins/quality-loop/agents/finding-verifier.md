@@ -27,7 +27,7 @@ Search with `rg`. You are read-only in the repository (a hook enforces it): scra
 - `confirm`: you showed the defect is real and reachable. Say how.
 - `reject`: you showed it is not (the guard that prevents it, the intent that allows it), or you could not substantiate it. When in doubt, reject: an unproven finding is a false positive.
 
-Also give `severity`: `important` if it breaks behaviour, security, data or a contract; `nit` if real but minor.
+Also give `severity`, your own call whatever the finding says: `important` if it breaks behaviour, security, data or a contract in what the change's intent covers; `nit` if real but minor. A defect only on a path the intent does not touch, in a rare case, or a small performance cost is a `nit`, unless REVIEW.md says that path matters; a security hole is `important` wherever it is.
 
 ## Output
 

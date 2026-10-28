@@ -17,6 +17,7 @@ import { repoRoot } from './lib/git.mjs'
 import { handleHook } from './lib/hooks.mjs'
 import * as loop from './lib/loop.mjs'
 import { nextAction, phaseOf, renderReport, statusLine, stepFile } from './lib/report.mjs'
+import { formatSize } from './lib/size.mjs'
 import { paths, readJson, readJsonInput, writeJson, writeText } from './lib/store.mjs'
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -313,6 +314,8 @@ async function main(argv) {
         for (const w of out.weakening) print(`${w.blocking ? 'WEAKENING' : 'warning'}: ${w.kind} ${w.file}${w.line ? `:${w.line}` : ''} ${w.text}`)
         if (out.decision.revert) print(`REVERTED round ${out.round}: restored ${out.restored?.restored.length ?? 0} file(s), deleted ${out.restored?.deleted.length ?? 0}`)
         for (const d of out.discarded) print(`  discarded ${d.id} ${d.file}:${d.line} ${d.title} (its code was reverted)`)
+        if (out.size) print(`size: ${formatSize(out.size.start)} at start → ${formatSize(out.size.now)} now`)
+        if (out.size?.warning) print(`WARNING: ${out.size.warning}`)
         print(`decision: ${out.decision.status.toUpperCase()} · score ${out.decision.endScore}`)
         for (const r of out.decision.reasons) print(`  - ${r}`)
         // Anything but a plain CONTINUE is acted on from the decision table.

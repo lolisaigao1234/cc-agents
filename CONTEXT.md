@@ -17,6 +17,7 @@ This repository ships **quality-loop**, a Claude Code plugin that reviews, fixes
 - **Lens** — one angle a bug hunter reviews from (correctness, security, …).
 - **Finding** — a reported defect with evidence: file, line, exact **quote**, failure scenario. Lifecycle: candidate → confirmed | rejected → fixed | wontfix | stuck.
 - **Bug class** — the root cause shared by several findings; fixed together.
+- **Size** — the change against the base, in lines changed: code apart from tests, without skipped paths. Measured at `ql start` and after every round. **Growth** past `loop.maxGrowth` (50% of the start's code lines, at least ten lines) is put to the user; in debug the sizes are shown without the warning, since the fix is the whole change.
 - **Origin** — `introduced` (touches the change) or `pre-existing`. Tags: Important, Nit, Pre-existing.
 - **Quorum** — votes needed from independent **verifiers** to confirm a finding.
 - **Single writer** — only the orchestrating session runs `ql`; subagents write JSON files.

@@ -27,7 +27,9 @@ Every finding carries evidence a machine can check:
 - `file` and `line` where the defect is, and `quote`: the offending code copied **exactly** from that line (one or a few lines). A quote that is not in the file gets the finding thrown away.
 - `failureScenario`: a concrete input or sequence and the wrong outcome it produces. If you cannot name one, the finding is not ready.
 
-Severity is `important` for anything that breaks behaviour, security, data or a contract; `nit` for a real but minor flaw. Style, formatting and naming belong to the formatter and linter: leave them out.
+Severity is `important` for anything that breaks behaviour, security, data or a contract in what the change's intent covers; `nit` for a real but minor flaw. A defect only on a path the intent does not touch, in a rare case, or a small performance cost is a `nit`, unless REVIEW.md says that path matters; a security hole is `important` wherever it is. Code the change adds that its intent does not need (a guard for a case that cannot happen, an option nothing sets, a second way to do the same thing) is a `nit` in `maintainability`. Style, formatting and naming belong to the formatter and linter: leave them out.
+
+Suggest the smallest fix: one that deletes or narrows code beats a new lock, cache, helper or option.
 
 ## Output
 

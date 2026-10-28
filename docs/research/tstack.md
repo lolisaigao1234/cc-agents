@@ -1,58 +1,117 @@
-# What quality-loop can take from tstack's full-send, full-stop and sol-loop
+# What quality-loop can take from tstack
 
-[t3dotgg/tstack](https://github.com/t3dotgg/tstack) is a set of agent skills for Claude Code and Codex. Three of them overlap with quality-loop:
+[t3dotgg/tstack](https://github.com/t3dotgg/tstack) is a set of nine agent skills for Claude Code and Codex. This note goes through each of them, technique by technique: what quality-loop already has, what it lacks, and whether to take it. Read 2026-10-28. Paths are relative to `plugins/quality-loop/`.
 
-- **`sol-loop`**: a second model (GPT Sol) reviews the change in rounds until both agents agree.
-- **`full-send`**: unattended, from a change to a merged PR: prove it, review it with `sol-loop`, file it, babysit it, merge at a gate.
-- **`full-stop`**: `full-send` that stops with the PR ready for a human to merge.
+| Skill | What it does | How close to quality-loop |
+|---|---|---|
+| `sol-loop` | A second model (GPT Sol) reviews the change in rounds until both agents agree | Same loop, different reviewer |
+| `full-send` | Unattended, from a change to a merged PR: prove, review with `sol-loop`, file, babysit, merge at a gate | The loop plus everything after it |
+| `full-stop` | `full-send` that stops with the PR ready for a human to merge | Same |
+| `council` | Three models from three providers review until all are satisfied, with scores | A multi-model review |
+| `babysit-pr` | Watches a PR through CI and review bots, and fixes real findings | After the loop |
+| `file-pr` | A short PR that leads with the problem | After the loop |
+| `takeover` | Finishes someone else's PR, branch or agent thread and keeps their credit | Partly |
+| `modernize` | Rebases an old PR and decides if it should still exist | Partly |
+| `leaving-pr-comments` | Format for comments an agent posts for the user | After the loop |
 
-They lean on `babysit-pr` (watch CI and review bots) and `file-pr`. This note says, technique by technique, what quality-loop already has, what it lacks, and whether to take it. Read 2026-10-28. Paths are relative to `plugins/quality-loop/`.
+Where they differ in kind: tstack is prompt-only, while quality-loop puts what must hold every run in `ql` (ADR 0001). So a technique worth taking usually becomes a `ql` rule, not just a sentence in a skill.
 
-Where they differ in kind: tstack is prompt-only, while quality-loop puts what must hold every run in `ql` (ADR 0001). So a technique worth taking usually becomes a `ql` rule, not a sentence in a skill.
+## Scope creep: taken
+
+Every tstack skill that reviews or fixes repeats the same warning: review loops grow a change one cheap-looking fix at a time. These are the rules, and where each now lives:
+
+| tstack rule | Where | Now in quality-loop |
+|---|---|---|
+| "Make the most minimal possible changes … be careful of scope creep and don't be scared to push back" | sol-loop | `references/round/rules.md`: keep the change the size its intent needs; never accept a finding just to end the loop |
+| "Do not let repeated reviews result in scope creep. It is your job to fight to keep scope limited" | council | Same rule; the orchestrator owns it |
+| "Keep the PR at the size the user's goal needs … decline the rest with a written reason and list them as follow-ups: unneeded tests, guards for edge cases that do not matter, extra integration or compatibility, small performance costs" | babysit-pr | `rules.md`; such defects are nits, and open nits are listed in the report's **Found** |
+| "Fix the case that happened, not every case that could" | full-send, sol-loop | `agents/fixer.md`: an instance is code that has the defect now, not a case that could arise. Fixing every instance of a bug class (source post 1) stays |
+| "Agree: smallest fix. Prefer delete or narrow over new lock, cache, helper, or option" | sol-loop | `agents/fixer.md` step 3; `agents/bug-hunter.md` for the suggested fix |
+| "Add one focused test that fails without the fix" | sol-loop, full-send | `agents/fixer.md` step 2: one focused regression test |
+| "Another path, rare case, or small cost is a nit, whatever label it came with" | sol-loop | `agents/bug-hunter.md` and `agents/finding-verifier.md`. The verifiers' majority sets severity, so the rule is in their prompt too. A security hole stays `important` wherever it is |
+| "Flag code, tests, or guards the intent does not need" | sol-loop | `agents/bug-hunter.md`: such code is a `nit` in `maintainability`. Tests are left out, since deleting them is weakening and reverts the round |
+| "State intent and out-of-scope in 1–2 sentences" / "state the smallest coherent goal … before judging its implementation" | sol-loop, modernize | `references/round/2-review.md`: `--intent` carries both |
+| "Re-run … `git diff --shortstat <base>`. If review grew the diff, cut first" | sol-loop | **`ql` size meter** (`scripts/lib/size.mjs`): code and test lines against the base at `ql start` and after every round, shown by `ql round end`, the fix briefs, `LOOP.md` and the report. When the fixes grow the code past `loop.maxGrowth` (50%, at least ten lines), `ql round end` warns, the fix step cuts first (`4-fix.md`), and the report puts it under **Blocked on me**. A debug loop shows the sizes without the warning, since its fix is the whole change |
+| "Do not defend an implementation just because another agent already built it" | takeover | `rules.md`: never keep code just because an agent wrote it |
+| "Report … diff size before/after" | sol-loop | `ql report` **Changed**: size at start → now |
 
 ## sol-loop
 
 | Technique | quality-loop today | Take it? |
 |---|---|---|
-| A reviewer from **another provider**, read-only, with no subagents of its own | Every hunter and verifier is a Claude subagent. The root README already plans third-party reviewers | **Yes**: see 6 below |
-| **Never substitute a model.** If no route runs the named reviewer, report the blocker | No external reviewer exists yet | Yes, with 6 |
-| **Timeout, error or no reply is not approval** | A hunter whose output file is missing or invalid gets one re-run (`2-review.md`); after that, nothing stops `--none` being recorded for its lens | Yes: a lens that never answered should block the review or be reported, never read as clean |
-| Round budget 3; later rounds see only changed code and open findings | `loop.maxRounds` 3; diff-only re-review; `known-findings.json` in each hunter's brief | Have |
-| Extend to 5 by itself for security, auth, data loss or concurrency | Only the user may extend (`ql extend`, guarded) | **No**: conflicts with "only the user may extend". `CAPPED` could still say when a security finding is open |
-| Stop early if a round returns only nits; declined nits need no round | `DONE` ignores open nits; `maxNitsPerRound` | Have |
-| Next round only if behaviour code changed **or approval does not cover the current behaviour diff** | A round's fixes are reviewed only by the next round. When those fixes close the last important finding, `ql round end` says `DONE`, so the final fixes are validated by the checks but never reviewed (`test/lifecycle.test.mjs`, "an unfixed confirmed nit…": round 2 reviews, then fixes, then `DONE`) | **Yes**: see 1 below |
-| **Fight scope creep**: smallest fix; prefer deleting or narrowing over a new lock, cache, helper or option; `git diff --shortstat <base>` each round; "if review grew the diff, cut first" | The fixer is test-first and per class, but no one measures how much the change grew | **Yes**: see 2 below |
-| Severity tied to intent: blocker = the intended case is wrong; should = a real bug callers will hit; **another path, a rare case or a small cost is a nit, whatever label it came with** | `important` = breaks behaviour, security, data or a contract; `nit` = minor (`agents/bug-hunter.md`, `agents/finding-verifier.md`) | **Yes**: see 3 below |
-| Answer each finding: agree → smallest fix; disagree → evidence; out of scope → decline in one line, list as a follow-up | Quorum voting, `wontfix --reason`, the fixer's `outside` lines | Have, and stricter (independent voters, not the author's word) |
-| Ledger fed back to the reviewer: `fixed:` / `disagree:` / `declined:`, plus evidence; the reviewer marks each id resolved or still open | Earlier findings go to hunters as "report only what is new"; rejected and won't-fix findings never return | Mostly have. Hunters are not asked to say whether a fixed finding is really resolved; that falls to the checks and the oscillation counter |
-| Disputed twice → stop and show both sides in 2–3 lines; the user decides | Stuck findings (`maxAttemptsPerFinding`) → `STALLED`, stall analysis | Have |
-| Don't edit scoped files while review runs | No step tells the orchestrator to edit during review (not enforced); the guard keeps hunters from writing | Have |
-| Report: rounds, model, what review changed, **diff size before/after**, fixed and declined with reasons, usage | `ql report`: Blocked on me / Changed / Found | Diff size: yes, with 2 |
+| A reviewer from **another provider**, read-only, with no subagents of its own | Every hunter and verifier is a Claude subagent. The root README already plans third-party reviewers | **Yes**: proposal 2 |
+| **Never substitute a model.** If no route runs the named reviewer, report the blocker | No external reviewer yet | Yes, with 2 |
+| **Timeout, error or no reply is not approval** | A hunter whose output is missing or invalid gets one re-run (`2-review.md`); after that, nothing stops `--none` being recorded for its lens | Yes: proposal 4 |
+| Round budget 3; later rounds see only changed code and open findings | `loop.maxRounds` 3; diff-only re-review; `known-findings.json` in hunter briefs | Have |
+| Extend to 5 by itself for security, auth, data loss or concurrency | Only the user may extend (`ql extend`, guarded) | **No**: conflicts with "only the user may extend" |
+| Stop early if a round returns only nits | `DONE` ignores open nits; `maxNitsPerRound` | Have |
+| Next round if **approval does not cover the current behaviour diff** | When a round's fixes close the last important finding, `ql round end` says `DONE`, so those fixes are checked but never reviewed (`test/lifecycle.test.mjs`, "an unfixed confirmed nit…") | **Yes**: proposal 1 |
+| Answer each finding: agree, disagree with evidence, decline in one line | Quorum voting, `wontfix --reason`, the fixer's `outside` lines | Have, and stricter |
+| Disputed twice → show both sides; the user decides | Stuck findings → `STALLED` | Have |
+| Keep a ledger; never guess usage | `state.json`; the report says what could not be confirmed | Have |
 
 ## full-send and full-stop
 
 | Technique | quality-loop today | Take it? |
 |---|---|---|
-| **Proof** is evidence observed this session: repro fails → fix → the same repro passes; the CI checks; one focused test that fails without the fix | `debug` builds a red repro; fixers work test-first; `ql round end` runs the checks and reverts on regression | Have |
-| Proof must cover **every change in the diff** | Checks cover what they test; each fixed finding names its regression test in `--reason` | Partly. Item 1 covers the review side |
-| **Asking the user**: an ordinary message goes unseen and the thread looks done; use the question tool (`AskUserQuestion`) with the full context and the recommended option first; with no tool, take the safe path and lead the final message with the question | `ql pause --reason`, then "ask the user" in plain text (`skills/improve`, `skills/debug`, `decisions.md`) | **Yes**: see 4 below |
-| Decide everything else with sensible defaults, and **list those decisions** in the report | The report has no place for decisions made for the user | **Yes**: see 5 below |
-| Stay active until the end; ending a turn while CI is pending stops the work | The Stop hook keeps an active loop going, bounded by `maxStopNudges` | Have for the loop. A PR stage would need a watcher (7) |
-| Explicit, scoped grant: merge after the gate, `--force-with-lease` on the PR's own branch, the test methods proof needs | The loop never commits or pushes | See 7 |
-| A "full send" request **overrides project ask-first rules** for testing | Guard and permission prompts stay on | **No**: the opposite of this plugin's stance on safety |
-| **Merge gate**: proof covers the diff; required checks green; review bots finished, each finding fixed or dismissed with a reason; no changes requested; up to date with base; mergeable | Stops at a clean working tree | See 7 |
-| full-stop: never merge; turn off auto-merge and merge queues; re-check the live PR; hand off as **Ready / Waiting for required approval / Blocked** | — | See 7 |
-| full-stop: after a rebase or conflict fix, re-check proof and review on the final diff | A moved base is not part of the scope model | With 7 |
-| A trigger that fires even on a closing "Full stop." read as emphasis | Skills fire on their descriptions | No: an easy trigger for a skill that pushes code is a hazard |
+| **Proof** is evidence seen this session: repro fails → fix → passes; the CI checks; a focused test | `debug`'s red repro; test-first fixers; checks every round, revert on regression | Have |
+| Proof and review must cover **the final diff** | Checks do; review does not for the last round's fixes | Proposal 1 |
+| **Asking the user** with the question tool, because an ordinary message goes unseen; with no tool, take the safe path and lead with the question | `ql pause --reason`, then a plain-text question | **Yes**: proposal 3 |
+| Decide the rest with sensible defaults and **list those decisions** | No place in the report | **Yes**: proposal 5 |
+| Stay active to the end | The Stop hook keeps an active loop going (bounded) | Have |
+| A "full send" request **overrides project ask-first testing rules** | Guard and permission prompts stay on | **No**: the opposite of this plugin's stance on safety |
+| **Merge gate**; full-stop's handoff as Ready / Waiting for approval / Blocked; turn off auto-merge | The loop stops at a clean working tree | Proposal 7 |
+| A trigger that fires on a closing "Full stop." | Skills fire on their descriptions | No: an easy trigger for a skill that pushes code is a hazard |
 
-## What to take, in order
+## council
 
-1. **No `DONE` with unreviewed fixes.** When a round has fixed findings, `ql round end` returns `CONTINUE` for one confirmation round that reviews only the fixes (the diff-only scope already does that), unless the cap is reached. Then `CAPPED` reports the fixes as validated but not reviewed. Deterministic and testable in `decide.mjs`. Cost: an extra round in most loops, so the cap of 3 is reached sooner. Worth checking with `tune-reviewer` on cases where a fix itself introduces a bug.
-2. **A diff-growth meter.** `ql start` records the change's size against the base (files, insertions, deletions). Each `ql round end` records it again, and the report shows before → after. Past a configurable growth (`loop.maxGrowth`), the next fix brief says "cut first" and the report says so. The fixer prompt gets sol-loop's rule: prefer deleting or narrowing over new locks, caches, helpers or options. This keeps "fix every instance of the bug class" (source post 1) bounded to the change, without adopting sol-loop's "fix only the case that happened".
-3. **Severity tied to the change's intent.** Add to `bug-hunter.md` and `finding-verifier.md`: a defect on another path, in a rare case, or a small performance cost is a `nit` unless REVIEW.md says that path matters. Measure it with the `clean` should-not-fire eval cases before and after.
-4. **Ask with the question tool.** In `improve`, `debug` and `decisions.md`, after `ql pause --reason`, use `AskUserQuestion` with the reason, what was tried and the options (recommended first). If no answer comes, leave the loop paused and lead the report with the question.
-5. **A "Decided for you" section** in `ql report`, filled from the reasons the loop records (`wontfix --reason`, pause reasons, finish-line calls) and from the orchestrator. Or fold it into **Blocked on me** to keep three headings.
-6. **A cross-model lens.** A runner command (like `scripts/runners/claude-review.sh`, but for another provider's CLI) runs as one extra hunter. Its JSON goes through the same `ql ingest`, so the quote-at-line evidence check and verifier quorum apply to it like any other lens. That is stronger than sol-loop, where the author agent judges the other model's findings alone. Rules taken from sol-loop: read-only, no subagents, never substitute another model, and no reply never counts as a pass. Needs config (`review.externalLenses`) and an ADR.
-7. **A `ship` stage, full-stop style** (a new skill, later). After `improve` reaches `DONE`: commit, file the PR, watch CI and review bots, fix real findings through the loop, and stop at full-send's merge gate with a full-stop handoff (Ready / Waiting for approval / Blocked). Never merge by default; merging only on an explicit grant, like full-send's. The loop itself keeps never committing or pushing; the commits happen outside a loop. A watcher is needed (in cloud sessions, PR activity subscriptions; locally, Monitor on a poller like tstack's `pr-wait`, which is Python and would need porting to keep the plugin dependency-free). This one needs an ADR first.
+| Technique | quality-loop today | Take it? |
+|---|---|---|
+| Three strong models from three providers, in parallel, read-only | One provider | With proposal 2 |
+| A score out of 10 per delegate per round, as a table in the PR; "no score", never an invented one | Counts of findings; no scores | No: verified findings with evidence say more than a score. Revisit with 2 |
+| Loop until every delegate is satisfied | Until checks pass and nothing important is open, within the cap | Have, bounded |
 
-Not taken: the self-granted budget extension, overriding the repository's ask-first testing rules, T3 Code's own tools (`delegate_task`, `watch_pull_request`), and the council score table (revisit with 6).
+## babysit-pr
+
+| Technique | quality-loop today | Take it? |
+|---|---|---|
+| Verify every bot finding against the source before changing code; reply with a reason when dismissing | Every finding passes the quote check and a verifier quorum | Have. Proposal 7 could feed review-bot comments into `ql ingest` as their own lens |
+| Tell repository failures from infrastructure flakes | A newly failing check is re-run once (`retryFailedChecks`); infra errors in evals | Have |
+| One watcher per PR; never your own polling loop; watchers share one rate limit | — | With 7 |
+| Act only on checks and comments newer than the latest push | — | With 7 |
+| Never merge when BEHIND or DIRTY, or when base commits since the last green run touch the PR's files | The base is fixed at `ql start` | With 7 |
+| Nothing changed → end the turn without a message; never "still waiting" | Status notes go with the next action | Have |
+
+## file-pr and leaving-pr-comments
+
+| Technique | quality-loop today | Take it? |
+|---|---|---|
+| Lead with the problem, not an inventory; a title that says why the change matters | The report's **Changed** is a list of fixes | With 7, for the PR body |
+| Check title, body and comments for secrets and private details before posting | — | With 7 |
+| A real PR, not a draft, so review bots run | — | With 7, where the repository allows it |
+| Agent comments carry an attribution note; lead with the conclusion; cite code; separate facts from judgment | The report marks what it could not confirm | With 7 |
+| Resolve a review thread only after its reply is posted | — | With 7 |
+
+## takeover and modernize
+
+| Technique | quality-loop today | Take it? |
+|---|---|---|
+| Treat a handoff as context, not proof | Hunters start fresh; the orchestrator checks fixers' evidence; after compaction, read `LOOP.md`, not the summary | Have |
+| Don't defend an implementation because an agent built it | — | Taken (scope table) |
+| State the smallest coherent goal before judging | — | Taken (scope table) |
+| A **disposition**: MODERNIZE / REWORK / CLOSE. Be willing to recommend CLOSE; sunk effort is no reason to keep going | `CAPPED` asks the user to reconsider the approach; `STALLED` buckets root causes | **Yes**: proposal 6 |
+| Look past textual conflicts: was the same problem solved on the base, did APIs move, would this restore old behaviour? `git range-diff` after a rebase | The base is fixed at `ql start`; a base that moves is out of scope | With 7 |
+| Existing worktree changes are the user's; never an unqualified force push | Checkpoints never touch the index, HEAD or stash; the guard denies force pushes | Have |
+| Keep authorship and co-author credit | The loop never commits | With 7 |
+
+## What to take next, in order
+
+1. **No `DONE` while fixes are unreviewed.** When a round fixed findings, `ql round end` returns `CONTINUE` for one round that reviews only the fixes (the diff-only scope already does that), unless the cap is reached; `CAPPED` then reports them as checked but not reviewed. Cost: an extra round in most loops.
+2. **A lens run by another provider's model.** A runner command (like `scripts/runners/claude-review.sh`, for another provider's CLI) runs as one extra hunter. Its JSON goes through `ql ingest`, so the quote check and verifier quorum apply to it, which is stronger than sol-loop, where the author agent alone judges the other model's findings. Read-only, no subagents, never substitute a model, and no reply never counts as a pass. Needs config (`review.externalLenses`) and an ADR.
+3. **Ask with `AskUserQuestion`** after `ql pause --reason`, in `improve`, `debug` and `decisions.md`: the reason, what was tried, the options with the recommended one first. With no answer, the loop stays paused and the report leads with the question.
+4. **A lens that never answered is not a clean lens.** After the one re-run, the hunter's lens is reported under **Blocked on me** rather than recorded with `--none`.
+5. **"Decided for you"** in `ql report`, from recorded reasons (won't-fix calls, pauses, finish-line checks), or folded into **Blocked on me**.
+6. **A disposition at `CAPPED` and `STALLED`**: the report recommends extending, reworking the approach, or dropping the change, with the evidence, and it is free to recommend dropping.
+7. **A `ship` stage, full-stop style** (new skill, ADR first). After `DONE`: commit, file the PR, watch CI and review bots, feed bot findings through `ql ingest`, fix through the loop, and stop at full-send's merge gate with a full-stop handoff. Never merge without an explicit grant. The loop itself still never commits or pushes. Needs a watcher: PR activity subscriptions in cloud sessions; locally, Monitor on a poller like tstack's `pr-wait` (Python, so it would need porting to stay dependency-free).
+
+Not taken: the self-granted budget extension, overriding ask-first testing rules, T3 Code's own tools (`delegate_task`, `watch_pull_request`), council scores, and the "Full stop." trigger.

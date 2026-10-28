@@ -1132,3 +1132,16 @@ export function diffTrees(root, from, to, opts = {}) {
   return git(['diff', '--no-color', '--no-ext-diff', `-U${opts.context ?? 3}`, from, to, '--', '.', EXCLUDE], { cwd: root })
     .stdout
 }
+
+/**
+ * `git diff --numstat` between two tree-ish objects, NUL-separated and
+ * without rename detection (one path per entry), without the loop's own
+ * directory.
+ *
+ * @param {string} root
+ * @param {string} from
+ * @param {string} to
+ */
+export function numstatTrees(root, from, to) {
+  return git(['diff', '--no-color', '--no-ext-diff', '--no-renames', '--numstat', '-z', from, to, '--', '.', EXCLUDE], { cwd: root }).stdout
+}

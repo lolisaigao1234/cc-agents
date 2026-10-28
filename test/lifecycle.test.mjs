@@ -764,3 +764,51 @@ test('a state round lowered by hand does not buy rounds past the cap (verifier r
   finishReview(root)
   assert.match(qlOk(root, ['round', 'end']), /decision: CAPPED/)
 })
+
+test('size meter: round end, the fix brief and the report show the change growing; growth past loop.maxGrowth is put to the user', () => {
+  const bloat = Array.from({ length: 20 }, (_, i) => `export const guard${i} = () => ${i}`).join('\n')
+  /** @param {string} fixed */
+  const run = fixed => {
+    const root = buggyProject()
+    qlOk(root, ['start', '--mode', 'review', '--depth', 'quick'])
+    assert.deepEqual(state(root).size.start, { files: 1, code: 4, tests: 0 })
+    qlOk(root, ['round', 'begin'])
+    ingest(root, [FINDING], 'correctness')
+    finishReview(root)
+    voteAll(root, 'F1')
+    const line = qlOk(root, ['brief', 'fix', '--all']).split('\n')[0] ?? ''
+    const brief = readFileSync(join(root, line.split(' ')[1] ?? ''), 'utf8')
+    assert.match(brief, /## Size\n\nThe change is 1 file, 4 code lines, 0 test lines against the base/)
+    writeFiles(root, { 'src/cart.js': fixed })
+    qlOk(root, ['mark', 'F1', 'fixed', '--reason', 'bound is < again'])
+    const end = qlOk(root, ['round', 'end'])
+    assert.match(end, /decision: DONE/)
+    return { root, end, report: qlOk(root, ['report']) }
+  }
+
+  const small = run(BUGGY.replace('i <= items.length', 'i < items.length'))
+  assert.match(small.end, /^size: 1 file, 4 code lines, 0 test lines at start → 1 file, 2 code lines, 0 test lines now$/m)
+  assert.doesNotMatch(small.end, /grew/)
+  assert.match(small.report, /size vs base: 1 file, 4 code lines, 0 test lines at start → 1 file, 2 code lines, 0 test lines now/)
+  assert.doesNotMatch(small.report, /grew/)
+
+  const big = run(`${BUGGY.replace('i <= items.length', 'i < items.length')}${bloat}\n`)
+  assert.match(big.end, /^WARNING: the loop's fixes grew the change from 4 to 22 code lines, past loop\.maxGrowth \(50%\)/m)
+  const blocked = big.report.split('## Changed')[0] ?? ''
+  assert.match(blocked, /the loop's fixes grew the change from 4 to 22 code lines/, 'the user hears of it under Blocked on me')
+})
+
+test('size meter: a debug loop shows the sizes without the growth warning, since its fix is the whole change', () => {
+  const root = buggyProject()
+  const repro = `node -e "process.exit(require('fs').readFileSync('src/cart.js','utf8').includes('<=') ? 1 : 0)"`
+  qlOk(root, ['start', '--mode', 'debug', '--repro', repro, '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  const bloat = Array.from({ length: 20 }, (_, i) => `export const guard${i} = () => ${i}`).join('\n')
+  writeFiles(root, { 'src/cart.js': `${BUGGY.replace('i <= items.length', 'i < items.length')}${bloat}\n` })
+  finishReview(root)
+  const end = qlOk(root, ['round', 'end'])
+  assert.match(end, /decision: DONE/)
+  assert.match(end, /^size: 1 file, 4 code lines, 0 test lines at start → 1 file, 22 code lines, 0 test lines now$/m)
+  assert.doesNotMatch(end, /WARNING/)
+  assert.doesNotMatch(qlOk(root, ['report']), /grew/)
+})

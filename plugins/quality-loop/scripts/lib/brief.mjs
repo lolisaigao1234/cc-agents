@@ -11,6 +11,7 @@ import { join, relative } from 'node:path'
 import { slug } from './config.mjs'
 import * as loop from './loop.mjs'
 import { currentRound } from './report.mjs'
+import { formatSize } from './size.mjs'
 import { paths, readJson, writeJson, writeText } from './store.mjs'
 
 /** @typedef {import('./findings.mjs').Finding} Finding */
@@ -244,6 +245,20 @@ export function verifierBriefs(root, opts = {}) {
 }
 
 /**
+ * The fixer's view of the change's size: how big it is, and whether the
+ * loop's fixes have already grown it past `loop.maxGrowth`.
+ *
+ * @param {ReturnType<typeof loop.sizeNow>} size
+ */
+function sizeSection(size) {
+  return [
+    `The change is ${formatSize(size.now)} against the base${size.start ? ` (${formatSize(size.start)} when the loop started)` : ''}. Keep it the size your findings need: the smallest fix, preferring one that deletes or narrows code over a new lock, cache, helper or option.`,
+    // Cutting what earlier fixes added is the orchestrator's (4-fix.md): a fixer edits its own class only.
+    ...(size.warning ? ['', 'The loop\'s fixes have already grown it past `loop.maxGrowth`: add nothing your findings do not need.'] : []),
+  ]
+}
+
+/**
  * One brief per open bug class (or the one named), with every instance, the
  * verifiers' evidence and the check commands. Classes that share a file get
  * later waves: a wave's fixers run in parallel, waves one after another.
@@ -260,6 +275,7 @@ export function fixBriefs(root, opts = {}) {
   }
   const intent = intentOf(root, s, opts.intent)
   const checks = [...s.config.checks, ...(s.repro ? [{ name: 'repro', cmd: s.repro, required: true }] : [])]
+  const size = loop.sizeNow(root)
   /** @type {Set<string>[]} */
   const waves = []
   /** @type {Brief[]} */
@@ -289,6 +305,10 @@ export function fixBriefs(root, opts = {}) {
             verifierEvidence: f.votes.filter(v => v.verdict === 'confirm').map(v => v.reason.slice(0, 800)),
           })),
         ),
+        '',
+        '## Size',
+        '',
+        ...sizeSection(size),
         '',
         '## Checks',
         '',

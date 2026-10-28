@@ -8,6 +8,7 @@ It runs **review → verify → fix → validate** rounds until a finish line is
 - **Verify:** every candidate finding must quote the exact code at its file and line (hallucinations are discarded automatically), then independent `finding-verifier` subagents with different stances vote; only findings that reach quorum survive. Duplicates merge; rejected findings never come back.
 - **Fix:** one `fixer` per bug class, test-first, every instance of the class.
 - **Validate:** your repository's own checks run after every round; any regression, dropped test, skipped/focused test or deleted assertion **reverts the round** to its checkpoint.
+- **Keep it small:** review loops grow a change one cheap-looking fix at a time. Fixers make the smallest fix and prefer deleting or narrowing code; a defect on another path, in a rare case or a small cost is a nit. `ql` measures the change against the base at start and after every round, and tells you when the fixes grew its code past `loop.maxGrowth` (50%).
 - **Stop:** done when checks pass and nothing important is open; otherwise a round cap (3), stall, divergence and oscillation detection and a per-finding attempt limit stop the loop for a human.
 
 ## Install
@@ -49,7 +50,7 @@ A band above the prompt shows the active loop's round, phase, open findings, che
 {
   "checks": [{ "name": "test", "cmd": "npm test", "required": true, "timeoutSec": 900 }],
   "review": { "depth": "standard", "skipPaths": ["**/dist/**"], "fixPreExisting": false },
-  "loop": { "maxRounds": 3, "stallRounds": 2, "maxAttemptsPerFinding": 2, "maxContextTokens": 300000 }
+  "loop": { "maxRounds": 3, "stallRounds": 2, "maxAttemptsPerFinding": 2, "maxContextTokens": 300000, "maxGrowth": 0.5 }
 }
 ```
 
