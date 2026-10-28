@@ -16,13 +16,13 @@ It parses the command the way a shell does. Text that only mentions a command is
 
 ## The archive block
 
-A PreToolUse hook on Read, Edit, Write, MultiEdit, NotebookEdit, Grep, Glob, LS and Bash. In every repository, and in every agent, it refuses anything that reaches into `archive/` at a repository's root (ADR 0008):
+A PreToolUse hook on Read, Edit, Write, MultiEdit, NotebookEdit, NotebookRead, Grep, Glob, LS and Bash. In every repository, and in every agent, it refuses anything that reaches into `archive/` at a repository's root (ADR 0008):
 
-- reading, searching or listing inside it, including history (`git show HEAD:archive/…`);
+- reading, searching or listing inside it, including history (`git show HEAD:archive/…`, or a `git log -p` that would print it);
 - writing, editing or deleting there, and copying or moving out;
 - recursive commands that would walk into it (`rg`, `grep -r`, `find`, `git grep`, `tar`, `cp -r`, …), unless they exclude it (`rg -g '!archive'`, `grep --exclude-dir=archive`, `git grep … -- ':!archive'`, `find … -path ./archive -prune`).
 
-Moving files into the archive (`mv`, `git mv`) and creating directories there are allowed. A root `.ignore` listing `/archive/` lets plain `rg` and `fd` search the rest of the repository.
+Moving files into the archive (`mv`, `git mv`), creating directories there, and staging and committing the move are allowed. A root `.ignore` listing `/archive/` lets plain `rg`, `fd`, `ag` and the Grep tool search the rest of the repository; the Glob tool ignores `.ignore`, so scope its pattern instead.
 
 ## Compaction
 

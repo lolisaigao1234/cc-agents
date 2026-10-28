@@ -15,10 +15,11 @@ import { guard } from './lib/guard.mjs'
 function hookOutput(event, input) {
   if (event !== 'pre-tool-use' || !input.tool_name) return null
   const toolInput = input.tool_input ?? {}
-  const destroys = input.tool_name === 'Bash' ? guard(String(toolInput.command ?? '')) : null
-  const reason =
-    archiveBlock(input.tool_name, toolInput, input.cwd ?? process.cwd()) ??
-    (destroys && `trace guard: ${destroys}. If it is really needed, ask the user to run it.`)
+  const guardReason = () => {
+    const why = input.tool_name === 'Bash' ? guard(String(toolInput.command ?? '')) : null
+    return why && `trace guard: ${why}. If it is really needed, ask the user to run it.`
+  }
+  const reason = archiveBlock(input.tool_name, toolInput, input.cwd ?? process.cwd()) ?? guardReason()
   if (!reason) return null
   return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
 }
