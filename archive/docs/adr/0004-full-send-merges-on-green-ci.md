@@ -1,3 +1,5 @@
+> Superseded by ADR-0005 (2026-10-28, #3). Archived: human-managed, not read by agents.
+
 # 0004: full-send takes a finished loop to a merged PR, and merges on green CI
 
 Date: 2026-10-28 · Status: accepted

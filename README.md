@@ -18,7 +18,7 @@ https://claude.dev/blog/getting-the-most-out-of-opus-5-5/
 
 ## quality-loop
 
-Reviews a change with parallel subagents, keeps only verified findings, fixes them test-first, reverts any round that breaks your checks, and repeats until done or stalled. Details: [plugins/quality-loop/README.md](plugins/quality-loop/README.md).
+Reviews a change with parallel subagents, keeps only verified findings, fixes them test-first, reverts any round that breaks your checks, and repeats until done or stalled.
 
 ```
 /plugin install quality-loop --marketplace lolisaigao1234/cc-agents

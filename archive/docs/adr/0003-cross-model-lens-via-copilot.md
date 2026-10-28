@@ -1,3 +1,5 @@
+> Superseded by ADR-0005 (2026-10-28, #3). Archived: human-managed, not read by agents.
+
 # 0003: A second model reviews through GitHub Copilot CLI, as one more lens
 
 Date: 2026-10-28 · Status: proposed (to be built and first run on the main test machine)

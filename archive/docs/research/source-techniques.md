@@ -1,3 +1,5 @@
+> Superseded by ADR-0005 (2026-10-28, #3). Archived: human-managed, not read by agents.
+
 # Techniques from the four source posts, and where each lives
 
 The quality-loop plugin is built from four claude.dev posts. This file lists the techniques each one teaches and where the plugin implements them, so a change to the plugin can be checked against its sources. Paths are relative to `plugins/quality-loop/`.
