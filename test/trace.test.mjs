@@ -14,10 +14,10 @@ const HOOK = fileURLToPath(new URL('../plugins/trace/scripts/hook.mjs', import.m
  * In-memory git and GitHub: a repository at /repo, traced unless `traced` is
  * false, and an untraced one nested at /repo/sub.
  *
- * @param {{ traced?: boolean, branch?: string | null, defaultBranch?: string | null, issues?: Record<number, 'OPEN' | 'CLOSED'>, offline?: boolean, env?: Record<string, string>, messages?: Record<string, string>, aliases?: Record<string, string>, ghAliases?: Record<string, string>, config?: Record<string, string> }} [o]
+ * @param {{ traced?: boolean, branch?: string | null, defaultBranch?: string | null, issues?: Record<number, 'OPEN' | 'CLOSED'>, offline?: boolean, env?: Record<string, string>, messages?: Record<string, string>, aliases?: Record<string, string>, ghAliases?: Record<string, string> | null, config?: Record<string, string>, base?: string }} [o]
  */
 function world(o = {}) {
-  const { traced = true, branch = 'main', defaultBranch = 'main', issues = {}, offline = false, env = {}, messages = {}, aliases = {}, ghAliases = {}, config = {} } = o
+  const { traced = true, branch = 'main', defaultBranch = 'main', issues = {}, offline = false, env = {}, messages = {}, aliases = {}, ghAliases = {}, config = {}, base = 'owner/name' } = o
   return {
     git: {
       root: (/** @type {string} */ path) =>
@@ -26,13 +26,17 @@ function world(o = {}) {
       branch: () => branch,
       defaultBranch: () => defaultBranch,
       origin: () => 'owner/name',
+      ghBase: () => base,
       message: (/** @type {string} */ _root, /** @type {string} */ rev) => messages[rev] ?? null,
-      alias: (/** @type {string} */ _root, /** @type {string} */ name) => aliases[name] ?? null,
-      config: (/** @type {string} */ _root, /** @type {string} */ key) => config[key] ?? null,
+      config: (/** @type {string} */ _root, /** @type {string} */ key) =>
+        config[key] ?? (key.startsWith('alias.') ? aliases[key.slice('alias.'.length)] : undefined) ?? null,
     },
     github: {
       issueState: (/** @type {string} */ _root, /** @type {number} */ n) => (offline ? null : issues[n] ?? 'MISSING'),
-      alias: (/** @type {string} */ name) => ghAliases[name] ?? null,
+      alias: (/** @type {string} */ name) => {
+        if (ghAliases === null) throw new Error('gh alias list failed')
+        return ghAliases[name] ?? null
+      },
     },
     env,
   }
@@ -121,6 +125,7 @@ const FAKE_GH = `#!/usr/bin/env node
 const { appendFileSync } = require('node:fs')
 const args = process.argv.slice(2)
 appendFileSync(process.env.FAKE_GH_LOG, args.join(' ') + '\\n')
+if (args[0] === 'alias' && args[1] === 'list') process.exit(0)
 const m = /^repos\\/(.+)\\/issues\\/(\\d+)$/.exec(args[0] === 'api' ? args[1] : '')
 const issue = m && JSON.parse(process.env.FAKE_GH_ISSUES)[m[1] + '#' + m[2]]
 if (!issue) { process.stderr.write('gh: Not Found (HTTP 404)\\n'); process.exit(1) }
@@ -382,7 +387,8 @@ test('a commit message is judged as git records it: fixups, trailers, cleanup an
   assert.match(String(verdict('git -c commit.cleanup=strip commit -m "#7: add the gate"')), /does not reference #7/)
   assert.match(String(verdict('git commit -m "#7: add the gate"', { config: { 'commit.cleanup': 'strip' } })), /does not reference #7/)
   assert.equal(verdict('git -c core.commentChar=";" commit --cleanup=strip -m "#7: add the gate"'), null)
-  assert.match(String(verdict('git commit --cleanup=scissors -m "x" -m "# ------------------------ >8 ------------------------\nRefs #7"')), /does not reference #7/)
+  // Without an editor, git reads scissors as whitespace.
+  assert.equal(verdict('git commit --cleanup=scissors -m "#7 x" -m "# ------------------------ >8 ------------------------"'), null)
   assert.equal(verdict('git commit --dry-run'), null)
 })
 
@@ -432,7 +438,6 @@ test('a PR is read as gh reads it: last option wins, values stay values, -R anyw
     'gh -R owner/name pr create -t t -b "Refs #7"',
     'gh pr create -b "Closes #7" -b "Refs #7"',
     'gh pr create -t "--body=Closes #7" -b "Refs #7"',
-    'gh pr create -t t -b "`Closes #7`"',
     'gh pr create -t t -b "<!-- Closes #7 -->"',
     "gh pr create -t t -F - <<'EOF'\n```\nCloses #7\n```\nEOF",
     "gh pr create -t t -F - <<'EOF'\nIntro\n\n    Closes #7\nEOF",
@@ -445,6 +450,7 @@ test('a PR is read as gh reads it: last option wins, values stay values, -R anyw
   }
   for (const command of [
     'gh pr create -R other/repo -t t -b "Closes #7"',
+    'gh pr create -t t -b "`Closes #7`"',
     'gh pr create -t t -b "Closes ${R}#7"',
     'gh pr create -t t -b "Closes #7$N"',
     "gh pr create -t t -F - <<'EOF' < body.md\nCloses #7\nEOF",
@@ -452,6 +458,77 @@ test('a PR is read as gh reads it: last option wins, values stay values, -R anyw
     '$(echo gh) pr create -t t -b x',
   ]) {
     assert.match(String(verdict(command)), /cannot tell/, command)
+  }
+})
+
+test('a long or late-defined git alias, or one the environment may set, is refused with a reason', () => {
+  const chain = { a: 'b', b: 'c', c: 'd', d: 'e', e: 'f', f: 'commit' }
+  assert.match(String(verdict('git a -m x', { aliases: chain })), /does not reference #7/)
+  assert.match(String(verdict('git a -m x', { aliases: { a: 'b', b: 'a' } })), /cannot tell/)
+  assert.match(String(verdict('git -c alias.a=b -c alias.b=c -c alias.c=d -c alias.d=e -c alias.e=f -c alias.f=commit a -m x')), /does not reference #7/)
+  assert.match(String(verdict('git config alias.k commit && git k -m x')), /cannot tell/)
+  for (const command of ['GIT_DIR=/repo/.git git commit -m x', 'export GIT_DIR=/repo/.git; git commit -m x', 'GIT_CONFIG_COUNT=1 git k -m x', 'HOME=/tmp/h git k -m x']) {
+    assert.match(String(commandVerdict(command, '/elsewhere', onSeven())), /cannot tell/, command)
+  }
+  const named = String(verdict('cd "$D" && git ci -m x', { aliases: { ci: 'commit' } }))
+  assert.match(named, /cannot tell/)
+})
+
+test('a file written earlier on the line in any form is not read as it was', () => {
+  for (const command of ['python3 -c "open(\'m.txt\',\'w\').write(\'x\')" && git commit -F m.txt', 'dd if=/dev/null of=m.txt && git commit -F m.txt', 'cp x/M.TXT . && git commit -F m.txt', "true || cat > m.txt <<'EOF'\nx (#7)\nEOF\ngit commit -F m.txt", "cat > m.txt <<'EOF' &\nx (#7)\nEOF\ngit commit -F m.txt"]) {
+    assert.match(String(verdict(command)), /cannot tell/, command)
+  }
+})
+
+test('a PR is read as gh reads it: pflag values, booleans, the body file, the base repository', () => {
+  for (const command of [
+    'gh pr create --dry-run=false -t t -b "Refs #7"',
+    "gh pr create -t t -F - -b 'Closes #7' <<'EOF'\nRefs #7\nEOF",
+    "gh pr create -t t --body-file=- <<'EOF'\nIntro\n\n    Closes #7\nEOF",
+    'gh pr edit --body "Refs #7"',
+    'gh pr create -t t --fill=false -b "Refs #7"',
+  ]) {
+    assert.match(String(verdict(command)), /does not close #7/, command)
+  }
+  for (const command of [
+    'gh pr create -t t -F=- <<< "Closes #7"',
+    'gh pr create -R=owner/name -H=7-gates -t t -b "Closes #7"',
+    "gh pr create -t t -F - <<'EOF'\n- Summary\n    - Closes #7\nEOF",
+    "gh pr create --title t --body \"$(cat <<'EOF'\n## Summary\n\n- adds the gate (`x`)\n\nCloses #7\nEOF\n)\"",
+    'gh pr create -h',
+    'gh pr edit --add-label x',
+    'gh pr edit --body "Closes #7"',
+  ]) {
+    assert.equal(verdict(command), null, command)
+  }
+  for (const command of [
+    'gh pr create -t t -b "Closes #7$((0))"',
+    'gh pr create -t t -b "Closes #7$[0]"',
+    'gh pr create -t t -b Closes\\ \\#7{0..0}',
+    'gh pr create -t t -b "$(true \'() Closes #7\')"',
+    'gh $NOPE pr create -t t -b "Refs #7"',
+    'gh pr $(echo create) -t t -b "Refs #7"',
+    'gh alias set pc "pr create -b x" && gh pc',
+    'gh pr create -R ghe.example.com/owner/name -t t -b "Closes #7"',
+    'gh pr edit 12 --body "Closes #7"',
+    'GH_REPO=other/repo gh pr create -t t -b "Closes #7"',
+  ]) {
+    assert.match(String(verdict(command)), /cannot tell/, command)
+  }
+  assert.match(String(verdict('gh pr create -t t -b "Closes #7"', { base: 'upstream/name' })), /cannot tell which issue #7 is in upstream\/name.*-R owner\/name/)
+  assert.equal(verdict('gh pr create -R owner/name -t t -b "Closes #7"', { base: 'upstream/name' }), null)
+  assert.match(String(verdict('gh pr mine', { ghAliases: { 'pr mine': 'pr create -b x' } })), /does not close #7/)
+  assert.match(String(verdict('gh pc -b "Closes #7"', { ghAliases: { pc: 'pr create -b "$1"' } })), /cannot tell/)
+  assert.throws(() => verdict('gh prc', { ghAliases: null }), /gh alias list failed/)
+})
+
+test('the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds', () => {
+  for (const command of ['GH pr create -t t -b x', 'arch -arm64 gh pr create -t t -b x', 'exec -a x gh pr create -t t -b x', 'env -P /opt/bin gh pr create -t t -b x', 'script -q /dev/null gh pr create -t t -b x', "bash -c -- 'gh pr create -t t -b x'", "bash <<< 'gh pr create -t t -b x'", 'gh pr create -t t -b $\'Refs\\x00 Closes #7\'']) {
+    assert.match(String(verdict(command)), /does not close #7/, command)
+  }
+  assert.match(String(verdict("gh pr create -t t -F - 3<<'EOF'\nCloses #7\nEOF")), /cannot tell/)
+  for (const command of ['pushd /repo; pushd /elsewhere; pushd; gh pr create -t t -b x', 'eval cd /repo && gh pr create -t t -b x', 'cd /elsewhere /repo && gh pr create -t t -b x', 'export CDPATH=/; cd repo && gh pr create -t t -b x', 'pushd /repo; pushd /tmp; pushd +1 && gh pr create -t t -b x']) {
+    assert.match(String(commandVerdict(command, '/elsewhere', onSeven())), /Closes #7|cannot tell/, command)
   }
 })
 

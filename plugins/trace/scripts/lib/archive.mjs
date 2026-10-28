@@ -12,7 +12,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 import { CASE_INSENSITIVE_FS, real, untilde } from './paths.mjs'
-import { gitParts, operandIndexes, parseCommands, shortFlags, withCwds } from './shell.mjs'
+import { cdTarget, gitParts, operandIndexes, parseCommands, shortFlags, withCwds } from './shell.mjs'
 
 /** @typedef {import('./shell.mjs').SimpleCommand} SimpleCommand */
 
@@ -920,9 +920,9 @@ function pathsTouch(what, args, cwds) {
 function bashTouches(command, cwd) {
   for (const { c, cwds, at } of withCwds(command, cwd)) {
     for (const f of c.files) if (pathKind(f, cwds)) return `\`${c.name}\` redirects to or from ${f}, in the archive.`
-    if (c.name === 'cd' || c.name === 'pushd' || c.name === 'popd') {
-      const to = c.args.find(a => !a.startsWith('-') || a === '-')
-      if (to !== undefined && to !== '-' && c.name !== 'popd' && !/[$`]/.test(to) && pathKind(to, cwds)) return `\`${c.name} ${to}\` enters the archive.`
+    const t = cdTarget(c)
+    if (t !== null) {
+      if (typeof t === 'object' && pathKind(t.to, cwds)) return `\`${c.name} ${t.to}\` enters the archive.`
       continue
     }
     if (c.chdir !== undefined && pathKind(c.chdir, cwds)) return `\`${c.name}\` runs in ${c.chdir}, in the archive.`

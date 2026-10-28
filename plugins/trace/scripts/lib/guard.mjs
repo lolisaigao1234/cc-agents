@@ -3,7 +3,7 @@
 // It reads command text, so it is a seatbelt, not a sandbox: aliases,
 // functions and scripts can get past it.
 
-import { beforeDashDash, gitParts, operands, parseCommands, shortFlags } from './shell.mjs'
+import { GIT_COMMIT_OPTIONS, beforeDashDash, gitParts, operands, parseCommands, readOptions, shortFlags } from './shell.mjs'
 
 /** @typedef {import('./shell.mjs').SimpleCommand} SimpleCommand */
 
@@ -12,7 +12,7 @@ function gitDestructive(args) {
   const { config, sub, rest, opts, long } = gitParts(args)
 
   if (['commit', 'push', 'merge', 'rebase', 'am', 'cherry-pick', 'revert'].includes(sub ?? '')) {
-    if (long('--no-verify') || (sub === 'commit' && shortFlags(opts, 'mFcCt').has('n'))) return '--no-verify (or commit -n) skips the repository checks'
+    if (long('--no-verify') || (sub === 'commit' && readOptions(rest, GIT_COMMIT_OPTIONS, { abbrev: true }).opts.some(([name]) => name === 'no-verify'))) return '--no-verify (or commit -n) skips the repository checks'
     if (config.some(c => /^core\.hookspath\b/i.test(c))) return 'overriding core.hooksPath skips the repository checks'
   }
   switch (sub) {
