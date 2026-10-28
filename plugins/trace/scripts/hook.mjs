@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs'
 
 import { archiveBlock } from './lib/archive.mjs'
+import { issueContext, stopNudge } from './lib/context.mjs'
 import { readsOf, storeVerdict } from './lib/docs.mjs'
 import { guard } from './lib/guard.mjs'
 import { toolPath } from './lib/paths.mjs'
@@ -13,7 +14,7 @@ import { commandVerdict, editVerdict, readRecord, switchVerdict, worldFor } from
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
 /**
- * @typedef {{ tool_name?: string, tool_input?: Record<string, unknown>, tool_response?: unknown, cwd?: string, session_id?: unknown, agent_id?: unknown }} HookInput
+ * @typedef {{ tool_name?: string, tool_input?: Record<string, unknown>, tool_response?: unknown, cwd?: string, session_id?: unknown, agent_id?: unknown, source?: unknown, stop_hook_active?: unknown }} HookInput
  */
 
 /**
@@ -22,6 +23,22 @@ const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
  * @returns {object | null} the hook output, or null to say nothing
  */
 function hookOutput(event, input) {
+  if (event === 'session-start' || event === 'subagent-start') {
+    // The issue is the record that survives compaction (ADR 0006): each agent is told it at start.
+    if (input.source === 'compact') readsOf(input).clear()
+    const context = issueContext(input.cwd ?? process.cwd(), worldFor(readsOf(input)))
+    const hookEventName = event === 'session-start' ? 'SessionStart' : 'SubagentStart'
+    return context ? { hookSpecificOutput: { hookEventName, additionalContext: context } } : null
+  }
+  if (event === 'post-compact') {
+    // A compacted context no longer holds what the agent read, so it reads again.
+    readsOf(input).clear()
+    return null
+  }
+  if (event === 'stop') {
+    const why = stopNudge(input, worldFor(readsOf(input)))
+    return why ? { decision: 'block', reason: `trace: ${why}` } : null
+  }
   if (event === 'post-tool-use') {
     // What the agent read, for the edit and commit gates to check (ADR 0007).
     const reads = readsOf(input)

@@ -47,10 +47,12 @@ function world(root, { issue = ISSUE, reads = [], head = {}, branch = '8-doc-aut
       message: () => null,
       config: () => null,
       headDocs: () => head,
+      pushed: () => null,
     },
     github: { issueState: () => /** @type {const} */ ('OPEN'), issue: () => issue, alias: () => null },
     env: {},
-    reads: { records: () => reads, add() {} },
+    reads: { records: () => reads, add() {}, clear() {} },
+    once: () => true,
   }
 }
 

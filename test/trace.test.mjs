@@ -32,6 +32,7 @@ function world(o = {}) {
       config: (/** @type {string} */ _root, /** @type {string} */ key) =>
         config[key] ?? (key.startsWith('alias.') ? aliases[key.slice('alias.'.length)] : undefined) ?? null,
       headDocs: () => ({}),
+      pushed: () => null,
     },
     github: {
       issueState: (/** @type {string} */ _root, /** @type {number} */ n) => (offline ? null : issues[n] ?? 'MISSING'),
@@ -42,7 +43,8 @@ function world(o = {}) {
       },
     },
     env,
-    reads: { records: () => [], add() {} },
+    reads: { records: () => [], add() {}, clear() {} },
+    once: () => true,
   }
 }
 
@@ -149,7 +151,9 @@ function hook(input, env = {}, issues = {}, event = 'pre-tool-use') {
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_GH_LOG: log, FAKE_GH_ISSUES: JSON.stringify(issues), TRACE_BYPASS: '', ...env },
   })
   hook.calls = readFileSync(log, 'utf8')
-  return r.stdout ? JSON.parse(r.stdout).hookSpecificOutput : null
+  if (!r.stdout) return null
+  const out = JSON.parse(r.stdout)
+  return out.hookSpecificOutput ?? out
 }
 hook.calls = ''
 
@@ -241,6 +245,36 @@ test('during a rebase, the branch being rebased is the one the trace reads', () 
   const issues = { 'owner/name#8': { state: 'open', title: '', body: '', comments: 0 } }
   const out = hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir, session_id: `s-${process.pid}` }, {}, issues)
   assert.equal(out, null, String(out?.permissionDecisionReason))
+})
+
+test('the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction', () => {
+  const { dir, git } = repo()
+  git('checkout', '-qb', '9-keep-context')
+  writeFileSync(join(dir, 'GLOSSARY.md'), '# Terms\n')
+  const issues = { 'owner/name#9': { state: 'open', title: 'Keep context', body: '## Acceptance criteria\n\n- [ ] it works\n', comments: 1, thread: [{ id: '1', author: 'h', body: 'Started.', at: '2026-01-01T00:00:00Z' }] } }
+  const session = `s-${process.pid}-${Math.random().toString(36).slice(2)}`
+  const start = hook({ hook_event_name: 'SessionStart', source: 'compact', cwd: dir, session_id: session }, {}, issues, 'session-start')
+  assert.equal(start?.hookEventName, 'SessionStart')
+  assert.match(String(start?.additionalContext), /^Trace: this branch belongs to issue #9, "Keep context" \(owner\/name\)\.\nAcceptance criteria:\n- \[ \] it works\n\nLatest comment, by h on 2026-01-01:\nStarted\.\n\nRelated docs, .*GLOSSARY\.md, and issue #9's title, body and 1 comment\./s)
+  const sub = hook({ hook_event_name: 'SubagentStart', agent_id: 'a1', agent_type: 'general-purpose', cwd: dir, session_id: session }, {}, issues, 'subagent-start')
+  assert.equal(sub?.hookEventName, 'SubagentStart')
+  assert.match(String(sub?.additionalContext), /issue #9, "Keep context"/)
+  assert.equal(hook({ hook_event_name: 'SessionStart', source: 'startup', cwd: repo(false).dir, session_id: session }, {}, issues, 'session-start'), null, 'an untraced repository is told nothing')
+
+  const stop = () => hook({ hook_event_name: 'Stop', stop_hook_active: false, cwd: dir, session_id: session }, {}, issues, 'stop')
+  assert.equal(stop(), null, 'nothing pushed yet')
+  git('update-ref', 'refs/remotes/origin/9-keep-context', 'HEAD')
+  assert.deepEqual(stop(), { decision: 'block', reason: 'trace: commits were pushed to 9-keep-context after the last comment on #9. Update step: post a progress comment on #9 (progress, decisions, verification results), with `gh issue comment 9 -R owner/name`. This asks once.' })
+  assert.equal(stop(), null, 'then lets the stop through')
+
+  const glossary = join(dir, 'GLOSSARY.md')
+  const as = { cwd: dir, session_id: session }
+  hook({ tool_name: 'Read', tool_input: { file_path: glossary }, tool_response: { type: 'text', file: { filePath: glossary, content: '# Terms\n', numLines: 2, startLine: 1, totalLines: 2 } }, ...as }, {}, issues, 'post-tool-use')
+  hook({ tool_name: 'Bash', tool_input: { command: 'gh issue view 9 --comments' }, tool_response: { stdout: 'Keep context\n## Acceptance criteria\n\n- [ ] it works\nStarted.\n', stderr: '', interrupted: false }, ...as }, {}, issues, 'post-tool-use')
+  const edit = () => hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, ...as }, {}, issues)
+  assert.equal(edit(), null)
+  hook({ hook_event_name: 'PostCompact', trigger: 'auto', compact_summary: '', ...as }, {}, issues, 'post-compact')
+  assert.match(String(edit()?.permissionDecisionReason), /Unread: GLOSSARY\.md; issue #9/, 'what was read before compaction is gone from context')
 })
 
 test("the hook refuses tools that would touch the trace's read records, and only those", () => {

@@ -4,7 +4,7 @@
 // is recorded from its own tool results, keyed by its session and agent id.
 
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto'
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 
@@ -19,12 +19,12 @@ import { fold, real } from './paths.mjs'
 
 /**
  * One agent's reads: `records` is null when the hook input does not say which
- * agent it is.
+ * agent it is; `clear` forgets them all.
  *
- * @typedef {{ records(): ReadRecord[] | null, add(record: ReadRecord): void }} Reads
+ * @typedef {{ records(): ReadRecord[] | null, add(record: ReadRecord): void, clear(): void }} Reads
  */
 
-/** @typedef {{ title: string, body: string, comments: { id: string, author: string, body: string }[] }} Issue */
+/** @typedef {{ title: string, body: string, comments: { id: string, author: string, body: string, at?: string }[] }} Issue */
 
 /**
  * The glossary and the ADRs as HEAD has them, by path relative to the root;
@@ -175,6 +175,14 @@ const size = path => {
     return Infinity
   }
 }
+
+/**
+ * The names of the related docs for any change, for an agent to be told
+ * what it must read.
+ *
+ * @param {string} root @param {Issue} issue @param {HeadDocs} head @returns {string[]}
+ */
+export const relatedDocNames = (root, issue, head) => relatedDocs(root, null, issue, head).map(d => d.name)
 
 /** @param {Issue} issue @returns {{ what: string, text: string, hash: string, comment?: string }[]} the parts of an issue to read */
 const issueParts = issue =>
@@ -389,7 +397,7 @@ export function readsOf(input) {
   const id = /^[\w-]{1,128}$/
   const { session_id: session, agent_id: agent = 'main' } = input
   if (typeof session !== 'string' || !id.test(session) || typeof agent !== 'string' || !id.test(agent)) {
-    return { records: () => null, add() {} }
+    return { records: () => null, add() {}, clear() {} }
   }
   const dir = join(STORE(), session, agent)
   const mac = (/** @type {string} */ json) => createHmac('sha256', storeKey()).update(`${session}\0${agent}\0${json}`).digest('hex')
@@ -416,6 +424,26 @@ export function readsOf(input) {
       mkdirSync(dir, { recursive: true, mode: 0o700 })
       writeFileSync(join(dir, `${randomUUID()}.json`), JSON.stringify({ record, sig: mac(JSON.stringify(record)) }), { mode: 0o600, flag: 'wx' })
     },
+    clear() {
+      rmSync(dir, { recursive: true, force: true })
+    },
+  }
+}
+
+/**
+ * Whether `key` is new: true the first time the hook asks, in any process.
+ * The marks live with the read records, where only the hook writes.
+ *
+ * @param {string} key @returns {boolean}
+ */
+export function once(key) {
+  const dir = join(STORE(), 'once')
+  mkdirSync(dir, { recursive: true, mode: 0o700 })
+  try {
+    writeFileSync(join(dir, createHash('sha256').update(key).digest('hex')), '', { mode: 0o600, flag: 'wx' })
+    return true
+  } catch {
+    return false
   }
 }
 
