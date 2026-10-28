@@ -7,10 +7,10 @@
 /**
  * One simple command: its name (basename of the command word, after
  * assignments and wrappers such as `sudo`, `env`, `xargs`), its arguments
- * with quotes removed, and the files it redirects output into. `xargs` marks
- * a command run by xargs, whose operands come from its input.
+ * with quotes removed, and the files it redirects output into (which a path
+ * rule needs, since they are not arguments).
  *
- * @typedef {{ name: string, args: string[], writes: string[], xargs?: boolean }} SimpleCommand
+ * @typedef {{ name: string, args: string[], writes: string[] }} SimpleCommand
  */
 
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh'])
@@ -96,9 +96,9 @@ function closingBacktick(src, from) {
 
 // Unquoted `{`, `,` and `}` while a word is read, so brace expansion can
 // tell them from quoted ones.
-const LB = ''
-const CM = ''
-const RB = ''
+const LB = '\uE000'
+const CM = '\uE001'
+const RB = '\uE002'
 const BRACE_CHARS = { [LB]: '{', [CM]: ',', [RB]: '}' }
 
 /**
@@ -129,7 +129,7 @@ function expandBraces(w) {
     }
     return out
   }
-  return [w.replace(/[-]/g, ch => BRACE_CHARS[/** @type {keyof typeof BRACE_CHARS} */ (ch)])]
+  return [w.replace(/[\uE000-\uE002]/g, ch => BRACE_CHARS[/** @type {keyof typeof BRACE_CHARS} */ (ch)])]
 }
 
 /**
@@ -178,8 +178,7 @@ export function parseCommands(src, depth = 0) {
       const w = unwrap(words)
       const name = base(w[0])
       const args = w.slice(1)
-      const xargs = words.slice(0, words.length - w.length).some(x => base(x) === 'xargs')
-      out.push(xargs ? { name, args, writes, xargs } : { name, args, writes })
+      out.push({ name, args, writes })
       if (SHELLS.has(name)) {
         const c = args.findIndex(a => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a))
         if (c >= 0 && args[c + 1] !== undefined) nested(/** @type {string} */ (args[c + 1]))

@@ -87,7 +87,7 @@ function gitDestructive(args) {
   const { config, sub, rest, opts, long } = gitParts(args)
 
   if (['commit', 'push', 'merge', 'rebase', 'am', 'cherry-pick', 'revert'].includes(sub ?? '')) {
-    if (long('--no-verify')) return '--no-verify skips the repository checks'
+    if (long('--no-verify') || (sub === 'commit' && shortFlags(opts, 'mFcCt').has('n'))) return '--no-verify (or commit -n) skips the repository checks'
     if (config.some(c => /^core\.hookspath\b/i.test(c))) return 'overriding core.hooksPath skips the repository checks'
   }
   switch (sub) {
@@ -137,10 +137,6 @@ function gitDestructive(args) {
       if (s.has('D') || ((s.has('d') || long('--delete')) && (s.has('f') || long('--force')))) return 'git branch -D deletes unmerged work'
       break
     }
-    case 'commit': {
-      if (shortFlags(opts, 'mFcCt').has('n')) return 'git commit -n skips the repository checks'
-      break
-    }
   }
   return null
 }
@@ -153,7 +149,8 @@ function destructive(c) {
   if (c.name === 'git') return gitDestructive(c.args)
   if (c.name === 'rm') {
     const opts = beforeDashDash(c.args)
-    if (shortFlags(opts).has('r') || shortFlags(opts).has('R') || opts.includes('--recursive')) return 'rm -r deletes whole directory trees'
+    const s = shortFlags(opts)
+    if (s.has('r') || s.has('R') || opts.includes('--recursive')) return 'rm -r deletes whole directory trees'
   }
   return null
 }

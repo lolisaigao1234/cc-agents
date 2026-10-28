@@ -11,7 +11,7 @@ import { guard } from './lib/guard.mjs'
  * @param {{ tool_name?: string, tool_input?: { command?: unknown } }} input
  * @returns {object | null} the hook output, or null to say nothing
  */
-function handle(event, input) {
+function hookOutput(event, input) {
   if (event !== 'pre-tool-use' || input.tool_name !== 'Bash') return null
   const why = guard(String(input.tool_input?.command ?? ''))
   if (!why) return null
@@ -31,7 +31,7 @@ try {
   process.exit(0)
 }
 try {
-  const out = handle(process.argv[2], input ?? {})
+  const out = hookOutput(process.argv[2], input ?? {})
   if (out) process.stdout.write(JSON.stringify(out))
 } catch (err) {
   // Fail open: a broken hook must never wedge the session.

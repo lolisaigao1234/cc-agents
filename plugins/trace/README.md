@@ -1,6 +1,6 @@
 # trace
 
-Hooks that keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008). It depends on `mattpocock-skills`, which supplies the skills the work goes through.
+Hooks that will keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008). So far it ships the guard; the rest lands ticket by ticket under #3. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
 
 ## The guard
 
