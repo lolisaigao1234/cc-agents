@@ -1,12 +1,13 @@
 {
   "name": "cc-agents",
   "owner": { "name": "Rocky Wu" },
-  "description": "Claude Code agents and mods for code quality.",
+  "description": "Claude Code plugins for traceable, doc-first work.",
+  "allowCrossMarketplaceDependenciesOn": ["claude-plugins-official"],
   "plugins": [
     {
-      "name": "quality-loop",
-      "source": "./plugins/quality-loop",
-      "description": "Review → verify → fix → validate loop with parallel subagents, quorum verification, regression-safe reverts and a reviewer eval harness."
+      "name": "trace",
+      "source": "./plugins/trace",
+      "description": "Ties every change to a GitHub issue and PR, forces reads of the project's decisions, and blocks commands that destroy work or history."
     }
   ]
 }
