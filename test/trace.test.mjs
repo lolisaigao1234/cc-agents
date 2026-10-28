@@ -275,6 +275,14 @@ test('the hook tells each agent about the linked issue when it starts, nudges on
   assert.equal(edit(), null)
   hook({ hook_event_name: 'PostCompact', trigger: 'auto', compact_summary: '', ...as }, {}, issues, 'post-compact')
   assert.match(String(edit()?.permissionDecisionReason), /Unread: GLOSSARY\.md; issue #9/, 'what was read before compaction is gone from context')
+  // The main session's compaction may show only as SessionStart with source compact.
+  hook({ tool_name: 'Read', tool_input: { file_path: glossary }, tool_response: { type: 'text', file: { filePath: glossary, content: '# Terms\n', numLines: 2, startLine: 1, totalLines: 2 } }, ...as }, {}, issues, 'post-tool-use')
+  hook({ tool_name: 'Bash', tool_input: { command: 'gh issue view 9 --comments' }, tool_response: { stdout: 'Keep context\n## Acceptance criteria\n\n- [ ] it works\nStarted.\n', stderr: '', interrupted: false }, ...as }, {}, issues, 'post-tool-use')
+  assert.equal(edit(), null)
+  hook({ hook_event_name: 'SessionStart', source: 'resume', ...as }, {}, issues, 'session-start')
+  assert.equal(edit(), null, 'a resumed session keeps its context')
+  hook({ hook_event_name: 'SessionStart', source: 'compact', ...as }, {}, issues, 'session-start')
+  assert.match(String(edit()?.permissionDecisionReason), /Unread: GLOSSARY\.md; issue #9/)
 })
 
 test("the hook refuses tools that would touch the trace's read records, and only those", () => {
