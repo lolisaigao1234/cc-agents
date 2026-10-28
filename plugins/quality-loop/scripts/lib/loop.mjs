@@ -5,12 +5,13 @@
 import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { artifactRoots, isArtifact, mergeRoots } from './artifacts.mjs'
 import { compareRuns, runChecks } from './checks.mjs'
 import { detectChecks, lensFocus, resolveConfig, validateConfig } from './config.mjs'
 import { decideRound, scoreOf } from './decide.mjs'
 import { parseUnifiedDiff, rangeTouches } from './diff.mjs'
 import { checkEvidence, decodeGitPath, ingestFindings, newLedger, recordVotes } from './findings.mjs'
-import { checkpointTree, diffTrees, numstatTrees, resolveBase, restoreTree, snapshotTree } from './git.mjs'
+import { changedPaths, checkpointTree, diffTrees, numstatTrees, resolveBase, restoreTree, snapshotTree, treeDirs } from './git.mjs'
 import { normalizePath } from './glob.mjs'
 import { lineTranslator } from './track.mjs'
 import { counts, currentRound, inScope, phaseOf, renderLoopMd } from './report.mjs'
@@ -267,7 +268,39 @@ export async function start(root, opts) {
  * @param {string} tree
  */
 function changeSize(root, s, tree) {
-  return sizeOf(numstatTrees(root, s.baseCommit, tree), s.config.review.skipPaths)
+  return sizeOf(numstatTrees(root, s.baseCommit, tree), s.config.review.skipPaths, s.artifacts ?? [])
+}
+
+/**
+ * Marks where this round's review begins: the hunters are about to be
+ * briefed. Files new between here and the end of verification are what the
+ * review left behind (see artifacts.mjs). The first brief counts, so a
+ * hunter re-run does not move the start past files the review made.
+ *
+ * @param {string} root
+ */
+export function markReviewStart(root) {
+  const s = requireState(root)
+  const r = currentRound(s)
+  if (!r || r.reviewStartTree) return
+  r.reviewStartTree = snapshotTree(root)
+  saveState(root, s)
+}
+
+/**
+ * Once the round's review and verification are complete, records the files
+ * that appeared while they ran as artifacts.
+ *
+ * @param {string} root
+ * @param {any} s
+ * @param {string} [tree] the tree now, when the caller has it
+ */
+function closeReview(root, s, tree) {
+  const r = currentRound(s)
+  if (!r?.reviewStartTree || r.reviewClosed || ['investigate', 'review', 'verify'].includes(phaseOf(s))) return
+  const added = changedPaths(root, r.reviewStartTree, tree ?? snapshotTree(root), { added: true })
+  s.artifacts = mergeRoots(s.artifacts ?? [], artifactRoots(added, treeDirs(root, r.reviewStartTree)))
+  r.reviewClosed = true
 }
 
 /**
@@ -470,6 +503,7 @@ export function ingest(root, raws, lens) {
   }
   r.ingests += 1
   r.lensesDone = [...new Set([...(r.lensesDone ?? []), lens])]
+  closeReview(root, s, tree)
   saveState(root, s)
   return report
 }
@@ -496,6 +530,7 @@ export function vote(root, votes) {
   for (const [id, verdict] of Object.entries(out.outcome)) {
     if (verdict === 'confirmed') s.ledger.findings[id].confirmedRound = s.round
   }
+  closeReview(root, s)
   saveState(root, s)
   return out
 }
@@ -627,8 +662,10 @@ export async function endRound(root, opts = {}) {
     )
   }
   const r = currentRound(s)
-  // Read before the checks run, so files a check writes are not taken for edits.
-  const unreviewedEdits = !!r.reviewedTree && !!now && diffTrees(root, r.reviewedTree, now.tree).trim() !== ''
+  // Read before the checks run, so files a check writes are not taken for
+  // edits; files the review left behind are not edits either.
+  const unreviewedEdits =
+    !!r.reviewedTree && !!now && changedPaths(root, r.reviewedTree, now.tree).some(p => !isArtifact(p, s.artifacts ?? []))
   const specs = checkSpecs(s)
   const logDir = join(paths(root).runs, s.id, `round-${r.n}`)
   const run = await runChecks(specs, { cwd: root, logDir, label: `round-${r.n}` })

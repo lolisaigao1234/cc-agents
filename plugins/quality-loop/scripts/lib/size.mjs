@@ -5,6 +5,7 @@
 // fix's regression test is not growth; paths review skips (lockfiles,
 // generated code) and binary files are not counted. Pure.
 
+import { isArtifact } from './artifacts.mjs'
 import { matchesAny } from './glob.mjs'
 import { isTestFile } from './weakening.mjs'
 
@@ -16,13 +17,14 @@ export const MIN_GROWTH_LINES = 10
 /**
  * @param {string} numstat output of `git diff --numstat -z --no-renames`: `<added>\t<removed>\t<path>\0` per file
  * @param {string[]} skipPaths
+ * @param {string[]} [artifacts] files the review left behind (artifacts.mjs), not counted
  * @returns {ChangeSize}
  */
-export function sizeOf(numstat, skipPaths) {
+export function sizeOf(numstat, skipPaths, artifacts = []) {
   const size = { files: 0, code: 0, tests: 0 }
   for (const entry of numstat.split('\0')) {
     const m = /^(-|\d+)\t(-|\d+)\t([\s\S]+)$/.exec(entry.replace(/^\n/, ''))
-    if (!m || m[1] === '-' || matchesAny(m[3] ?? '', skipPaths)) continue
+    if (!m || m[1] === '-' || matchesAny(m[3] ?? '', skipPaths) || isArtifact(m[3] ?? '', artifacts)) continue
     const lines = Number(m[1]) + Number(m[2])
     size.files += 1
     if (isTestFile(m[3] ?? '')) size.tests += lines

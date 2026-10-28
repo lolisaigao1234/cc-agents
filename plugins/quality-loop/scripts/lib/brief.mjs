@@ -3,7 +3,8 @@
 // lens, the diff, a finding's JSON, the checks), `ql brief` writes one
 // markdown brief per agent under .quality-loop/work/round-<n>/briefs/ and
 // prints one line per brief. The Agent prompt is then just "Brief: <path>".
-// Reads the state; never changes it (ql stays the single writer of state).
+// Reads the state; changes it only to mark where a round's review begins
+// (`loop.markReviewStart`).
 
 import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { join, relative } from 'node:path'
@@ -141,6 +142,7 @@ export function hunterBriefs(root, opts = {}) {
   const { s, dir, briefs, rel } = context(root)
   const sc = loop.scope(root)
   if (sc.empty) return { empty: true, briefs: [] }
+  loop.markReviewStart(root)
   const intent = intentOf(root, s, opts.intent)
   // Later rounds look for what is new: the findings so far, as a file.
   const earlier = /** @type {Finding[]} */ (Object.values(s.ledger.findings)).filter(f => f.firstRound < s.round && f.status !== 'rejected')

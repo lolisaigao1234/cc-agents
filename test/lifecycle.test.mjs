@@ -865,3 +865,34 @@ test('unreviewed fixes in the last allowed round cap the loop, and the report sa
   const blocked = qlOk(root, ['report']).split('## Changed')[0] ?? ''
   assert.match(blocked, /pass the checks but no review has read them/)
 })
+
+test('files the review leaves behind (a verifier\'s coverage run) are artifacts: not an edit, not in the size, also when a later test run rewrites them', () => {
+  const root = buggyProject()
+  qlOk(root, ['start', '--mode', 'review', '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  qlOk(root, ['brief', 'hunters'])
+  ingest(root, [NIT], 'correctness')
+  finishReview(root)
+  // a verifier runs the suite with coverage before it votes
+  writeFiles(root, { 'coverage/lcov.info': 'SF:src/cart.js\n', 'test-results.xml': '<testsuite/>\n' })
+  voteAll(root, 'F1')
+  assert.deepEqual(state(root).artifacts, ['coverage/', 'test-results.xml'])
+  // the fix step re-runs the suite (the nit stays open), rewriting and adding to the artifacts
+  writeFiles(root, { 'coverage/lcov.info': 'SF:src/cart.js\nDA:3,1\n', 'coverage/extra.json': '{}\n', 'test-results.xml': '<testsuite tests="1"/>\n' })
+  const end = qlOk(root, ['round', 'end'])
+  assert.match(end, /decision: DONE/)
+  assert.match(end, /^size: 1 file, 4 code lines, 0 test lines at start → 1 file, 4 code lines, 0 test lines now$/m)
+})
+
+test('a new file made after the review is an edit, not an artifact', () => {
+  const root = buggyProject()
+  qlOk(root, ['start', '--mode', 'review', '--depth', 'quick'])
+  qlOk(root, ['round', 'begin'])
+  qlOk(root, ['brief', 'hunters'])
+  ingest(root, [NIT], 'correctness')
+  finishReview(root)
+  voteAll(root, 'F1')
+  writeFiles(root, { 'src/helper.js': 'export const h = 1\n' })
+  assert.match(qlOk(root, ['round', 'end']), /decision: CONTINUE/, 'a new source file after the review needs one')
+  assert.deepEqual(state(root).artifacts ?? [], [])
+})
