@@ -1132,3 +1132,40 @@ export function diffTrees(root, from, to, opts = {}) {
   return git(['diff', '--no-color', '--no-ext-diff', `-U${opts.context ?? 3}`, from, to, '--', '.', EXCLUDE], { cwd: root })
     .stdout
 }
+
+/**
+ * `git diff --numstat` between two tree-ish objects, NUL-separated and
+ * without rename detection (one path per entry), without the loop's own
+ * directory.
+ *
+ * @param {string} root
+ * @param {string} from
+ * @param {string} to
+ */
+export function numstatTrees(root, from, to) {
+  return git(['diff', '--no-color', '--no-ext-diff', '--no-renames', '--numstat', '-z', from, to, '--', '.', EXCLUDE], { cwd: root }).stdout
+}
+
+/**
+ * Paths that differ between two tree-ish objects (`added` only: paths new in
+ * `to`), without rename detection and without the loop's own directory.
+ *
+ * @param {string} root
+ * @param {string} from
+ * @param {string} to
+ * @param {{ added?: boolean }} [opts]
+ */
+export function changedPaths(root, from, to, opts = {}) {
+  const filter = opts.added ? ['--diff-filter=A'] : []
+  return nulList(git(['diff', '--name-only', '-z', '--no-renames', ...filter, from, to, '--', '.', EXCLUDE], { cwd: root }).stdout)
+}
+
+/**
+ * Every directory in a tree-ish object.
+ *
+ * @param {string} root
+ * @param {string} tree
+ */
+export function treeDirs(root, tree) {
+  return new Set(nulList(git(['ls-tree', '-r', '-d', '--name-only', '-z', tree], { cwd: root }).stdout))
+}

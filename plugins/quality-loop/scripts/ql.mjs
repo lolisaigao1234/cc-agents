@@ -17,6 +17,8 @@ import { repoRoot } from './lib/git.mjs'
 import { handleHook } from './lib/hooks.mjs'
 import * as loop from './lib/loop.mjs'
 import { nextAction, phaseOf, renderReport, statusLine, stepFile } from './lib/report.mjs'
+import * as ship from './lib/ship.mjs'
+import { formatSize } from './lib/size.mjs'
 import { paths, readJson, readJsonInput, writeJson, writeText } from './lib/store.mjs'
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -53,6 +55,13 @@ Loop
   ql extend [--rounds N]            (user only) allow more rounds after a cap or stall
   ql report [--out FILE]            final report: Blocked on me / Changed / Found
   ql export [--out FILE] [--all]    verified findings as JSON
+
+Full send (after a DONE loop; ADR 0004)
+  ql ship stage                     stage the change for its commit (never the review's artifacts or .quality-loop/)
+  ql ship start <pr>                follow an open PR (number or URL)
+  ql ship gate [--json]             MERGE | WAIT | FIX | BLOCKED | MERGED, with the checks and the reasons
+  ql ship wait [--timeout S] [--interval S]   gate again until the verdict is not WAIT (default 540s)
+  ql ship merge                     merge, only on MERGE, pinned to the gated head; never --admin
 
 Evals (tuning the reviewer)
   ql eval harvest [--limit N] [--clean N]   draft cases from reverts and fixes in git history
@@ -213,6 +222,15 @@ function surfaceFlag(root, flags) {
   return p
 }
 
+// What full-send does on each gate verdict (skills/full-send/SKILL.md).
+const SHIP_NEXT = {
+  MERGE: '`ql ship merge`',
+  WAIT: '`ql ship wait` (it gates again until the verdict changes)',
+  FIX: 'fix what the reasons name (full-send step 6), commit, push, then `ql ship wait`',
+  BLOCKED: 'ask the user with the question tool, with the reasons above; leave the PR open',
+  MERGED: 'report (full-send step 7)',
+}
+
 /** @param {string[]} argv */
 async function main(argv) {
   const { _, flags } = parseArgs(argv)
@@ -313,6 +331,8 @@ async function main(argv) {
         for (const w of out.weakening) print(`${w.blocking ? 'WEAKENING' : 'warning'}: ${w.kind} ${w.file}${w.line ? `:${w.line}` : ''} ${w.text}`)
         if (out.decision.revert) print(`REVERTED round ${out.round}: restored ${out.restored?.restored.length ?? 0} file(s), deleted ${out.restored?.deleted.length ?? 0}`)
         for (const d of out.discarded) print(`  discarded ${d.id} ${d.file}:${d.line} ${d.title} (its code was reverted)`)
+        if (out.size) print(`size: ${formatSize(out.size.start)} at start → ${formatSize(out.size.now)} now`)
+        if (out.size?.warning) print(`WARNING: ${out.size.warning}`)
         print(`decision: ${out.decision.status.toUpperCase()} · score ${out.decision.endScore}`)
         for (const r of out.decision.reasons) print(`  - ${r}`)
         // Anything but a plain CONTINUE is acted on from the decision table.
@@ -320,6 +340,39 @@ async function main(argv) {
         return printNext(loop.loadState(root), before, { step: settled ? 'decisions.md' : null })
       }
       throw new loop.LoopError('ql round begin|end')
+    }
+    case 'ship': {
+      if (sub === 'stage') {
+        const { files, leftOut } = ship.stage(root)
+        if (flags.json) return print({ files, leftOut })
+        print(files.length ? `staged ${files.length} file(s):\n${files.map(f => `  ${f}`).join('\n')}` : 'nothing to stage')
+        if (leftOut.length) print(`left out (artifacts): ${leftOut.join(', ')}`)
+        return
+      }
+      if (sub === 'start') {
+        const pr = _[2]
+        if (!pr) throw new loop.LoopError('ql ship start <pr number or URL>')
+        const out = ship.start(root, pr)
+        return print(flags.json ? out : `ship: following ${out.ship.pr} · head ${String(out.pr.headRefOid).slice(0, 12)}`)
+      }
+      if (sub === 'gate' || sub === 'wait') {
+        const g =
+          sub === 'gate'
+            ? ship.gate(root)
+            : ship.wait(root, { timeoutSec: int(flags.timeout, 540), intervalSec: int(flags.interval, loop.loadConfig(root).ship.pollSec) })
+        if (flags.json) return print(g)
+        print(`gate: ${g.verdict} · ${g.pr.url} · head ${String(g.pr.headRefOid).slice(0, 12)}`)
+        for (const r of g.reasons) print(`  - ${r}`)
+        for (const c of g.checks) print(`${c.result.toUpperCase()} ${c.name} · ${c.detail}${c.url ? ` · ${c.url}` : ''}`)
+        return print(`next: ${SHIP_NEXT[g.verdict]}`)
+      }
+      if (sub === 'merge') {
+        const m = ship.merge(root)
+        if (flags.json) return print(m)
+        if (m.merged) return print(`merged ${m.url} by ${m.method} · merge commit ${String(m.mergeCommit ?? '?').slice(0, 12)}`)
+        return print(`merge requested, not merged yet (${m.method}; a merge queue or a merge in progress): \`ql ship wait\` until the gate says MERGED`)
+      }
+      throw new loop.LoopError('ql ship stage|start|gate|wait|merge')
     }
     case 'scope': {
       const s = loop.scope(root)

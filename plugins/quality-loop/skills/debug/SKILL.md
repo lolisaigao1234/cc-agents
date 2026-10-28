@@ -41,7 +41,7 @@ The scope `ql round begin` printed predates the fix. Run round steps 2–4 on th
 
 On `CONTINUE` (reverted or not), the next round starts with `ql round begin` before any investigation or edit, so its checkpoint holds what a revert must restore. Then, with the repro still red: steps 2, 3 and 4 of this skill. With the repro green and review findings open: this step.
 
-Done when: `ql round end` reports `DONE` (repro green, no regressions, nothing important open), `CAPPED` or `STALLED`.
+Done when: `ql round end` reports `DONE` (repro green, no regressions, nothing important open, every edit reviewed), `CAPPED` or `STALLED`.
 
 ## 5. Report
 

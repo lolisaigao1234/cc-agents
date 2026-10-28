@@ -65,6 +65,23 @@ export const DEFAULTS = {
     retryFailedChecks: 1,
     // Tokens of context at which a session compacts (null: no cap). See compact.mjs.
     maxContextTokens: 300000,
+    // How much the loop's fixes may grow the change's code lines, as a
+    // fraction of its size at start, before the user is told (null: off). See size.mjs.
+    /** @type {number | null} */
+    maxGrowth: 0.5,
+  },
+  // full-send (ADR 0004): merge once every CI check on the PR's head passed.
+  ship: {
+    /** @type {'auto' | 'squash' | 'merge' | 'rebase'} */
+    mergeMethod: 'auto',
+    // A head with no checks is not green: merge on the loop's local checks alone only when false.
+    requireChecks: true,
+    // How long a new head may go without any check reporting before that blocks the merge.
+    checksGraceSec: 300,
+    // Distinct heads CI may fail on before full send stops for the user.
+    maxFixAttempts: 3,
+    // How often `ql ship wait` reads the PR.
+    pollSec: 30,
   },
   guard: {
     blockDestructive: true,
@@ -148,6 +165,13 @@ export function validateConfig(c) {
   if (!(c.loop?.maxRounds >= 1)) errors.push('loop.maxRounds must be >= 1')
   if (!(c.loop?.stallRounds >= 1)) errors.push('loop.stallRounds must be >= 1')
   if (!(Number.isInteger(c.loop?.maxStopNudges) && c.loop.maxStopNudges >= 0)) errors.push('loop.maxStopNudges must be a whole number >= 0')
+  if (!['auto', 'squash', 'merge', 'rebase'].includes(c.ship?.mergeMethod)) errors.push('ship.mergeMethod must be auto, squash, merge or rebase')
+  if (typeof c.ship?.requireChecks !== 'boolean') errors.push('ship.requireChecks must be true or false')
+  for (const k of ['checksGraceSec', 'maxFixAttempts', 'pollSec']) {
+    if (!(Number.isInteger(c.ship?.[k]) && c.ship[k] >= 0)) errors.push(`ship.${k} must be a whole number >= 0`)
+  }
+  const growth = c.loop?.maxGrowth
+  if (growth !== null && !(typeof growth === 'number' && growth >= 0)) errors.push('loop.maxGrowth must be a number >= 0, or null')
   const cap = c.loop?.maxContextTokens
   if (cap !== null && !(Number.isInteger(cap) && cap >= MIN_WINDOW && cap <= MAX_WINDOW)) {
     errors.push(`loop.maxContextTokens must be an integer from ${MIN_WINDOW} to ${MAX_WINDOW}, or null`)

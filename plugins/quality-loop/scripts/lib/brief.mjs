@@ -3,7 +3,8 @@
 // lens, the diff, a finding's JSON, the checks), `ql brief` writes one
 // markdown brief per agent under .quality-loop/work/round-<n>/briefs/ and
 // prints one line per brief. The Agent prompt is then just "Brief: <path>".
-// Reads the state; never changes it (ql stays the single writer of state).
+// Reads the state; changes it only to mark where a round's review begins
+// (`loop.markReviewStart`).
 
 import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { join, relative } from 'node:path'
@@ -11,6 +12,7 @@ import { join, relative } from 'node:path'
 import { slug } from './config.mjs'
 import * as loop from './loop.mjs'
 import { currentRound } from './report.mjs'
+import { formatSize } from './size.mjs'
 import { paths, readJson, writeJson, writeText } from './store.mjs'
 
 /** @typedef {import('./findings.mjs').Finding} Finding */
@@ -140,6 +142,7 @@ export function hunterBriefs(root, opts = {}) {
   const { s, dir, briefs, rel } = context(root)
   const sc = loop.scope(root)
   if (sc.empty) return { empty: true, briefs: [] }
+  loop.markReviewStart(root)
   const intent = intentOf(root, s, opts.intent)
   // Later rounds look for what is new: the findings so far, as a file.
   const earlier = /** @type {Finding[]} */ (Object.values(s.ledger.findings)).filter(f => f.firstRound < s.round && f.status !== 'rejected')
@@ -244,6 +247,20 @@ export function verifierBriefs(root, opts = {}) {
 }
 
 /**
+ * The fixer's view of the change's size: how big it is, and whether the
+ * loop's fixes have already grown it past `loop.maxGrowth`.
+ *
+ * @param {ReturnType<typeof loop.sizeNow>} size
+ */
+function sizeSection(size) {
+  return [
+    `The change is ${formatSize(size.now)} against the base${size.start ? ` (${formatSize(size.start)} when the loop started)` : ''}. Keep it the size your findings need: the smallest fix, preferring one that deletes or narrows code over a new lock, cache, helper or option.`,
+    // Cutting what earlier fixes added is the orchestrator's (4-fix.md): a fixer edits its own class only.
+    ...(size.warning ? ['', 'The loop\'s fixes have already grown it past `loop.maxGrowth`: add nothing your findings do not need.'] : []),
+  ]
+}
+
+/**
  * One brief per open bug class (or the one named), with every instance, the
  * verifiers' evidence and the check commands. Classes that share a file get
  * later waves: a wave's fixers run in parallel, waves one after another.
@@ -260,6 +277,7 @@ export function fixBriefs(root, opts = {}) {
   }
   const intent = intentOf(root, s, opts.intent)
   const checks = [...s.config.checks, ...(s.repro ? [{ name: 'repro', cmd: s.repro, required: true }] : [])]
+  const size = loop.sizeNow(root)
   /** @type {Set<string>[]} */
   const waves = []
   /** @type {Brief[]} */
@@ -289,6 +307,10 @@ export function fixBriefs(root, opts = {}) {
             verifierEvidence: f.votes.filter(v => v.verdict === 'confirm').map(v => v.reason.slice(0, 800)),
           })),
         ),
+        '',
+        '## Size',
+        '',
+        ...sizeSection(size),
         '',
         '## Checks',
         '',

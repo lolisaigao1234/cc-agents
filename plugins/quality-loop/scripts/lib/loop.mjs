@@ -5,17 +5,19 @@
 import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { artifactRoots, isArtifact, mergeRoots } from './artifacts.mjs'
 import { compareRuns, runChecks } from './checks.mjs'
 import { detectChecks, lensFocus, resolveConfig, validateConfig } from './config.mjs'
 import { decideRound, scoreOf } from './decide.mjs'
 import { parseUnifiedDiff, rangeTouches } from './diff.mjs'
 import { checkEvidence, decodeGitPath, ingestFindings, newLedger, recordVotes } from './findings.mjs'
-import { checkpointTree, diffTrees, resolveBase, restoreTree, snapshotTree } from './git.mjs'
+import { changedPaths, checkpointTree, diffTrees, numstatTrees, resolveBase, restoreTree, snapshotTree, treeDirs } from './git.mjs'
 import { normalizePath } from './glob.mjs'
 import { lineTranslator } from './track.mjs'
 import { counts, currentRound, inScope, phaseOf, renderLoopMd } from './report.mjs'
 import { GITIGNORE, paths, readJson, writeJson, writeText } from './store.mjs'
 import { STOPPED, holdsCap, readTombstone, recordLoop } from './tombstone.mjs'
+import { growthWarning, sizeOf } from './size.mjs'
 import { scanWeakening } from './weakening.mjs'
 
 // Statuses the record keeps until the user extends the loop or starts over.
@@ -225,7 +227,10 @@ export async function start(root, opts) {
     reviewOnly: !!opts.reviewOnly,
     reproPassedAtStart: false,
     extendedAt: 0,
+    size: /** @type {{ start: import('./size.mjs').ChangeSize, now: import('./size.mjs').ChangeSize } | null} */ (null),
   }
+  const startSize = changeSize(root, s, s.baseline.checkpoint)
+  s.size = { start: startSize, now: startSize }
   if (s.reviewOnly) {
     if (s.mode !== 'review') throw new LoopError('--review-only applies to review mode')
     s.goal = opts.goal ?? 'report verified findings for the change; no fixes'
@@ -253,6 +258,63 @@ export async function start(root, opts) {
   }
   saveState(root, s, 'start')
   return s
+}
+
+/**
+ * The change's size against the base at `tree` (see size.mjs).
+ *
+ * @param {string} root
+ * @param {any} s
+ * @param {string} tree
+ */
+function changeSize(root, s, tree) {
+  return sizeOf(numstatTrees(root, s.baseCommit, tree), s.config.review.skipPaths, s.artifacts ?? [])
+}
+
+/**
+ * Marks where this round's review begins: the hunters are about to be
+ * briefed. Files new between here and the end of verification are what the
+ * review left behind (see artifacts.mjs). The first brief counts, so a
+ * hunter re-run does not move the start past files the review made.
+ *
+ * @param {string} root
+ */
+export function markReviewStart(root) {
+  const s = requireState(root)
+  const r = currentRound(s)
+  if (!r || r.reviewStartTree) return
+  r.reviewStartTree = snapshotTree(root)
+  saveState(root, s)
+}
+
+/**
+ * Once the round's review and verification are complete, records the files
+ * that appeared while they ran as artifacts.
+ *
+ * @param {string} root
+ * @param {any} s
+ * @param {string} [tree] the tree now, when the caller has it
+ */
+function closeReview(root, s, tree) {
+  const r = currentRound(s)
+  if (!r?.reviewStartTree || r.reviewClosed || ['investigate', 'review', 'verify'].includes(phaseOf(s))) return
+  const added = changedPaths(root, r.reviewStartTree, tree ?? snapshotTree(root), { added: true })
+  s.artifacts = mergeRoots(s.artifacts ?? [], artifactRoots(added, treeDirs(root, r.reviewStartTree)))
+  r.reviewClosed = true
+}
+
+/**
+ * The change's size at its start and in the working tree now, and the
+ * warning when the loop's fixes grew it past `loop.maxGrowth`. A debug loop
+ * starts before its fix, so all of the fix would read as growth: it gets the
+ * sizes without the warning. A loop started before the meter has no start.
+ *
+ * @param {string} root
+ */
+export function sizeNow(root) {
+  const s = requireState(root)
+  const size = { start: s.size?.start ?? null, now: changeSize(root, s, snapshotTree(root)) }
+  return { ...size, warning: s.mode === 'review' ? growthWarning(size, s.config.loop.maxGrowth) : null }
 }
 
 /** @param {string} root */
@@ -414,6 +476,9 @@ export function ingest(root, raws, lens) {
   } else if (raws === null && !lenses.includes(lens)) {
     throw new LoopError(`\`ql ingest --none\` needs --lens naming a configured lens (${lenses.join(', ')}), or --lens scope for an empty scope; got "${lens || '(none)'}"`)
   }
+  // The tree this round's review has read: an edit after the last ingest
+  // (the fix step's) is unreviewed until a later round reads it (endRound).
+  r.reviewedTree = tree
   const diffFiles = parseUnifiedDiff(diffTrees(root, s.baseCommit, tree, { context: 0 }))
   const { report } = ingestFindings(s.ledger, raws ?? [], {
     round: s.round,
@@ -438,6 +503,7 @@ export function ingest(root, raws, lens) {
   }
   r.ingests += 1
   r.lensesDone = [...new Set([...(r.lensesDone ?? []), lens])]
+  closeReview(root, s, tree)
   saveState(root, s)
   return report
 }
@@ -464,6 +530,7 @@ export function vote(root, votes) {
   for (const [id, verdict] of Object.entries(out.outcome)) {
     if (verdict === 'confirmed') s.ledger.findings[id].confirmedRound = s.round
   }
+  closeReview(root, s)
   saveState(root, s)
   return out
 }
@@ -595,6 +662,10 @@ export async function endRound(root, opts = {}) {
     )
   }
   const r = currentRound(s)
+  // Read before the checks run, so files a check writes are not taken for
+  // edits; files the review left behind are not edits either.
+  const unreviewedEdits =
+    !!r.reviewedTree && !!now && changedPaths(root, r.reviewedTree, now.tree).some(p => !isArtifact(p, s.artifacts ?? []))
   const specs = checkSpecs(s)
   const logDir = join(paths(root).runs, s.id, `round-${r.n}`)
   const run = await runChecks(specs, { cwd: root, logDir, label: `round-${r.n}` })
@@ -722,6 +793,7 @@ export async function endRound(root, opts = {}) {
       .map((/** @type {any} */ x) => ({ startScore: x.startScore, endScore: x.endScore, reverted: x.reverted, found: x.found })),
     startScore,
     found: live.filter(f => f.confirmedRound === r.n).length,
+    unreviewedEdits,
   })
   // What a revert could not undo (a moved HEAD, nested repositories, write
   // failures) needs a human before another round builds on it: the decision
@@ -752,11 +824,13 @@ export async function endRound(root, opts = {}) {
     status: decision.status,
   })
   if (!decision.revert) s.lastRun = run
+  if (s.size) s.size.now = r.size = changeSize(root, s, snapshotTree(root))
   if (decision.status !== 'continue') s.status = decision.status
   s.statusReasons = decision.reasons
   s.stopNudges = 0
   saveState(root, s, 'end')
-  return { round: r.n, decision, compare: cmp, flaky, weakening, restored, discarded, run }
+  const size = s.size ? { ...s.size, warning: s.mode === 'review' ? growthWarning(s.size, s.config.loop.maxGrowth) : null } : null
+  return { round: r.n, decision, compare: cmp, flaky, weakening, restored, discarded, run, size }
 }
 
 /**

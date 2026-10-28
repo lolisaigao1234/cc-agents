@@ -338,6 +338,10 @@ test('`ql next` names the absolute path of an existing step file for each phase 
   assert.match(seen.verify ?? '', /round\/3-verify\.md$/)
   assert.match(seen.fix ?? '', /round\/4-fix\.md$/)
   assert.match(seen.end ?? '', /round\/5-validate\.md$/)
+  // The fix came after the review: one more round reviews it, then DONE.
+  assert.match(qlOk(root, ['round', 'end']), /decision: CONTINUE/)
+  qlOk(root, ['round', 'begin'])
+  review(root, 0)
   const end = qlOk(root, ['round', 'end'])
   assert.match(end, /decision: DONE/)
   assert.match(stepsNamed(end).join(' '), /round\/decisions\.md$/, 'round end points at the decision table')

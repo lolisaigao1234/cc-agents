@@ -21,6 +21,7 @@
  *   history: RoundSummary[],
  *   startScore: number,
  *   found?: number,
+ *   unreviewedEdits?: boolean,
  * }} DecideInput
  * @typedef {'done' | 'continue' | 'capped' | 'stalled'} LoopStatus
  */
@@ -59,7 +60,17 @@ export function decideRound(i) {
   const reproOk = i.mode !== 'debug' || i.reproOk === true
 
   if (isClean && reproOk && i.open.stuck === 0) {
-    return { revert, status: 'done', reasons: [...reasons, 'all required checks pass and no important findings remain open'], endScore }
+    // Fixes made after the round's review pass the checks, but no review
+    // has read them: the loop is done only once one has.
+    if (i.unreviewedEdits && i.round >= i.limits.maxRounds) {
+      reasons.push(`round ${i.round}'s fixes pass the checks but no review has read them, and the round cap (${i.limits.maxRounds}) leaves no round to review them`)
+      return { revert, status: 'capped', reasons, endScore }
+    }
+    if (i.unreviewedEdits) {
+      reasons.push(`round ${i.round} changed code after its review and those edits have not been reviewed: the next round reviews them before the loop can be done`)
+      return { revert, status: 'continue', reasons, endScore }
+    }
+    return { revert, status: 'done', reasons: [...reasons, 'all required checks pass, no important findings remain open, and the review has read every edit'], endScore }
   }
   if (i.open.stuck > 0) {
     reasons.push(`${i.open.stuck} finding(s) still open after the maximum fix attempts: needs a human`)

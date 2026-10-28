@@ -14,7 +14,7 @@ Arguments: `$ARGUMENTS`
 
 ## 1. Set the finish line
 
-The finish line is what "done" means for this run. `ql round end` decides `DONE` by its own criterion, which is the default finish line: every required check passes with no new failures, and no important finding introduced by the change remains open. When the arguments state a different finish line, pass it as `--goal`. ql records and displays it but does not evaluate `--goal`; you check it in step 3. Pass `--base` and `--depth` through when given.
+The finish line is what "done" means for this run. `ql round end` decides `DONE` by its own criterion, which is the default finish line: every required check passes with no new failures, no important finding introduced by the change remains open, and a review has read every edit (a round that fixes after its review is followed by one that reviews the fixes). When the arguments state a different finish line, pass it as `--goal`. ql records and displays it but does not evaluate `--goal`; you check it in step 3. Pass `--base` and `--depth` through when given.
 
 ```
 ql start --mode review [--goal "<finish line>"] [--base <ref>] [--depth <depth>]

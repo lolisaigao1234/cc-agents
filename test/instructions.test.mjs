@@ -147,11 +147,12 @@ test('improve flow: after DONE the loop takes no more rounds, and `ql export --a
   ql(root, ['start', '--mode', 'review', '--goal', 'every finding fixed, nits included'])
   ql(root, ['round', 'begin'])
   const nit = { title: 'Stray TODO', file: 'a.js', line: 1, quote: 'export const x = 1 // TODO', category: 'conventions', severity: 'nit', bugClass: 'stray-todo', explanation: 'Leftover marker.', failureScenario: 'The TODO ships.' }
+  // Both files before the review: a file written after it is an unreviewed edit.
   writeFileSync(join(root, 'hunter.json'), JSON.stringify([nit]))
-  ql(root, ['ingest', 'hunter.json', '--lens', 'conventions'])
-  for (const lens of ['correctness', 'security', 'regressions-and-edge-cases']) ql(root, ['ingest', '--none', '--lens', lens])
   const votes = ['a', 'b', 'c'].map(v => ({ id: 'F1', verdict: 'confirm', voter: v, reason: 'seen', severity: 'nit' }))
   writeFileSync(join(root, 'votes.json'), JSON.stringify(votes))
+  ql(root, ['ingest', 'hunter.json', '--lens', 'conventions'])
+  for (const lens of ['correctness', 'security', 'regressions-and-edge-cases']) ql(root, ['ingest', '--none', '--lens', lens])
   ql(root, ['vote', 'votes.json'])
   assert.match(ql(root, ['round', 'end']), /DONE/, 'ql DONE ignores the open nit the finish line names')
   const open = JSON.parse(ql(root, ['export', '--all'])).filter((/** @type {any} */ f) => f.status === 'confirmed')
@@ -174,4 +175,17 @@ test('the rules for every step reach the orchestrator of every entry skill, from
   for (const step of ['1-begin.md', '2-review.md', '3-verify.md', '4-fix.md', '5-validate.md', 'decisions.md']) {
     assert.doesNotMatch(read(`references/round/${step}`), /single writer/i, `${step} does not repeat the rules`)
   }
+})
+
+test('full-send skill: names only `ql ship` commands ql has, reads the round rules first, and never merges past the gate', () => {
+  const md = read('skills/full-send/SKILL.md')
+  const usage = spawnSync(process.execPath, [QL, 'help'], { encoding: 'utf8' }).stdout
+  const subs = [...md.matchAll(/`ql ship (\w+)/g)].map(m => m[1])
+  assert.ok(subs.length >= 5)
+  for (const sub of new Set(subs)) assert.match(usage, new RegExp(`ql ship ${sub}\\b`), `ql ship ${sub} exists`)
+  assert.match(md.split(/^## /m)[0] ?? '', /\$\{CLAUDE_PLUGIN_ROOT\}\/references\/round\/rules\.md/)
+  for (const s of sentences(md).filter(x => /--admin/.test(x))) assert.match(s, /never|not cover/i, `--admin only as a prohibition: "${s.trim()}"`)
+  // The merge goes through `ql ship merge`, which gates first; never a bare `gh pr merge`.
+  assert.doesNotMatch(md, /gh pr merge/)
+  assert.match(md, /not as a draft/, 'the PR is opened ready, so CI runs')
 })

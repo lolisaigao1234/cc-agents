@@ -1,6 +1,6 @@
 # Round step 2: Review with parallel bug hunters
 
-Run `ql brief hunters` now; the first time, add `--intent "<intent>"` with the change's intent (the user's words, the PR description, or the commit messages). It rewrites the round's scope diff, so it includes any edit made since `ql round begin` (debug's fix), and writes one brief per lens holding:
+Run `ql brief hunters` now; the first time, add `--intent "<intent>"` with the change's intent and what is out of its scope, in one or two sentences (from the user's words, the PR description, or the commit messages). It rewrites the round's scope diff, so it includes any edit made since `ql round begin` (debug's fix), and writes one brief per lens holding:
 
 - the lens name and its focus
 - the intent and the finish line
