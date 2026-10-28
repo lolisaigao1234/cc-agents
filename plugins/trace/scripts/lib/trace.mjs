@@ -9,9 +9,9 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
-import { decode, docsVerdict, fileRecord, outputRecords } from './docs.mjs'
+import { decode, docsVerdict, fileRecord, isDocName, outputRecords, writeRecord } from './docs.mjs'
 
-import { fold, real, untilde } from './paths.mjs'
+import { fold, real, toolPath, untilde } from './paths.mjs'
 import { GIT_COMMIT_OPTIONS, computed, gitParts, literal, parseCommands, readOptions, unliteral, withCwds } from './shell.mjs'
 
 /** @typedef {import('./shell.mjs').SimpleCommand} SimpleCommand */
@@ -87,29 +87,68 @@ const PERSISTED = 30_000
 const PREVIEW = 2_000
 
 /**
- * What a PostToolUse input shows its agent has read: a Read's lines; or what
- * a `gh` or `git show` command printed of the linked issue or of HEAD's docs,
- * counting only the preview when the output was too long to show whole.
+ * What a PostToolUse input shows its agent has read: a Read's lines, and, in
+ * a file outside the repository (a saved output), the linked issue's parts
+ * and HEAD's docs it holds; what a `gh` or `git show` command printed of
+ * them, counting only the preview when the output was too long to show
+ * whole; or a doc the agent wrote or edited knowing all of it.
  *
  * @param {{ tool_name?: string, tool_input?: Record<string, unknown>, tool_response?: unknown, cwd?: string }} input
  * @param {World} [world]
  * @returns {import('./docs.mjs').ReadRecord[]}
  */
 export function readRecord(input, world = REAL) {
-  if (input.tool_name === 'Read') return [fileRecord(input.tool_response)].filter(r => r !== null)
+  const cwd = input.cwd ?? process.cwd()
+  const linked = () => {
+    const root = tracedRoot(real(cwd), world.git)
+    const n = root && branchIssue(world.git.branch(root))
+    return root && n ? { root, n } : null
+  }
+  const response = /** @type {Record<string, unknown> | null} */ (input.tool_response)
+  if (input.tool_name === 'Read') {
+    const file = fileRecord(response)
+    const read = /** @type {{ filePath?: unknown, content?: unknown } | undefined} */ (response?.file)
+    const at = typeof read?.filePath === 'string' && typeof read.content === 'string' ? linked() : null
+    if (!at || !read || typeof read.content !== 'string') return file ? [file] : []
+    const path = fold(real(String(read.filePath)))
+    const inside = path === fold(at.root) || path.startsWith(`${fold(at.root)}/`)
+    return [...(file ? [file] : []), ...(inside ? [] : outputRecords(read.content, at.root, at.n, world.github.issue(at.root, at.n), world.git.headDocs(at.root)))]
+  }
+  if (input.tool_name === 'Write' || input.tool_name === 'Edit' || input.tool_name === 'MultiEdit') {
+    const raw = input.tool_input?.file_path
+    if (typeof raw !== 'string') return []
+    const change =
+      input.tool_name === 'Write'
+        ? { written: String(input.tool_input?.content ?? '') }
+        : typeof response?.originalFile === 'string'
+          ? { original: response.originalFile, userModified: response.userModified === true }
+          : null
+    const record = change && writeRecord(toolPath(raw, cwd), change, world.reads.records())
+    return record ? [record] : []
+  }
   const command = String(input.tool_input?.command ?? '')
-  const response = /** @type {{ stdout?: unknown, persistedOutputPath?: unknown } | null} */ (input.tool_response)
   const stdout = response?.stdout
   const asksGitHub = /\bgh\b/.test(command) && /\b(?:issue|api)\b/.test(command)
   const asksGit = /\bgit\b/.test(command) && /\b(?:show|cat-file)\b/.test(command)
   if (input.tool_name !== 'Bash' || typeof stdout !== 'string' || !(asksGitHub || asksGit)) return []
-  const root = tracedRoot(real(input.cwd ?? process.cwd()), world.git)
-  const n = root && branchIssue(world.git.branch(root))
-  if (!root || !n) return []
+  const at = linked()
+  if (!at) return []
   const cut = typeof response?.persistedOutputPath === 'string' || stdout.length >= PERSISTED
-  const shown = `${command}\n${cut ? stdout.slice(0, PREVIEW) : stdout}`
-  return outputRecords(shown, root, n, asksGitHub ? world.github.issue(root, n) : null, asksGit ? world.git.headDocs(root) : null)
+  const shown = [command, ...postedTexts(command), cut ? stdout.slice(0, PREVIEW) : stdout].join('\n')
+  return outputRecords(shown, at.root, at.n, asksGitHub ? world.github.issue(at.root, at.n) : null, asksGit ? world.git.headDocs(at.root) : null)
 }
+
+/**
+ * The words of a `gh` command line as the shell passes them: text the agent
+ * wrote, such as a comment it posts. A `--body-file` does not count; the
+ * agent may never have seen what is in it.
+ *
+ * @param {string} command @returns {string[]}
+ */
+const postedTexts = command =>
+  parseCommands(command)
+    .filter(c => c.name === 'gh')
+    .flatMap(c => c.args.map(unliteral))
 
 /** @param {string | null} branch @returns {number | null} the issue a branch's `<n>-` prefix names */
 const branchIssue = branch => Number(/^(\d+)-/.exec(branch ?? '')?.[1]) || null
@@ -315,8 +354,10 @@ function definesGitAlias(c) {
 }
 
 // Git commands other than commit that make or move commits; the related docs
-// must be read before them as before a commit.
+// must be read before them as before a commit. Stopping one, skipping a step
+// or asking for help makes nothing new.
 const COMMIT_MAKERS = new Set(['commit-tree', 'update-ref', 'merge', 'cherry-pick', 'revert', 'am', 'rebase', 'pull'])
+const MAKES_NOTHING = /^(?:--abort|--quit|--skip|--show-current-patch|--help|-h)$/
 
 /** @param {string} root @param {World} world @returns {string | null} */
 function makerVerdict(root, world) {
@@ -346,7 +387,7 @@ function commitVerdict(run, world) {
     config = [...config, ...expanded.config]
     parts = { ...expanded, rest: [...expanded.rest, ...parts.rest] }
   }
-  if (parts.sub && COMMIT_MAKERS.has(parts.sub)) return place?.root ? makerVerdict(place.root, world) : null
+  if (parts.sub && COMMIT_MAKERS.has(parts.sub)) return place?.root && !parts.rest.some(w => MAKES_NOTHING.test(w)) ? makerVerdict(place.root, world) : null
   if (parts.sub !== 'commit') return null
   if (!place) return cannotTell('which repository this commit lands in', 'run `git commit` from the repository, or with `git -C <dir>`', 'Implement')
   if (!place.root) return null
@@ -662,10 +703,15 @@ const slugOf = url => /(?:^|[@/])github\.com(?::\d+)?[:/]([^/]+\/[^/]+?)(?:\.git
 
 /** @type {Map<string, string | null>} */
 const defaults = new Map()
+/** @type {Map<string, string | null>} */
+const origins = new Map()
 
 /** @type {Git} */
 const realGit = {
-  origin: root => slugOf(git(root, ['remote', 'get-url', 'origin']) ?? ''),
+  origin(root) {
+    if (!origins.has(root)) origins.set(root, slugOf(git(root, ['remote', 'get-url', 'origin']) ?? ''))
+    return origins.get(root) ?? null
+  },
   // As gh resolves it: a remote marked by `gh repo set-default`, else the
   // first GitHub remote of upstream, github, origin and the rest.
   ghBase(root) {
@@ -690,7 +736,7 @@ const realGit = {
   headDocs(root) {
     const names = git(root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', 'GLOSSARY.md', 'docs/adr'])
     if (names === null) return null
-    const list = names.split('\0').filter(Boolean)
+    const list = names.split('\0').filter(isDocName)
     const r = spawnSync('git', ['-C', root, 'cat-file', '--batch'], { input: list.map(p => `HEAD:${p}\n`).join(''), timeout: Math.min(3000, timeLeft()), maxBuffer: 64 << 20 })
     if (r.error) throw r.error
     if (r.status !== 0) return null
@@ -725,7 +771,19 @@ const realGit = {
       return false
     }
   },
-  branch: root => git(root, ['symbolic-ref', '--short', '-q', 'HEAD']) || null,
+  // While a rebase stops, HEAD is detached; the branch is the one being rebased.
+  branch(root) {
+    const branch = git(root, ['symbolic-ref', '--short', '-q', 'HEAD'])
+    if (branch) return branch
+    for (const dir of ['rebase-merge', 'rebase-apply']) {
+      const at = git(root, ['rev-parse', '--git-path', `${dir}/head-name`])
+      try {
+        const name = at && readFileSync(resolve(root, at), 'utf8').trim()
+        if (name) return name.replace(/^refs\/heads\//, '')
+      } catch {}
+    }
+    return null
+  },
   defaultBranch(root) {
     if (!defaults.has(root)) {
       const remote = git(root, ['symbolic-ref', '--short', '-q', 'refs/remotes/origin/HEAD'])

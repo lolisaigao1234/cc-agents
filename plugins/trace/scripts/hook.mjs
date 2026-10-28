@@ -3,13 +3,11 @@
 // input as JSON on stdin and the hook output as JSON on stdout.
 
 import { readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { resolve } from 'node:path'
 
 import { archiveBlock } from './lib/archive.mjs'
 import { readsOf, storeVerdict } from './lib/docs.mjs'
 import { guard } from './lib/guard.mjs'
-import { real } from './lib/paths.mjs'
+import { toolPath } from './lib/paths.mjs'
 import { commandVerdict, editVerdict, readRecord, switchVerdict, worldFor } from './lib/trace.mjs'
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
@@ -45,8 +43,7 @@ function hookOutput(event, input) {
     }
     const raw = toolInput.file_path ?? toolInput.notebook_path
     if (!EDIT_TOOLS.has(String(input.tool_name)) || typeof raw !== 'string') return null
-    // The edit tools expand only `~` and `~/`.
-    const path = real(resolve(cwd, raw.replace(/^~(?=\/|$)/, homedir())))
+    const path = toolPath(raw, cwd)
     return storeVerdict({ path }) ?? switchVerdict(String(input.tool_name), toolInput, path) ?? editVerdict(path, world)
   }
   const traceReason = () => {

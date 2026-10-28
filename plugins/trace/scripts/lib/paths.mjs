@@ -2,7 +2,7 @@
 
 import { realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 /** @param {string} p @returns {string} `p` with symlinks resolved as far as it exists */
 export function real(p) {
@@ -22,6 +22,9 @@ export function untilde(w, cwd) {
   const home = who === '' ? homedir() : who === '+' || who === '-' ? cwd : join(dirname(homedir()), who)
   return home + rest
 }
+
+/** @param {string} raw @param {string} cwd @returns {string} the path an edit tool's `file_path` names; the edit tools expand only `~` and `~/` */
+export const toolPath = (raw, cwd) => real(resolve(cwd, raw.replace(/^~(?=\/|$)/, homedir())))
 
 export const CASE_INSENSITIVE_FS = process.platform === 'darwin' || process.platform === 'win32'
 

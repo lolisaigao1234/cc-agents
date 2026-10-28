@@ -228,6 +228,21 @@ test("the hook counts an agent's own full reads only, and only while the docs ar
   assert.match(String(hook({ tool_name: 'Bash', tool_input: { command: 'git commit -m "x (#8)"' }, cwd: dir, ...as('') }, {}, issues)?.permissionDecisionReason), /GLOSSARY\.md \(stale/)
 })
 
+test('during a rebase, the branch being rebased is the one the trace reads', () => {
+  const { dir, git } = repo()
+  git('checkout', '-qb', '8-doc-authority')
+  writeFileSync(join(dir, 'a.md'), 'mine\n')
+  git('commit', '-qam', 'mine (#8)')
+  git('checkout', '-q', 'main')
+  writeFileSync(join(dir, 'a.md'), 'theirs\n')
+  git('commit', '-qam', 'theirs')
+  git('checkout', '-q', '8-doc-authority')
+  assert.throws(() => git('rebase', 'main'), 'the rebase stops on the conflict')
+  const issues = { 'owner/name#8': { state: 'open', title: '', body: '', comments: 0 } }
+  const out = hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir, session_id: `s-${process.pid}` }, {}, issues)
+  assert.equal(out, null, String(out?.permissionDecisionReason))
+})
+
 test("the hook refuses tools that would touch the trace's read records, and only those", () => {
   const { dir } = repo(false)
   for (const command of ['echo {} > "$TMPDIR/trace-reads/s/main/x.json"', `rm ${join(tmpdir(), 'trace-reads')}/s/main/x.json`, 'cd "$TMPDIR" && cat trace-reads/.key']) {

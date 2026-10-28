@@ -54,12 +54,23 @@ function world(root, { issue = ISSUE, reads = [], head = {}, branch = '8-doc-aut
   }
 }
 
-/** The records of a Read tool call that returned lines `from`–`to` of `path` as it is now. @param {string} path @param {number} [from] @param {number} [to] */
-function read(path, from = 1, to) {
+/**
+ * The records of a Read tool call that returned lines `from`–`to` of `path`
+ * as it is now (or as `write`), by an agent working in `root`.
+ *
+ * @param {string} path @param {number} [from] @param {number} [to]
+ * @param {{ root?: string, issue?: Issue, head?: HeadDocs, write?: string }} [o]
+ */
+function read(path, from = 1, to, { root, issue, head, write } = {}) {
+  if (write !== undefined) {
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, write)
+  }
   const lines = readFileSync(path, 'utf8').replace(/\r\n/g, '\n').split('\n')
   const end = to ?? lines.length
   const content = lines.slice(from - 1, end).join('\n')
-  return readRecord({ tool_name: 'Read', tool_input: { file_path: path }, tool_response: { type: 'text', file: { filePath: path, content, numLines: end - from + 1, startLine: from, totalLines: lines.length } } })
+  const input = { tool_name: 'Read', tool_input: { file_path: path }, tool_response: { type: 'text', file: { filePath: path, content, numLines: end - from + 1, startLine: from, totalLines: lines.length } } }
+  return root ? readRecord({ ...input, cwd: root }, world(root, { issue, head })) : readRecord(input)
 }
 
 /**
@@ -84,7 +95,7 @@ test('an agent that has read nothing is refused, with every related doc and how 
   const root = docsRepo()
   const why = edit(root)
   assert.match(why, /^the related docs are not all read\. Unread: GLOSSARY\.md; docs\/adr\/0001-a\.md; issue #8: its title, body \(`gh issue view 8 -R owner\/name` for the title and body\)\./)
-  assert.match(why, /Read step: read each file with the Read tool, every line, and run the commands shown, in this agent; reads by its parent or another agent do not count\.$/)
+  assert.match(why, /Read step: read each file with the Read tool, every line, and run the commands shown \(an output too long to show counts only for its preview: save it to a file outside the repository and Read that\), in this agent; reads by its parent or another agent do not count\.$/)
 })
 
 test('an agent that has read every related doc in full may edit', () => {
@@ -196,7 +207,8 @@ test("the issue's comments are read too, as printed, as JSON, or as posted, and 
   const issue = { ...ISSUE, comments }
   const plain = printed(root, `title:\t${issue.title}\nstate:\tOPEN\n--\n${issue.body}\n`, { issue })
   const why = edit(root, { issue, reads: [...files, ...plain] })
-  assert.match(why, /Unread: issue #8: its comment 11 by rocky, comment 12 by claude \(`gh api repos\/owner\/name\/issues\/comments\/<id> --jq \.body` for each comment\)\. Read step: run the commands shown, in this agent;/)
+  assert.match(why, /Unread: issue #8: its comment 11 by rocky, comment 12 by claude \(`gh api --paginate repos\/owner\/name\/issues\/8\/comments --jq '\.\[\]\.body'` for the comments, or `gh api repos\/owner\/name\/issues\/comments\/<id> --jq \.body` for one\)\. Read step: run the commands shown \(.*\), in this agent;/)
+  assert.equal(edit(root, { issue, reads: [...files, ...plain, ...printed(root, comments.map(c => c.body).join('\n'), { issue, command: "gh api --paginate repos/owner/name/issues/8/comments --jq '.[].body'" })] }), 'null')
   const json = JSON.stringify({ title: issue.title, body: issue.body, comments: comments.map(c => ({ author: { login: c.author }, body: c.body })) })
   const all = printed(root, json, { issue, command: 'gh issue view 8 --json title,body,comments' })
   assert.equal(edit(root, { issue, reads: [...files, ...all] }), 'null')
@@ -205,6 +217,10 @@ test("the issue's comments are read too, as printed, as JSON, or as posted, and 
   const posted = printed(root, 'https://github.com/owner/name/issues/8#issuecomment-12\n', { issue, command: 'gh issue comment 8 --body "Progress: done."' })
   assert.equal(edit(root, { issue, reads: [...files, ...plain, ...posted, ...printed(root, 'Decision: keep it short.', { issue, command: 'gh api repos/owner/name/issues/comments/11 --jq .body' })] }), 'null')
   assert.deepEqual(printed(root, `${issue.title}\n${issue.body}`, { issue, command: 'cat notes.txt' }), [], 'only gh and git show output counts')
+  writeFileSync(join(root, 'note.md'), 'Progress: done.\n')
+  assert.deepEqual(printed(root, 'https://github.com/owner/name/issues/8#issuecomment-12\n', { issue, command: 'gh issue comment 8 --body-file note.md' }), [], 'a body file the agent may never have seen')
+  const shell = { ...issue, comments: [{ id: '13', author: 'claude', body: 'The `parser` costs $5.' }] }
+  assert.equal(printed(root, 'https://github.com/owner/name/issues/8#issuecomment-13\n', { issue: shell, command: 'gh issue comment 8 --body "The \\`parser\\` costs \\$5."' }).length, 1, 'posted with shell escapes')
 })
 
 test('output too long to show counts only for its preview', () => {
@@ -236,6 +252,60 @@ test('a doc moved, emptied, re-marked or made unreadable in the working tree is 
   }
 })
 
+test('an issue part or a doc in HEAD too long to show counts once saved to a file and Read, and a renamed doc once read under its new name', () => {
+  const root = docsRepo({ 'GLOSSARY.md': Array.from({ length: 600 }, (_, i) => `**Term ${i}**: what term ${i} means in this project.`).join('\n') + '\n' })
+  const head = committed(root)
+  const body = Array.from({ length: 800 }, (_, i) => `Step ${i}: do the next part of the work.`).join('\n')
+  const issue = { title: 'T', body, comments: [] }
+  const files = [...read(join(root, 'GLOSSARY.md')), ...read(join(root, 'docs/adr/0001-a.md'))]
+  const view = `title:\tT\n--\n${body}\n`
+  assert.ok(view.length > 30_000)
+  assert.match(edit(root, { issue, reads: [...files, ...printed(root, view, { issue })] }), /Unread: issue #8: its body \(.*\)\. Read step: run the commands shown \(an output too long to show counts only for its preview: save it to a file outside the repository and Read that\), in this agent/)
+  const saved = join(realpathSync(mkdtempSync(join(tmpdir(), 'saved-'))), 'issue.txt')
+  writeFileSync(saved, view)
+  const whole = read(saved, 1, undefined, { root, issue })
+  assert.equal(edit(root, { issue, reads: [...files, ...whole] }), 'null')
+  assert.deepEqual(read(join(root, 'src/view.txt'), 1, undefined, { root, issue, write: view }), [], 'a file in the repository is not read for the issue')
+
+  renameSync(join(root, 'docs/adr/0001-a.md'), join(root, 'docs/adr/0001-renamed.md'))
+  renameSync(join(root, 'GLOSSARY.md'), join(root, 'old-glossary.md'))
+  const fresh = printed(root, `title:\t${ISSUE.title}\n--\n${ISSUE.body}\n`)
+  const renamed = read(join(root, 'docs/adr/0001-renamed.md'))
+  assert.match(edit(root, { head, reads: [...fresh, ...renamed] }), /Unread: GLOSSARY\.md \(gone or empty .*`git show HEAD:GLOSSARY\.md`\)\. /, 'the renamed ADR counts for its old name')
+  const dump = join(dirname(saved), 'glossary.txt')
+  writeFileSync(dump, head['GLOSSARY.md'] ?? '')
+  assert.equal(edit(root, { head, reads: [...fresh, ...renamed, ...read(dump, 1, undefined, { root, head })] }), 'null')
+})
+
+test('a notebook, or a file too large to Read, that the issue body links is not a related doc', () => {
+  const root = docsRepo({ 'docs/quickstart.ipynb': '{"cells": []}\n', 'docs/openapi.json': `{"x": "${'y'.repeat(5 << 20)}"}\n` })
+  const issue = { title: 'T', body: 'Fix docs/quickstart.ipynb against docs/openapi.json.', comments: [] }
+  const reads = [...read(join(root, 'GLOSSARY.md')), ...read(join(root, 'docs/adr/0001-a.md')), ...printed(root, `title:\tT\n--\n${issue.body}\n`, { issue })]
+  assert.equal(edit(root, { issue, reads }), 'null')
+})
+
+test("the agent's own edits and writes keep its reads of a doc current", () => {
+  const root = docsRepo()
+  const reads = readAll(root)
+  const glossary = join(root, 'GLOSSARY.md')
+  const before = readFileSync(glossary, 'utf8')
+  writeFileSync(glossary, `${before}**Gate**: a check.\n`)
+  /** @param {string} tool_name @param {Record<string, unknown>} tool_input @param {object} tool_response @param {ReadRecord[]} r */
+  const post = (tool_name, tool_input, tool_response, r) => readRecord({ tool_name, tool_input, tool_response, cwd: root }, world(root, { reads: r }))
+  const edited = { file_path: 'GLOSSARY.md', old_string: '.\n', new_string: '.\n**Gate**: a check.\n' }
+  assert.equal(post('Edit', edited, { filePath: glossary, originalFile: before, userModified: false }, reads).length, 1)
+  assert.equal(edit(root, { reads: [...reads, ...post('Edit', edited, { filePath: glossary, originalFile: before, userModified: false }, reads)] }), 'null')
+  assert.deepEqual(post('Edit', edited, { filePath: glossary, originalFile: before, userModified: false }, []), [], 'an agent that had not read the doc')
+  assert.deepEqual(post('Edit', edited, { filePath: glossary, originalFile: before, userModified: true }, reads), [], 'the user changed the edit')
+  const text = '---\nstatus: accepted\n---\n# 0002: New\n'
+  const adr = join(root, 'docs/adr/0002-new.md')
+  writeFileSync(adr, text)
+  const written = post('Write', { file_path: adr, content: text }, { type: 'create', filePath: adr, content: text }, [])
+  assert.equal(written.length, 1)
+  assert.deepEqual(post('Write', { file_path: adr, content: 'other' }, { type: 'create', filePath: adr, content: 'other' }, []), [], 'the file holds other text')
+  assert.match(edit(root, { reads: [...reads, ...written] }), /Unread: GLOSSARY\.md \(stale/)
+})
+
 test('when the agent cannot be told apart, or GitHub cannot say what the issue says, the change is refused', () => {
   const root = docsRepo()
   assert.match(edit(root, { reads: null }), /^the trace cannot tell which agent this is, so not what it has read\. Read step: .*TRACE_BYPASS=1/)
@@ -261,4 +331,8 @@ test('a commit, or any git command that makes or moves commits, waits for every 
     assert.equal(commit(c, { branch: 'main' }), 'null', `${c} on the default branch is no change to an issue`)
   }
   assert.equal(commit('git commit --dry-run -m x'), 'null')
+  for (const c of ['git merge --abort', 'git rebase --abort', 'git rebase --quit', 'git rebase --skip', 'git cherry-pick --abort', 'git am --abort', 'git revert --quit', 'git merge --help', 'git rebase -h']) {
+    assert.equal(commit(c), 'null', `${c} makes no commit`)
+  }
+  assert.match(commit('git merge --continue'), /related docs are not all read/)
 })

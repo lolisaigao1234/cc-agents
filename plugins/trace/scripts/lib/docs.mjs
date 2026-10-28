@@ -75,6 +75,12 @@ function docText(path) {
 /** An ADR is a numbered markdown file anywhere under docs/adr/. */
 const ADR = /^docs\/adr\/(?:.+\/)?\d+-[^/]*\.md$/i
 
+/** @param {string} name relative to the root @returns {boolean} whether it is the glossary or an ADR */
+export const isDocName = name => name === 'GLOSSARY.md' || ADR.test(name)
+
+/** Read returns no file larger than this as lines. */
+const MAX_DOC = 4 << 20
+
 const INACTIVE = /^(?:superseded|deprecated|rejected)\b/i
 
 /**
@@ -136,7 +142,7 @@ function relatedDocs(root, paths, issue, head) {
   /** @type {Doc[]} */
   const docs = []
   for (const name of [...names].sort()) {
-    if (name !== 'GLOSSARY.md' && !ADR.test(name)) continue
+    if (!isDocName(name)) continue
     const path = join(root, name)
     const now = docText(path)
     const was = head?.[name] ?? null
@@ -145,18 +151,29 @@ function relatedDocs(root, paths, issue, head) {
     if (!('unreadable' in now) && texts.every(t => t.trim() === '')) continue
     docs.push({ name, path, now, head: was })
   }
-  // Every text file under docs/ that the issue body names, by path or by URL.
+  // Every text file under docs/ that the issue body names, by path or by URL,
+  // that Read returns as lines: not a notebook, nor one too large.
   for (const [, link = ''] of issue.body.matchAll(/(?:^|[^\w.-])(docs\/[^\s)\]>"'`#?]*[^\s)\]>"'`#?.,;:!])/g)) {
     let name = link
     try {
       name = decodeURI(link)
     } catch {}
     const path = resolve(root, name)
+    if (!path.startsWith(`${join(root, 'docs')}/`) || /\.ipynb$/i.test(path) || size(path) > MAX_DOC) continue
     const now = docText(path)
-    if (!path.startsWith(`${join(root, 'docs')}/`) || !('text' in now) || now.text.trim() === '') continue
+    if (!('text' in now) || now.text.trim() === '') continue
     if (!docs.some(d => d.path === path)) docs.push({ name: relative(root, path), path, now, head: null })
   }
   return docs
+}
+
+/** @param {string} path @returns {number} its size, or Infinity when it cannot be told */
+const size = path => {
+  try {
+    return statSync(path).size
+  } catch {
+    return Infinity
+  }
 }
 
 /** @param {Issue} issue @returns {{ what: string, text: string, hash: string, comment?: string }[]} the parts of an issue to read */
@@ -188,21 +205,46 @@ export function fileRecord(response) {
   const { filePath, content, startLine, numLines, totalLines } = file
   if (typeof filePath !== 'string' || typeof content !== 'string') return null
   if (![startLine, numLines, totalLines].every(Number.isInteger) || /** @type {number} */ (startLine) < 1) return null
-  const path = real(filePath)
-  if (!MAYBE_DOC.test(filePath) && !MAYBE_DOC.test(path)) return null
-  try {
-    if (statSync(path).size > 4 << 20) return null
-  } catch {
-    return null
-  }
-  const now = docText(path)
-  if (!('text' in now)) return null
-  const lines = lf(now.text).split('\n')
+  const now = docOnDisk(filePath)
+  if (!now) return null
+  const lines = now.text.split('\n')
   const from = /** @type {number} */ (startLine)
   const to = from + /** @type {number} */ (numLines) - 1
   if (totalLines !== lines.length || to > lines.length) return null
   if (lf(content) !== lines.slice(from - 1, to).join('\n')) return null
-  return { file: path, hash: sha(lf(now.text)), from, to }
+  return { file: now.path, hash: sha(now.text), from, to }
+}
+
+/** @param {string} filePath @returns {{ path: string, text: string } | null} a path that may be a doc, resolved, and its text as Read compares it */
+function docOnDisk(filePath) {
+  const path = real(filePath)
+  if ((!MAYBE_DOC.test(filePath) && !MAYBE_DOC.test(path)) || size(path) > MAX_DOC) return null
+  const now = docText(path)
+  return 'text' in now ? { path, text: lf(now.text) } : null
+}
+
+/** @param {ReadRecord[]} records @param {string} text as Read compares it @returns {Set<number>} the lines of `text` they cover, under any name */
+const coverage = (records, text) => {
+  const hash = sha(text)
+  return new Set(records.flatMap(r => ('file' in r && r.hash === hash ? range(r.from, r.to) : [])))
+}
+
+/**
+ * The record an agent's own Write or Edit of a doc makes: the whole file, when
+ * the agent knows all of it. A Write knows what it wrote; an Edit knows the
+ * file when the agent had read all of it before, and the user did not change
+ * the edit.
+ *
+ * @param {string} filePath
+ * @param {{ written: string } | { original: string, userModified: boolean }} change
+ * @param {ReadRecord[] | null} records the agent's reads before the change
+ * @returns {ReadRecord | null}
+ */
+export function writeRecord(filePath, change, records) {
+  const now = docOnDisk(filePath)
+  if (!now) return null
+  if ('written' in change ? lf(change.written) !== now.text : change.userModified || !records || coverage(records, lf(change.original)).size < lf(change.original).split('\n').length) return null
+  return { file: now.path, hash: sha(now.text), from: 1, to: now.text.split('\n').length }
 }
 
 /**
@@ -270,9 +312,9 @@ export function docsVerdict(root, n, paths, { issue, slug, head, records: record
     const now = 'text' in doc.now && doc.now.text.trim() !== '' ? doc.now.text : null
     const text = lf(now ?? doc.head ?? '')
     const lines = text.split('\n').length
-    const hash = sha(text)
+    // The same text read under another name, renamed or saved from HEAD, counts.
+    const covered = coverage(records, text)
     const mine = records.filter(r => 'file' in r && fold(r.file) === fold(real(doc.path)))
-    const covered = new Set(mine.flatMap(r => ('file' in r && r.hash === hash ? range(r.from, r.to) : [])))
     const missing = range(1, lines).filter(l => !covered.has(l)).length
     if (!missing) continue
     if (now === null) unread.push(`${doc.name} (gone or empty in the working tree, but in HEAD: \`git show HEAD:${doc.name}\`)`)
@@ -289,13 +331,20 @@ export function docsVerdict(root, n, paths, { issue, slug, head, records: record
     const comments = left.filter(p => p.comment)
     const how = [
       ...(left.some(p => !p.comment) ? [`\`gh issue view ${n}${repo}\` for the title and body`] : []),
-      ...(!comments.length ? [] : slug ? [`\`gh api repos/${slug}/issues/comments/<id> --jq .body\` for each comment`] : [`\`gh issue view ${n} --comments\``]),
+      ...(!comments.length
+        ? []
+        : slug
+          ? [`\`gh api --paginate repos/${slug}/issues/${n}/comments --jq '.[].body'\` for the comments, or \`gh api repos/${slug}/issues/comments/<id> --jq .body\` for one`]
+          : [`\`gh issue view ${n} --comments\``]),
     ]
     unread.push(`issue #${n}: its ${left.map(p => p.what).join(', ')} (${how.join('; ')})`)
     byCommand = true
   }
   if (!unread.length) return null
-  const how = [...(byRead ? ['read each file with the Read tool, every line'] : []), ...(byCommand ? ['run the commands shown'] : [])]
+  const how = [
+    ...(byRead ? ['read each file with the Read tool, every line'] : []),
+    ...(byCommand ? ['run the commands shown (an output too long to show counts only for its preview: save it to a file outside the repository and Read that)'] : []),
+  ]
   return `the related docs are not all read. Unread: ${unread.join('; ')}. Read step: ${how.join(', and ')}, in this agent; reads by its parent or another agent do not count.`
 }
 
