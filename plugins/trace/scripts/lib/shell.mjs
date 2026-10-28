@@ -12,11 +12,16 @@
  * is a directory a wrapper runs it in (`env -C`, `sudo -D`). `level` is
  * how deep in subshells and nested scripts it runs, and `op` the operator
  * after it (`&&`, `||`, `;`, `|`, `&`), so a rule can follow a `cd`.
- * `stdin` is the text a heredoc or here-string feeds it, and `piped` says
- * another command's output does.
+ * `stdin` is the text a heredoc or here-string feeds it, when that is its
+ * last input redirection, and `piped` says another command's output does.
  *
  * @typedef {{ name: string, args: string[], files: string[], chdir?: string, level: number, op?: string, stdin?: string, piped?: boolean }} SimpleCommand
  */
+
+import { homedir } from 'node:os'
+import { resolve } from 'node:path'
+
+import { untilde } from './paths.mjs'
 
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'fish'])
 const KEYWORDS = new Set(['!', '{', '}', 'if', 'then', 'else', 'elif', 'fi', 'do', 'done', 'while', 'until', 'time'])
@@ -185,10 +190,13 @@ export function parseCommands(src, depth = 0) {
   let word = null
   /** `dup`: after `>&`, where a descriptor number or `-` names no file. @type {'file' | 'dup' | 'data' | null} */
   let redirect = null
-  /** @type {{ delim: string, strip: boolean, words: string[], cmd?: SimpleCommand }[]} */
+  /** `owner` is the command it belongs to, `feeds` whether it is that command's stdin. */
+  /** @type {{ delim: string, strip: boolean, words: string[], owner?: SimpleCommand | null, feeds?: boolean }[]} */
   let heredocs = []
   /** @type {string | undefined} a here-string's text */
   let herestring
+  /** The command's last input redirection: a heredoc, a here-string or a file. @type {object | 'here' | 'file' | null} */
+  let lastInput = null
   let prevOp = ''
 
   const append = (/** @type {string} */ s) => {
@@ -214,9 +222,13 @@ export function parseCommands(src, depth = 0) {
       const cmd = { name, args, files: [...files, ...inputs], level: parens }
       if (chdir !== undefined) cmd.chdir = chdir
       if (op) cmd.op = op
-      if (herestring !== undefined) cmd.stdin = herestring
+      if (lastInput === 'here' && herestring !== undefined) cmd.stdin = herestring
       if (prevOp === '|') cmd.piped = true
-      for (const h of heredocs) h.cmd ??= cmd
+      for (const h of heredocs) {
+        if (h.owner !== undefined) continue
+        h.owner = cmd
+        h.feeds = lastInput === h
+      }
       out.push(cmd)
       if (split !== undefined) nested(split)
       if (SHELLS.has(name)) {
@@ -234,9 +246,11 @@ export function parseCommands(src, depth = 0) {
         })
       }
     }
+    for (const h of heredocs) h.owner ??= null
     words = []
     files = []
     herestring = undefined
+    lastInput = null
     prevOp = op
   }
 
@@ -260,7 +274,7 @@ export function parseCommands(src, depth = 0) {
         }
         // A heredoc fed to a shell is a script; fed to anything else it is data.
         if (SHELLS.has(base(unwrap(h.words).words[0]))) nested(body.join('\n'))
-        else if (h.cmd) h.cmd.stdin = body.join('\n')
+        else if (h.owner && h.feeds) h.owner.stdin = body.join('\n')
       }
       heredocs = []
       continue
@@ -363,6 +377,7 @@ export function parseCommands(src, depth = 0) {
       endWord()
       if (c === '<' && src[i + 1] === '<' && src[i + 2] === '<') {
         redirect = 'data' // here-string: the next word is input text
+        lastInput = 'here'
         i += 3
       } else if (c === '<' && src[i + 1] === '<') {
         let j = i + 2
@@ -371,9 +386,12 @@ export function parseCommands(src, depth = 0) {
         while (src[j] === ' ' || src[j] === '\t') j++
         let delim = ''
         while (j < n && !/[\s;&|<>()]/.test(/** @type {string} */ (src[j]))) delim += src[j++]
-        heredocs.push({ delim: delim.replace(/["'\\]/g, ''), strip, words: [...words] })
+        const h = { delim: delim.replace(/["'\\]/g, ''), strip, words: [...words] }
+        heredocs.push(h)
+        lastInput = h
         i = j
       } else if (c === '<') {
+        lastInput = 'file'
         redirect = src[i + 1] === '&' ? 'dup' : 'file'
         i += src[i + 1] === '>' || src[i + 1] === '&' ? 2 : 1
       } else {
@@ -393,7 +411,120 @@ export function parseCommands(src, depth = 0) {
   return out
 }
 
+// --- following cd -------------------------------------------------------------
+
+/**
+ * Each simple command of `command`, with the directories it may run in:
+ * `cwds` before its own wrapper's directory, `at` after it. Only a `cd`
+ * chained with `&&` (and not after `||`) is certain; any other adds its
+ * target as one more candidate, and a subshell's `cd` ends with it.
+ * `unknown` says a `cd` the shell computes came before.
+ *
+ * @param {string} command
+ * @param {string} cwd
+ * @returns {Generator<{ c: SimpleCommand, cwds: string[], at: string[], unknown: boolean }>}
+ */
+export function* withCwds(command, cwd) {
+  /** @type {{ level: number, cwds: string[], unknown: boolean, prevOp?: string }[]} */
+  const stack = [{ level: 0, cwds: [cwd], unknown: false }]
+  const seen = new Set([cwd])
+  for (const c of parseCommands(command)) {
+    while (stack.length > 1 && c.level < /** @type {{ level: number }} */ (stack[stack.length - 1]).level) stack.pop()
+    let top = /** @type {(typeof stack)[number]} */ (stack[stack.length - 1])
+    if (c.level > top.level) stack.push((top = { level: c.level, cwds: [...top.cwds], unknown: top.unknown }))
+    const { cwds, unknown } = top
+    const prevOp = top.prevOp
+    top.prevOp = c.op
+    const at = c.chdir === undefined ? cwds : cwds.map(d => resolve(d, untilde(/** @type {string} */ (c.chdir), d)))
+    yield { c, cwds, at, unknown: unknown || /[$`]/.test(c.chdir ?? '') }
+    if (c.name !== 'cd' && c.name !== 'pushd' && c.name !== 'popd') continue
+    const to = c.args.find(a => !a.startsWith('-') || a === '-')
+    if (c.name === 'popd' || to === '-') {
+      top.cwds = [...new Set([...cwds, ...seen])]
+    } else if (to !== undefined && /[$`]/.test(to)) {
+      top.unknown = true
+    } else {
+      const targets = cwds.map(d => (to === undefined ? homedir() : resolve(d, untilde(to, d))))
+      for (const t of targets) seen.add(t)
+      top.cwds = c.op === '&&' && prevOp !== '||' ? targets : [...new Set([...cwds, ...targets])]
+    }
+  }
+}
+
 // --- reading options ------------------------------------------------------
+
+/**
+ * A command's options: each long name, with its short letter and whether it
+ * takes a value ('required', or 'optional' when only a glued `=` or cluster
+ * value counts).
+ *
+ * @typedef {Record<string, { short?: string, value?: 'required' | 'optional' }>} OptionTable
+ */
+
+/**
+ * Reads `args` against `table`, in order: clusters (`-am x`), glued values
+ * (`-mx`, `--message=x`), `--no-<name>` negations and `--`. With `abbrev`, a
+ * unique prefix of a long name counts, as git's option parser allows.
+ * `unknown` is the first option the table does not know.
+ *
+ * @param {string[]} args
+ * @param {OptionTable} table
+ * @param {{ abbrev?: boolean }} [o]
+ * @returns {{ opts: [string, string | undefined][], operands: string[], unknown: string | null }}
+ */
+export function readOptions(args, table, { abbrev = false } = {}) {
+  /** @type {[string, string | undefined][]} */
+  const opts = []
+  /** @type {string[]} */
+  const operands = []
+  /** @type {string | null} */
+  let unknown = null
+  const shorts = new Map(Object.entries(table).flatMap(([name, o]) => (o.short ? [[o.short, name]] : [])))
+  const longs = [...Object.keys(table), ...Object.keys(table).map(n => `no-${n}`)]
+  /** @param {string} name @returns {string | undefined} */
+  const longName = name => {
+    if (longs.includes(name)) return name
+    const prefixed = abbrev ? longs.filter(l => l.startsWith(name)) : []
+    return prefixed.length === 1 ? prefixed[0] : undefined
+  }
+  for (let i = 0; i < args.length; i++) {
+    const a = /** @type {string} */ (args[i])
+    if (a === '--') {
+      operands.push(...args.slice(i + 1))
+      break
+    }
+    if (a.startsWith('--')) {
+      const eq = a.indexOf('=')
+      const name = longName(eq < 0 ? a.slice(2) : a.slice(2, eq))
+      if (name === undefined) {
+        unknown ??= a
+        continue
+      }
+      const takes = name.startsWith('no-') && !table[name] ? undefined : table[name]?.value
+      opts.push([name, eq >= 0 ? a.slice(eq + 1) : takes === 'required' ? args[++i] : undefined])
+      continue
+    }
+    if (!/^-./.test(a)) {
+      operands.push(a)
+      continue
+    }
+    for (let j = 1; j < a.length; j++) {
+      const name = shorts.get(/** @type {string} */ (a[j]))
+      if (name === undefined) {
+        unknown ??= a
+        break
+      }
+      const takes = table[name]?.value
+      if (!takes) {
+        opts.push([name, undefined])
+        continue
+      }
+      opts.push([name, j + 1 < a.length ? a.slice(j + 1) : takes === 'required' ? args[++i] : undefined])
+      break
+    }
+  }
+  return { opts, operands, unknown }
+}
 
 /** @param {string[]} args the arguments before a `--` */
 export const beforeDashDash = args => {
@@ -460,13 +591,17 @@ export function operandIndexes(args, valueLetters = '', valueLongs = []) {
 /** @param {string[]} args @param {string} [valueLetters] @param {string[]} [valueLongs] */
 export const operands = (args, valueLetters, valueLongs) => operandIndexes(args, valueLetters, valueLongs).map(i => /** @type {string} */ (args[i]))
 
+/** @param {string} kv `key=NAME` @returns {string} `key=$NAME` */
+const fromEnv = kv => kv.replace(/=/, '=$')
+
 const GIT_VALUE_OPTS = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--super-prefix', '--config-env'])
 
 /**
  * A git invocation split into its global options, its subcommand and the
  * subcommand's arguments: `config` holds the `-c` settings, `dirs` the `-C`
  * directories, and `relocated` says whether `--git-dir` or `--work-tree`
- * points git somewhere else.
+ * points git somewhere else. A `--config-env` setting's value reads
+ * `$NAME`, since the environment holds it.
  *
  * @param {string[]} args
  */
@@ -481,11 +616,12 @@ export function gitParts(args) {
     const a = /** @type {string} */ (args[i])
     if (/^--(?:git-dir|work-tree)\b/.test(a)) relocated = true
     if (GIT_VALUE_OPTS.has(a)) {
-      if (a === '-c' || a === '--config-env') config.push(args[i + 1] ?? '')
+      if (a === '-c') config.push(args[i + 1] ?? '')
+      if (a === '--config-env') config.push(fromEnv(args[i + 1] ?? ''))
       if (a === '-C') dirs.push(args[i + 1] ?? '.')
       i += 2
     } else {
-      if (a.startsWith('--config-env=')) config.push(a.slice('--config-env='.length))
+      if (a.startsWith('--config-env=')) config.push(fromEnv(a.slice('--config-env='.length)))
       i++
     }
   }

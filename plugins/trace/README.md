@@ -16,15 +16,15 @@ In an opted-in repository, a PreToolUse hook on Edit, Write, MultiEdit and Noteb
 
 On Bash, the same hook refuses, in a traced repository:
 
-- `git commit` whose message does not reference the branch's issue (`#<n>`), read from `-m`, `-F <file>`, a heredoc or here-string to `-F -`, `-C`/`--fixup`, or the commit an `--amend` rewrites;
-- `gh pr create` whose body does not say `Closes #<n>` (or `Fixes`, `Resolves`), read from `--body`, `--body-file <file>` or a heredoc to `--body-file -`;
-- either one when it cannot tell the message, the body or the repository: an editor, `--fill`, `--web`, a piped or shell-computed message, a `cd` it cannot follow, or a shell alias. Git and gh aliases are followed.
+- `git commit` whose message does not reference the linked issue (`#<n>`), read as git records it: `-m`, `--trailer`, `-F <file>`, a heredoc or here-string to `-F -`, `-C`, `--fixup`, the commit an `--amend --no-edit` rewrites, with comment lines dropped under `strip` or `scissors` cleanup;
+- `gh pr create` (or `gh pr new`) whose body does not say `Closes #<n>` (or `Fixes`, `Resolves`, with `owner/name#<n>` or the issue's URL), read from the last `--body` or `--body-file`, outside code and HTML comments;
+- either one when it cannot tell the message, the body or the repository: an editor, `--fill`, `--web`, an option it does not know, a piped, shell-computed or same-line-written file, a `cd` it cannot follow, a shell alias, or `-R` naming another repository. Git and gh aliases are followed.
 
-Every refusal names the issue and the exact text to add. The edit gate's branch rules apply to commits and PRs too.
+Every refusal names the pipeline step, the issue and the exact text to add. The edit gate's branch rules apply to commits and PRs too.
 
-It resolves symlinks and `~` first, and a nested repository that is not traced itself is gated by the traced one around it. It asks GitHub about `origin`'s repository on every edit; when GitHub cannot answer in time, the edit is refused. Edits outside any traced repository are never gated.
+It resolves symlinks and `~` first, and a nested repository that is not traced itself is gated by the traced one around it. It asks GitHub about `origin`'s repository on every edit, commit and PR; when GitHub cannot answer in time, it refuses. Edits outside any traced repository are never gated.
 
-The human switches the trace off by launching Claude Code with `TRACE_BYPASS=1`. The edit tools cannot: everywhere, they are refused a change to `env`, `disableAllHooks`, `enabledPlugins` or `hooks` in any Claude Code settings file (user, `CLAUDE_CONFIG_DIR`, project, local or managed), any settings change the hook cannot read or predict, and any change to installed plugins. A plugin loaded with `--plugin-dir` is ordinary code in its own repository. Bash is not checked here: commits are gated in #7, and a Bash command that writes those settings is still an open route (#13).
+The human switches the trace off by launching Claude Code with `TRACE_BYPASS=1`. The edit tools cannot: everywhere, they are refused a change to `env`, `disableAllHooks`, `enabledPlugins` or `hooks` in any Claude Code settings file (user, `CLAUDE_CONFIG_DIR`, project, local or managed), any settings change the hook cannot read or predict, and any change to installed plugins. A plugin loaded with `--plugin-dir` is ordinary code in its own repository. A Bash command that writes those settings is still an open route (#13).
 
 ## The guard
 

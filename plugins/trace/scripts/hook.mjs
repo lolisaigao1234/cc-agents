@@ -26,17 +26,20 @@ function hookOutput(event, input) {
     return why && `trace guard: ${why}. If it is really needed, ask the user to run it.`
   }
   const cwd = input.cwd ?? process.cwd()
-  const traceReason = () => {
+  const verdict = () => {
+    if (input.tool_name === 'Bash') return commandVerdict(String(toolInput.command ?? ''), cwd)
     const raw = toolInput.file_path ?? toolInput.notebook_path
-    const bash = input.tool_name === 'Bash'
-    if (!bash && (!EDIT_TOOLS.has(String(input.tool_name)) || typeof raw !== 'string')) return null
+    if (!EDIT_TOOLS.has(String(input.tool_name)) || typeof raw !== 'string') return null
+    // The edit tools expand only `~` and `~/`.
+    const path = real(resolve(cwd, raw.replace(/^~(?=\/|$)/, homedir())))
+    return switchVerdict(String(input.tool_name), toolInput, path) ?? editVerdict(path)
+  }
+  const traceReason = () => {
     try {
-      // The edit tools expand only `~` and `~/`.
-      const path = () => real(resolve(cwd, String(raw).replace(/^~(?=\/|$)/, homedir())))
-      const why = bash ? commandVerdict(String(toolInput.command ?? ''), cwd) : switchVerdict(String(input.tool_name), toolInput, path()) ?? editVerdict(path())
+      const why = verdict()
       return why && `trace: ${why}`
     } catch (err) {
-      // Failing open here would let an untraced edit through.
+      // Failing open here would let an untraced edit, commit or PR through.
       return `trace: the trace could not be checked (${/** @type {Error} */ (err).message}). To work untraced, the human can launch Claude Code with TRACE_BYPASS=1.`
     }
   }
