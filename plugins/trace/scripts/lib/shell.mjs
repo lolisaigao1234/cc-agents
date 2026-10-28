@@ -7,10 +7,10 @@
 /**
  * One simple command: its name (basename of the command word, after
  * assignments and wrappers such as `sudo`, `env`, `xargs`), its arguments
- * with quotes removed, and the files it redirects output into (which a path
- * rule needs, since they are not arguments).
+ * with quotes removed, and the files its redirections name, for input or
+ * output (a path rule needs them, since they are not arguments).
  *
- * @typedef {{ name: string, args: string[], writes: string[] }} SimpleCommand
+ * @typedef {{ name: string, args: string[], files: string[] }} SimpleCommand
  */
 
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh'])
@@ -152,10 +152,10 @@ export function parseCommands(src, depth = 0) {
   /** @type {string[]} */
   let words = []
   /** @type {string[]} */
-  let writes = []
+  let files = []
   /** @type {string | null} */
   let word = null
-  /** `dup`: after `>&`, where a descriptor number or `-` names no file. @type {'write' | 'dup' | 'read' | null} */
+  /** `dup`: after `>&`, where a descriptor number or `-` names no file. @type {'file' | 'dup' | 'data' | null} */
   let redirect = null
   /** @type {{ delim: string, strip: boolean, words: string[] }[]} */
   let heredocs = []
@@ -166,26 +166,26 @@ export function parseCommands(src, depth = 0) {
   const endWord = () => {
     if (word === null) return
     const expanded = expandBraces(word)
-    if (redirect === 'write' || (redirect === 'dup' && !/^(?:\d+-?|-)$/.test(word))) writes.push(...expanded)
-    else if (redirect !== 'read' && redirect !== 'dup') words.push(...expanded)
+    if (redirect === 'file' || (redirect === 'dup' && !/^(?:\d+-?|-)$/.test(word))) files.push(...expanded)
+    else if (redirect === null) words.push(...expanded)
     redirect = null
     word = null
   }
   const endCommand = () => {
     endWord()
     redirect = null
-    if (words.length || writes.length) {
+    if (words.length || files.length) {
       const w = unwrap(words)
       const name = base(w[0])
       const args = w.slice(1)
-      out.push({ name, args, writes })
+      out.push({ name, args, files })
       if (SHELLS.has(name)) {
         const c = args.findIndex(a => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a))
         if (c >= 0 && args[c + 1] !== undefined) nested(/** @type {string} */ (args[c + 1]))
       } else if (name === 'eval') nested(args.join(' '))
     }
     words = []
-    writes = []
+    files = []
   }
 
   const n = src.length
@@ -265,7 +265,7 @@ export function parseCommands(src, depth = 0) {
     } else if (c === '&') {
       if (src[i + 1] === '>') {
         endWord()
-        redirect = 'write'
+        redirect = 'file'
         i += src[i + 2] === '>' ? 3 : 2
       } else {
         endCommand()
@@ -276,7 +276,7 @@ export function parseCommands(src, depth = 0) {
       if (word !== null && /^\d+$/.test(word)) word = null
       endWord()
       if (c === '<' && src[i + 1] === '<' && src[i + 2] === '<') {
-        redirect = 'read' // here-string: the next word is input
+        redirect = 'data' // here-string: the next word is input text
         i += 3
       } else if (c === '<' && src[i + 1] === '<') {
         let j = i + 2
@@ -288,12 +288,12 @@ export function parseCommands(src, depth = 0) {
         heredocs.push({ delim: delim.replace(/["'\\]/g, ''), strip, words: [...words] })
         i = j
       } else if (c === '<') {
-        redirect = src[i + 1] === '>' ? 'write' : 'read'
+        redirect = src[i + 1] === '&' ? 'dup' : 'file'
         i += src[i + 1] === '>' || src[i + 1] === '&' ? 2 : 1
       } else {
         let k = i + 1
         if (src[k] === '>' || src[k] === '|') k++
-        redirect = src[k] === '&' ? 'dup' : 'write'
+        redirect = src[k] === '&' ? 'dup' : 'file'
         if (src[k] === '&') k++
         i = k
       }

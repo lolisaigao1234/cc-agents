@@ -24,6 +24,9 @@ Enforcement has two layers. The plugin's PreToolUse hook applies in every reposi
 
 ## Consequences
 
-- The hook reads command text. A search that reaches the archive without naming it, such as a repository-wide `rg`, must still be denied. Any route that cannot be closed is recorded here with the reason.
-- That the hook fires for Workflow agents and Claude Code's `/code-review` fork is still to be verified. Until it is, those agents are not counted as covered.
+- The hook reads command text. A search that reaches the archive without naming it, such as a repository-wide `rg` or Grep, is still denied, unless the command excludes the archive. For `rg` and `fd`, a root `.ignore` that lists `/archive/` also counts as excluding it.
+- Verified live (#5): the hook fires in the main session, in subagents, in Workflow agents and in the `/code-review` fork.
+- Routes that stay open, and why:
+  - A path built at run time, from variables or a script, is not visible in the command text.
+  - Git history still holds superseded docs at their old paths (`git show <old-rev>:CONTEXT.md`). Blocking that would mean refusing reads of history altogether.
 - Code is never archived. Git history and tags keep it, and archived code would be exactly the context this exists to keep out.
