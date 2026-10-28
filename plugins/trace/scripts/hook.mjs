@@ -7,7 +7,8 @@ import { resolve } from 'node:path'
 
 import { archiveBlock } from './lib/archive.mjs'
 import { guard } from './lib/guard.mjs'
-import { editVerdict } from './lib/trace.mjs'
+import { real, untilde } from './lib/paths.mjs'
+import { editVerdict, switchVerdict } from './lib/trace.mjs'
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
@@ -25,9 +26,16 @@ function hookOutput(event, input) {
   }
   const cwd = input.cwd ?? process.cwd()
   const traceReason = () => {
-    const path = toolInput.file_path ?? toolInput.notebook_path
-    const why = EDIT_TOOLS.has(String(input.tool_name)) && typeof path === 'string' ? editVerdict(resolve(cwd, path)) : null
-    return why && `trace: ${why}`
+    const raw = toolInput.file_path ?? toolInput.notebook_path
+    if (!EDIT_TOOLS.has(String(input.tool_name)) || typeof raw !== 'string') return null
+    const path = real(resolve(cwd, untilde(raw, cwd)))
+    try {
+      const why = switchVerdict(String(input.tool_name), toolInput, path) ?? editVerdict(path)
+      return why && `trace: ${why}`
+    } catch (err) {
+      // Failing open here would let an untraced edit through.
+      return `trace: the trace could not be checked (${/** @type {Error} */ (err).message}). To work untraced, the human can launch Claude Code with TRACE_BYPASS=1.`
+    }
   }
   const reason = archiveBlock(input.tool_name, toolInput, cwd) ?? traceReason() ?? guardReason()
   if (!reason) return null

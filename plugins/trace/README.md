@@ -8,12 +8,14 @@ Every change follows one pipeline, tied to a GitHub issue: Read → Track → Br
 
 A repository opts in through `/trace:setup`, which only the human can run. It checks `gh`, the triage labels and the docs, then commits the marker `.claude/trace.json` and the archive deny rule through an issue of its own. The marker counts while the working tree, `HEAD` or the default branch has it.
 
-In an opted-in repository, a PreToolUse hook on Edit, Write, MultiEdit and NotebookEdit refuses, in every agent, an edit to a file inside the working tree:
+In an opted-in repository, a PreToolUse hook on Edit, Write, MultiEdit and NotebookEdit refuses, in every agent, an edit to a file inside the repository, `.git/` included:
 
 - on the default branch;
-- on a branch whose `<n>-` prefix names no issue, or names one that is closed or missing.
+- on a branch whose `<n>-` prefix names no open issue: a closed or missing issue, or a pull request.
 
-It asks `gh` on every edit. When GitHub cannot answer, the edit is refused. Edits outside the working tree, and to `.git/`, are never gated. The human switches the trace off by launching Claude Code with `TRACE_BYPASS=1`; nothing the model can write does.
+It resolves symlinks and `~` first, and a nested repository that is not traced itself is gated by the traced one around it. It asks GitHub about `origin`'s repository on every edit; when GitHub cannot answer in time, the edit is refused. Edits outside any traced repository are never gated.
+
+The human switches the trace off by launching Claude Code with `TRACE_BYPASS=1`. The edit tools cannot: in every repository they are refused a change to `TRACE_BYPASS`, `disableAllHooks`, `enabledPlugins` or `hooks` in any Claude Code settings file, and any change to installed plugins. Bash is not checked here: commits are gated in #7, and a Bash command that writes those settings is still an open route (#13).
 
 ## The guard
 

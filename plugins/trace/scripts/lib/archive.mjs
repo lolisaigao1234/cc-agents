@@ -7,10 +7,11 @@
 // from variables or by a script can get past it.
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
+import { real, untilde } from './paths.mjs'
 import { gitParts, operandIndexes, parseCommands, shortFlags } from './shell.mjs'
 
 /** @typedef {import('./shell.mjs').SimpleCommand} SimpleCommand */
@@ -35,16 +36,6 @@ function repoRoot(dir) {
   for (let d = dir; ; d = dirname(d)) {
     if (isRepoRoot(d) || fresh.has(d)) return d
     if (dirname(d) === d) return null
-  }
-}
-
-/** @param {string} p @returns {string} `p` with symlinks resolved as far as it exists */
-function real(p) {
-  try {
-    return realpathSync.native(p)
-  } catch {
-    const parent = dirname(p)
-    return parent === p ? p : join(real(parent), basename(p))
   }
 }
 
@@ -184,15 +175,6 @@ function globKind(start, word) {
   }
   if (dirs.some(d => inArchive(d) && !isArchive(d))) return 'inside'
   return dirs.some(isArchive) ? 'archive' : null
-}
-
-/** @param {string} w @param {string} cwd @returns {string} `w` with a leading `~` form expanded */
-function untilde(w, cwd) {
-  const m = /^~([^/]*)(.*)$/s.exec(w)
-  if (!m) return w
-  const [, who = '', rest = ''] = m
-  const home = who === '' ? homedir() : who === '+' || who === '-' ? cwd : join(dirname(homedir()), who)
-  return home + rest
 }
 
 /**

@@ -17,4 +17,4 @@ Report each check as ok or missing, and fix only what this skill says to fix.
    - write `.claude/trace.json` containing `{}`;
    - commit both with `#<n>`, push, and open a PR with `Closes #<n>`.
 
-Done when the PR is open and every check is reported. The trace takes effect once the human merges it.
+Done when the PR is open and every check is reported. The trace is live on the opt-in branch at once, and on the default branch once the human merges.

@@ -5,7 +5,7 @@ description: The trace, the pipeline every change in a traced repository follows
 
 # The trace
 
-Every change, code or docs or config, ties to one GitHub issue from start to finish. In a traced repository (one with `.claude/trace.json`), hooks refuse an edit, commit or PR that breaks the chain, and each refusal names the step to go back to.
+Every change, code or docs or config, ties to one GitHub issue from start to finish. In a traced repository (one with `.claude/trace.json`), hooks refuse actions that break the chain, and each refusal names the step to go back to.
 
 | Step | Do it with | Done when |
 |---|---|---|
