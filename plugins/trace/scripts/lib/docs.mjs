@@ -236,14 +236,18 @@ const coverage = (records, text) => {
  * the edit.
  *
  * @param {string} filePath
- * @param {{ written: string } | { original: string, userModified: boolean }} change
+ * @param {{ written: string } | { original: string, expected: string | null, userModified: boolean }} change
+ *   `expected`: the original with the edit made, or null when that cannot be told
  * @param {ReadRecord[] | null} records the agent's reads before the change
  * @returns {ReadRecord | null}
  */
 export function writeRecord(filePath, change, records) {
   const now = docOnDisk(filePath)
   if (!now) return null
-  if ('written' in change ? lf(change.written) !== now.text : change.userModified || !records || coverage(records, lf(change.original)).size < lf(change.original).split('\n').length) return null
+  // The file must hold exactly what the agent made, not what something else wrote since.
+  const made = 'written' in change ? change.written : change.expected
+  if (made === null || lf(made) !== now.text) return null
+  if ('original' in change && (change.userModified || !records || coverage(records, lf(change.original)).size < lf(change.original).split('\n').length)) return null
   return { file: now.path, hash: sha(now.text), from: 1, to: now.text.split('\n').length }
 }
 
@@ -266,6 +270,8 @@ export function outputRecords(shown, root, n, issue, head) {
     else if (v && typeof v === 'object') Object.values(v).forEach(collect)
   }
   for (const chunk of [shown, ...shown.split('\n')]) {
+    // Text behind \u escapes was not seen, except the control and HTML-safe escapes JSON encoders add.
+    if (/\\u(?!00[01][0-9a-f]|003[ce]|0026|202[89])[0-9a-f]{4}/i.test(chunk)) continue
     try {
       collect(JSON.parse(chunk))
     } catch {}

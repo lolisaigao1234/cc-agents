@@ -86,6 +86,14 @@ const readVerdict = (root, n, paths, world) =>
 const PERSISTED = 30_000
 const PREVIEW = 2_000
 
+/** @param {string} out @returns {string} the preview of a cut output, as Claude Code makes it */
+function preview(out) {
+  const t = out.replace(/^(\s*\n)+/, '').trimEnd()
+  if (t.length <= PREVIEW) return t
+  const nl = t.slice(0, PREVIEW).lastIndexOf('\n')
+  return t.slice(0, nl > PREVIEW / 2 ? nl : PREVIEW)
+}
+
 /**
  * What a PostToolUse input shows its agent has read: a Read's lines, and, in
  * a file outside the repository (a saved output), the linked issue's parts
@@ -121,7 +129,7 @@ export function readRecord(input, world = REAL) {
       input.tool_name === 'Write'
         ? { written: String(input.tool_input?.content ?? '') }
         : typeof response?.originalFile === 'string'
-          ? { original: response.originalFile, userModified: response.userModified === true }
+          ? { expected: afterEdit(input.tool_name, input.tool_input ?? {}, response.originalFile), original: response.originalFile, userModified: response.userModified === true }
           : null
     const record = change && writeRecord(toolPath(raw, cwd), change, world.reads.records())
     return record ? [record] : []
@@ -134,7 +142,7 @@ export function readRecord(input, world = REAL) {
   const at = linked()
   if (!at) return []
   const cut = typeof response?.persistedOutputPath === 'string' || stdout.length >= PERSISTED
-  const shown = [command, ...postedTexts(command), cut ? stdout.slice(0, PREVIEW) : stdout].join('\n')
+  const shown = [command, ...postedTexts(command), cut ? preview(stdout) : stdout].join('\n')
   return outputRecords(shown, at.root, at.n, asksGitHub ? world.github.issue(at.root, at.n) : null, asksGit ? world.git.headDocs(at.root) : null)
 }
 
@@ -387,7 +395,7 @@ function commitVerdict(run, world) {
     config = [...config, ...expanded.config]
     parts = { ...expanded, rest: [...expanded.rest, ...parts.rest] }
   }
-  if (parts.sub && COMMIT_MAKERS.has(parts.sub)) return place?.root && !parts.rest.some(w => MAKES_NOTHING.test(w)) ? makerVerdict(place.root, world) : null
+  if (parts.sub && COMMIT_MAKERS.has(parts.sub)) return place?.root && !(parts.rest.length === 1 && MAKES_NOTHING.test(parts.rest[0] ?? '')) ? makerVerdict(place.root, world) : null
   if (parts.sub !== 'commit') return null
   if (!place) return cannotTell('which repository this commit lands in', 'run `git commit` from the repository, or with `git -C <dir>`', 'Implement')
   if (!place.root) return null

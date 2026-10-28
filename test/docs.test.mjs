@@ -217,6 +217,10 @@ test("the issue's comments are read too, as printed, as JSON, or as posted, and 
   const posted = printed(root, 'https://github.com/owner/name/issues/8#issuecomment-12\n', { issue, command: 'gh issue comment 8 --body "Progress: done."' })
   assert.equal(edit(root, { issue, reads: [...files, ...plain, ...posted, ...printed(root, 'Decision: keep it short.', { issue, command: 'gh api repos/owner/name/issues/comments/11 --jq .body' })] }), 'null')
   assert.deepEqual(printed(root, `${issue.title}\n${issue.body}`, { issue, command: 'cat notes.txt' }), [], 'only gh and git show output counts')
+  const escaped = (/** @type {string} */ t) => `"${[...t].map(c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`).join('')}"`
+  assert.deepEqual(printed(root, `{"title":${escaped(issue.title)},"body":${escaped(issue.body)}}`, { issue, command: 'gh api repos/owner/name/issues/8' }), [], 'text hidden behind \\u escapes was not seen')
+  const go = { ...issue, body: 'Keep <b> & </b>.' }
+  assert.equal(printed(root, `{"title":"Doc authority","body":"Keep \\u003cb\\u003e \\u0026 \\u003c/b\\u003e."}`, { issue: go, command: 'gh api repos/owner/name/issues/8' }).length, 1, "Go's HTML escapes")
   writeFileSync(join(root, 'note.md'), 'Progress: done.\n')
   assert.deepEqual(printed(root, 'https://github.com/owner/name/issues/8#issuecomment-12\n', { issue, command: 'gh issue comment 8 --body-file note.md' }), [], 'a body file the agent may never have seen')
   const shell = { ...issue, comments: [{ id: '13', author: 'claude', body: 'The `parser` costs $5.' }] }
@@ -229,6 +233,8 @@ test('output too long to show counts only for its preview', () => {
   assert.deepEqual(printed(root, padded, { persisted: true }), [])
   assert.deepEqual(printed(root, padded + 'y'.repeat(30_000)), [])
   assert.equal(printed(root, `title:\t${ISSUE.title}\n--\n${ISSUE.body}\n${'y'.repeat(30_000)}`).length, 1)
+  assert.deepEqual(printed(root, `${'0'.repeat(1100)}\n${ISSUE.title} ${ISSUE.body} ${'y'.repeat(40_000)}`, { persisted: true }), [], 'the preview stops at the last newline before 2,000 characters')
+  assert.equal(printed(root, `\n\n${'0'.repeat(900)}\n${ISSUE.title}\n${ISSUE.body}\n${'y'.repeat(40_000)}`, { persisted: true }).length, 1, 'past leading blank lines')
 })
 
 test('a doc moved, emptied, re-marked or made unreadable in the working tree is still related', () => {
@@ -297,6 +303,7 @@ test("the agent's own edits and writes keep its reads of a doc current", () => {
   assert.equal(edit(root, { reads: [...reads, ...post('Edit', edited, { filePath: glossary, originalFile: before, userModified: false }, reads)] }), 'null')
   assert.deepEqual(post('Edit', edited, { filePath: glossary, originalFile: before, userModified: false }, []), [], 'an agent that had not read the doc')
   assert.deepEqual(post('Edit', edited, { filePath: glossary, originalFile: before, userModified: true }, reads), [], 'the user changed the edit')
+  assert.deepEqual(post('Edit', { ...edited, new_string: '.\n**Other**: text.\n' }, { filePath: glossary, originalFile: before, userModified: false }, reads), [], 'the file holds other text than the edit made')
   const text = '---\nstatus: accepted\n---\n# 0002: New\n'
   const adr = join(root, 'docs/adr/0002-new.md')
   writeFileSync(adr, text)
@@ -335,4 +342,5 @@ test('a commit, or any git command that makes or moves commits, waits for every 
     assert.equal(commit(c), 'null', `${c} makes no commit`)
   }
   assert.match(commit('git merge --continue'), /related docs are not all read/)
+  for (const c of ['git merge -m --abort topic', 'git rebase --onto main --skip-x', 'git pull --rebase --quit origin main']) assert.match(commit(c), /related docs are not all read/, `${c} makes commits`)
 })
