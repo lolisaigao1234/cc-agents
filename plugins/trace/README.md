@@ -1,6 +1,19 @@
 # trace
 
-Hooks that will keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008). So far it ships the guard and the archive block; the rest lands ticket by ticket under #3. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
+Hooks that will keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008). So far it ships the edit gate of the trace, the guard and the archive block; the rest lands ticket by ticket under #3. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
+
+## The trace
+
+Every change follows one pipeline, tied to a GitHub issue: Read → Track → Branch → Implement → Review → Update → Close (ADR 0006). The `trace` skill maps each step onto Matt's skills and Claude Code's commands; the model reaches it on its own.
+
+A repository opts in through `/trace:setup`, which only the human can run. It checks `gh`, the triage labels and the docs, then commits the marker `.claude/trace.json` and the archive deny rule through an issue of its own. The marker counts while the working tree, `HEAD` or the default branch has it.
+
+In an opted-in repository, a PreToolUse hook on Edit, Write, MultiEdit and NotebookEdit refuses, in every agent, an edit to a file inside the working tree:
+
+- on the default branch;
+- on a branch whose `<n>-` prefix names no issue, or names one that is closed or missing.
+
+It asks `gh` on every edit. When GitHub cannot answer, the edit is refused. Edits outside the working tree, and to `.git/`, are never gated. The human switches the trace off by launching Claude Code with `TRACE_BYPASS=1`; nothing the model can write does.
 
 ## The guard
 

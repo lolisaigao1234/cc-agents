@@ -3,9 +3,13 @@
 // input as JSON on stdin and the hook output as JSON on stdout.
 
 import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import { archiveBlock } from './lib/archive.mjs'
 import { guard } from './lib/guard.mjs'
+import { editVerdict } from './lib/trace.mjs'
+
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
 /**
  * @param {string | undefined} event
@@ -19,7 +23,13 @@ function hookOutput(event, input) {
     const why = input.tool_name === 'Bash' ? guard(String(toolInput.command ?? '')) : null
     return why && `trace guard: ${why}. If it is really needed, ask the user to run it.`
   }
-  const reason = archiveBlock(input.tool_name, toolInput, input.cwd ?? process.cwd()) ?? guardReason()
+  const cwd = input.cwd ?? process.cwd()
+  const traceReason = () => {
+    const path = toolInput.file_path ?? toolInput.notebook_path
+    const why = EDIT_TOOLS.has(String(input.tool_name)) && typeof path === 'string' ? editVerdict(resolve(cwd, path)) : null
+    return why && `trace: ${why}`
+  }
+  const reason = archiveBlock(input.tool_name, toolInput, cwd) ?? traceReason() ?? guardReason()
   if (!reason) return null
   return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
 }
