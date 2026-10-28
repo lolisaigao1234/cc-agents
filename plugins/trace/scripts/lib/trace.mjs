@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 
-import { real } from './paths.mjs'
+import { fold, real } from './paths.mjs'
 
 // The human's switch, set when launching Claude Code, that turns the trace off.
 const BYPASS = 'TRACE_BYPASS'
@@ -45,6 +45,9 @@ export function editVerdict(path, { git, github, env } = { git: realGit, github:
   let root = git.root(path)
   while (root && !git.traced(root)) root = dirname(root) === root ? null : git.root(dirname(root))
   if (!root) return null
+  if (fold(path) === fold(`${root}/.git`) || fold(path).startsWith(fold(`${root}/.git/`))) {
+    return "this is the repository's git directory. Branch step: change branches and remotes with git and `gh issue develop`, never by editing .git/."
+  }
   const branch = git.branch(root)
   if (branch && branch === git.defaultBranch(root)) {
     return `this is the default branch (${branch}). Branch step: work on the issue's branch, \`gh issue develop <n> --checkout\` (Track first if there is no issue).`
@@ -61,10 +64,20 @@ export function editVerdict(path, { git, github, env } = { git: realGit, github:
   return `#${n} is ${state === 'CLOSED' ? 'a closed issue' : 'not an open issue'}. Track step: open an issue for this change (to-tickets) and work on its branch.`
 }
 
-// Settings that, changed, switch the hooks or the trace off.
-/** @type {((s: any) => unknown)[]} */
-const SWITCHES = [s => s?.env?.[BYPASS], s => s?.disableAllHooks, s => s?.enabledPlugins, s => s?.hooks]
+// Settings that, changed, can switch the hooks or the trace off: any `env`
+// variable reaches the hook's process, not only the bypass.
+const SWITCHES = ['env', 'disableAllHooks', 'enabledPlugins', 'hooks']
 const SETTINGS = new Set(['settings.json', 'settings.local.json'])
+
+/** @returns {string[]} Claude Code's user config directories, real and folded */
+const configDirs = () =>
+  [...new Set([process.env.CLAUDE_CONFIG_DIR, join(homedir(), '.claude')].filter(d => !!d).map(d => fold(real(String(d)))))]
+
+/** @param {string} path real and folded */
+function isSettings(path) {
+  if (basename(path) === 'managed-settings.json') return true
+  return SETTINGS.has(basename(path)) && (basename(dirname(path)) === '.claude' || configDirs().includes(dirname(path)))
+}
 
 /**
  * Why an edit tool's change to `path` would switch the hooks or the trace
@@ -78,11 +91,12 @@ const SETTINGS = new Set(['settings.json', 'settings.local.json'])
  */
 export function switchVerdict(toolName, toolInput, path) {
   const why = 'only the human changes it, by hand.'
-  if (path.startsWith(`${real(join(homedir(), '.claude/plugins'))}/`)) return `this is an installed plugin; ${why}`
-  const isSettings = basename(path) === 'managed-settings.json' || (SETTINGS.has(basename(path)) && basename(dirname(path)) === '.claude')
-  if (!isSettings) return null
+  const folded = fold(path)
+  if (configDirs().some(d => folded.startsWith(`${d}/plugins/`))) return `this is an installed plugin; ${why}`
+  if (!isSettings(folded)) return null
   const before = existsSync(path) ? readFileSync(path, 'utf8') : ''
   const after = afterEdit(toolName, toolInput, before)
+  if (after === null) return `the trace cannot tell what this edit does to Claude Code's settings; ${why}`
   /** @param {string} text */
   const parse = text => {
     try {
@@ -92,19 +106,27 @@ export function switchVerdict(toolName, toolInput, path) {
     }
   }
   const [was, will] = [parse(before), parse(after)]
-  if (!will.ok) return `this would leave Claude Code's settings unreadable, which switches its hooks off; ${why}`
-  const changed = SWITCHES.some(get => JSON.stringify(get(was.value)) !== JSON.stringify(get(will.value)))
-  return changed ? `this changes ${BYPASS}, disableAllHooks, enabledPlugins or hooks in Claude Code's settings; ${why}` : null
+  if (!was.ok || !will.ok) return `the trace cannot read these Claude Code settings, so cannot tell whether the change switches its hooks off; ${why}`
+  const changed = SWITCHES.some(key => JSON.stringify(was.value?.[key]) !== JSON.stringify(will.value?.[key]))
+  return changed ? `this changes ${SWITCHES.join(', ')} in Claude Code's settings; ${why}` : null
 }
 
-/** @param {string} toolName @param {Record<string, unknown>} input @param {string} text @returns {string} `text` after the edit */
+/**
+ * @param {string} toolName @param {Record<string, unknown>} input @param {string} text
+ * @returns {string | null} `text` after the edit, or null when that cannot be told
+ */
 function afterEdit(toolName, input, text) {
   if (toolName === 'Write') return String(input.content ?? '')
+  if (toolName !== 'Edit' && toolName !== 'MultiEdit') return null
   const edits = toolName === 'MultiEdit' ? /** @type {Record<string, unknown>[]} */ (input.edits ?? []) : [input]
-  return edits.reduce((t, e) => {
+  /** @type {string | null} */
+  let t = text
+  for (const e of edits) {
     const [from, to] = [String(e.old_string ?? ''), String(e.new_string ?? '')]
-    return e.replace_all ? t.split(from).join(to) : t.replace(from, () => to)
-  }, text)
+    if (t === null || !t.includes(from)) return null
+    t = e.replace_all ? t.split(from).join(to) : t.replace(from, () => to)
+  }
+  return t
 }
 
 // --- the real adapters ---------------------------------------------------------
@@ -141,10 +163,15 @@ const realGit = {
   },
   // Deleting the marker from the working tree, or committing its deletion on a
   // branch, does not opt out: it also counts while HEAD or the default branch has it.
+  // When git fails, only the marker in the working tree counts.
   traced(root) {
     if (existsSync(join(root, MARKER))) return true
-    const def = this.defaultBranch(root)
-    return ['HEAD', ...(def ? [`origin/${def}`, def] : [])].some(rev => git(root, ['cat-file', '-e', `${rev}:${MARKER}`]) !== null)
+    try {
+      const def = this.defaultBranch(root)
+      return ['HEAD', ...(def ? [`origin/${def}`, def] : [])].some(rev => git(root, ['cat-file', '-e', `${rev}:${MARKER}`]) !== null)
+    } catch {
+      return false
+    }
   },
   branch: root => git(root, ['symbolic-ref', '--short', '-q', 'HEAD']) || null,
   defaultBranch(root) {
@@ -162,7 +189,8 @@ const realGitHub = {
   // Asks about origin's repository by name: gh's own choice prefers a remote
   // called upstream, which on a fork is someone else's issues.
   issueState(root, n) {
-    const slug = /github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?\/?$/.exec(git(root, ['config', '--get', 'remote.origin.url']) ?? '')?.[1]
+    const url = git(root, ['remote', 'get-url', 'origin']) ?? ''
+    const slug = /(?:^|[@/])github\.com(?::\d+)?[:/]([^/]+\/[^/]+?)(?:\.git)?\/?$/i.exec(url)?.[1]
     if (!slug) return null
     const r = spawnSync('gh', ['api', `repos/${slug}/issues/${n}`], { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()) })
     if (r.status !== 0) return /HTTP (404|410)/.test(r.stderr ?? '') ? 'MISSING' : null

@@ -11,7 +11,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
-import { real, untilde } from './paths.mjs'
+import { CASE_INSENSITIVE_FS, real, untilde } from './paths.mjs'
 import { gitParts, operandIndexes, parseCommands, shortFlags } from './shell.mjs'
 
 /** @typedef {import('./shell.mjs').SimpleCommand} SimpleCommand */
@@ -21,7 +21,6 @@ const EXCLUDE_HINT = "rg -g '!archive', grep --exclude-dir=archive, git … -- '
 
 // --- where the archive is ----------------------------------------------------
 
-const CASE_INSENSITIVE_FS = process.platform === 'darwin' || process.platform === 'win32'
 const isArchiveName = (/** @type {string} */ n) => (CASE_INSENSITIVE_FS ? n.toLowerCase() : n) === 'archive'
 const isRepoRoot = (/** @type {string} */ dir) => existsSync(join(dir, '.git'))
 const isBareRepo = (/** @type {string} */ dir) => ['HEAD', 'objects', 'refs'].every(f => existsSync(join(dir, f)))

@@ -84,7 +84,9 @@ test('the bypass, set at launch, turns the trace off', () => {
 
 test('edits outside the repository are never gated, and its .git directory is', () => {
   assert.equal(editVerdict('/elsewhere/notes.md', world({ branch: 'main' })), null)
-  assert.match(String(editVerdict('/repo/.git/config', world({ branch: 'main' }))), /default branch/)
+  const why = editVerdict('/repo/.git/config', world({ branch: '6-x', issues: { 6: 'OPEN' } }))
+  assert.match(String(why), /git directory/)
+  assert.match(String(why), /Branch step/)
 })
 
 /** A git repository on `main`, opted in to the trace unless `marked` is false. */
@@ -201,4 +203,63 @@ test('the hook refuses a settings change that would switch the hooks or the trac
   assert.equal(plugin?.permissionDecision, 'deny', 'plugin code')
   assert.equal(write(join(dir, '.claude/settings.json'), { permissions: { deny: ['Read(./archive/**)'] } }), null)
   assert.equal(hook({ tool_name: 'Write', tool_input: { file_path: join(home, '.claude/projects/p/memory/m.md'), content: 'x' }, cwd: dir }, { HOME: home }), null)
+})
+
+test("the hook refuses edits to a traced repository's git directory, even on an open issue's branch", () => {
+  const { dir, git } = repo()
+  git('checkout', '-qb', '6-x')
+  for (const file of ['.git/config', '.git/HEAD', '.git/refs/heads/main']) {
+    const out = hook({ tool_name: 'Write', tool_input: { file_path: join(dir, file), content: '' }, cwd: dir }, {}, { 'owner/name#6': { state: 'open' } })
+    assert.equal(out?.permissionDecision, 'deny', file)
+  }
+})
+
+test("the hook reads origin's GitHub repository from every URL form, and only from GitHub", () => {
+  const { dir, git } = repo()
+  git('checkout', '-qb', '6-x')
+  const edit = { tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir }
+  for (const url of ['ssh://git@github.com:22/owner/name.git', 'https://GitHub.com/owner/name', 'git@github.com:owner/name.git', 'gh:owner/name']) {
+    git('remote', 'set-url', 'origin', url)
+    git('config', 'url.https://github.com/.insteadOf', 'gh:')
+    assert.equal(hook(edit, {}, { 'owner/name#6': { state: 'open' } }), null, url)
+  }
+  git('remote', 'set-url', 'origin', 'https://notgithub.com/owner/name')
+  assert.equal(hook(edit, {}, { 'owner/name#6': { state: 'open' } })?.permissionDecision, 'deny')
+  assert.equal(hook.calls, '')
+})
+
+test('a git that cannot run refuses edits only where the marker says the repository is traced', () => {
+  const noGit = { PATH: '/nonexistent' }
+  const { dir } = repo(false)
+  assert.equal(hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir }, noGit), null)
+  const traced = repo().dir
+  assert.equal(hook({ tool_name: 'Edit', tool_input: { file_path: join(traced, 'a.md') }, cwd: traced }, noGit)?.permissionDecision, 'deny')
+})
+
+test('the hook expands only ~ and ~/, as the edit tools do', () => {
+  const { dir } = repo()
+  const out = hook({ tool_name: 'Edit', tool_input: { file_path: '~nobody/a.md' }, cwd: dir })
+  assert.equal(out?.permissionDecision, 'deny')
+})
+
+test('the hook refuses settings changes it cannot read, wherever the settings live', () => {
+  const { dir } = repo(false)
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'home-')))
+  const dotfiles = realpathSync(mkdtempSync(join(tmpdir(), 'dotfiles-')))
+  symlinkSync(dotfiles, join(home, '.claude'))
+  const config = realpathSync(mkdtempSync(join(tmpdir(), 'config-')))
+  const env = { HOME: home, CLAUDE_CONFIG_DIR: config }
+  const run = (/** @type {string} */ tool, /** @type {object} */ input) => hook({ tool_name: tool, tool_input: input, cwd: dir }, env)?.permissionDecision
+  const off = JSON.stringify({ disableAllHooks: true })
+  const paths = [join(home, '.claude/settings.json'), join(config, 'settings.json'), join(config, 'plugins/x/hooks.json')]
+  if (process.platform === 'darwin') paths.push(join(dir, '.CLAUDE/settings.local.json'), join(dir, '.claude/Settings.Local.json'))
+  for (const path of paths) assert.equal(run('Write', { file_path: path, content: off }), 'deny', path)
+  assert.equal(run('Write', { file_path: join(dir, '.claude/settings.local.json'), content: JSON.stringify({ env: { NODE_OPTIONS: '--x' } }) }), 'deny', 'any env')
+  mkdirSync(join(dir, '.claude'), { recursive: true })
+  writeFileSync(join(dir, '.claude/settings.json'), '// hooks below\n{ "hooks": {} }\n')
+  assert.equal(run('Write', { file_path: join(dir, '.claude/settings.json'), content: '{}' }), 'deny', 'unparseable now')
+  writeFileSync(join(dir, '.claude/settings.json'), '{ "permissions": {} }\r\n')
+  assert.equal(run('Edit', { file_path: join(dir, '.claude/settings.json'), old_string: 'not there', new_string: 'x' }), 'deny', 'old_string not found')
+  assert.equal(run('NotebookEdit', { notebook_path: join(dir, '.claude/settings.json'), new_source: off }), 'deny', 'NotebookEdit')
+  assert.equal(run('Edit', { file_path: join(dir, '.claude/settings.json'), old_string: '{ "permissions": {} }', new_string: '{ "permissions": { "deny": [] } }' }), undefined, 'a permissions change')
 })

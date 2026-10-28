@@ -22,3 +22,8 @@ export function untilde(w, cwd) {
   const home = who === '' ? homedir() : who === '+' || who === '-' ? cwd : join(dirname(homedir()), who)
   return home + rest
 }
+
+export const CASE_INSENSITIVE_FS = process.platform === 'darwin' || process.platform === 'win32'
+
+/** @param {string} p @returns {string} `p` as the filesystem compares it */
+export const fold = p => (CASE_INSENSITIVE_FS ? p.toLowerCase() : p)
