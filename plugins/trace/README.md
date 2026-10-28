@@ -1,6 +1,6 @@
 # trace
 
-Hooks that will keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008). So far it ships the edit, commit and PR gates of the trace, the guard and the archive block; the rest lands ticket by ticket under #3. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
+Hooks that will keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008). So far it ships the edit, commit and PR gates of the trace, its forced reads, the guard and the archive block; the rest lands ticket by ticket under #3. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
 
 ## The trace
 
@@ -21,6 +21,17 @@ On Bash, the same hook refuses, in a traced repository:
 - either one when it cannot tell the message, the body or the repository: an editor, `--fill`, `--web`, an option it does not know, a piped, shell-computed or same-line-written file, a `cd` it cannot follow, a variable such as `GIT_DIR` or `GH_REPO`, a git or gh alias that runs a shell (`!…`), or a PR that gh would open outside origin's repository (`-R`, a fork's upstream). Other git and gh aliases are followed.
 
 Every refusal names the pipeline step; one for a missing reference also names the linked issue and the exact text to add. The edit gate's branch rules apply to commits and PRs too.
+
+### Forced reads
+
+Before an agent may make such an edit or commit, it must have read every related doc in full, itself (ADR 0007). Which docs are related is decided mechanically, never by the agent:
+
+- `GLOSSARY.md`;
+- every ADR in `docs/adr/` except a superseded, deprecated or rejected one. An ADR whose frontmatter has `applies-to:` (a path glob or a list of them) counts only for an edit of a matching path, or a commit when any changed path matches;
+- every file under `docs/` that the linked issue's body names;
+- the linked issue's title, body and each comment.
+
+A PostToolUse hook records what each agent read, apart for the main session and each subagent, so a parent's reads never count for its subagent. A file counts when Read has returned all its lines, in one read or in chunks, exactly as they are on disk. The issue counts when `gh` output contains each part's text, plain or as JSON. Changing a file or an issue part makes its read stale. The refusal lists what is unread or stale, with the `gh` commands for the issue. Without a session id in the hook input it refuses, since the trace cannot tell who has read what. The records live in the temp directory under `trace-reads/`, and the hook refuses tools that touch them.
 
 It resolves symlinks and `~` first, and a nested repository that is not traced itself is gated by the traced one around it. It asks GitHub about `origin`'s repository on every edit, commit and PR; when GitHub cannot answer in time, it refuses. Edits outside any traced repository are never gated.
 

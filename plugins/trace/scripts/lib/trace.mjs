@@ -1,12 +1,15 @@
 // The trace: whether an action is traceable, from git and GitHub state
 // (ADR 0006). In a traced repository, a file inside it may be edited only on
-// the branch of an open issue, a commit must reference that issue and a PR
-// close it, and nothing the model writes turns that off.
+// the branch of an open issue, by an agent that has read the related docs
+// (ADR 0007); a commit must reference that issue and a PR close it, and
+// nothing the model writes turns that off.
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
+
+import { docsVerdict, fileRecord, issueRecord } from './docs.mjs'
 
 import { fold, real, untilde } from './paths.mjs'
 import { GIT_COMMIT_OPTIONS, computed, gitParts, literal, parseCommands, readOptions, unliteral, withCwds } from './shell.mjs'
@@ -20,7 +23,8 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
 /**
  * What the trace needs from git. `origin` is origin's GitHub repository as
  * `owner/name`, and `ghBase` the one gh opens PRs in when not told; `message`
- * a commit's message; `config` a setting's value.
+ * a commit's message; `config` a setting's value; `changed` the paths a
+ * commit could take, or null when git cannot say.
  *
  * @typedef {{
  *   root(path: string): string | null,
@@ -31,20 +35,22 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
  *   message(root: string, rev: string): string | null,
  *   ghBase(root: string): string | null,
  *   config(root: string, key: string): string | null,
+ *   changed(root: string): string[] | null,
  * }} Git
  */
 
 /**
- * What the trace needs from GitHub: an issue's state, or null when GitHub
- * cannot be asked. A pull request is 'MISSING': it is not an issue.
+ * What the trace needs from GitHub: an issue's state, and its text, or null
+ * when GitHub cannot be asked. A pull request is 'MISSING': it is not an issue.
  *
  * @typedef {{
  *   issueState(root: string, n: number): 'OPEN' | 'CLOSED' | 'MISSING' | null,
+ *   issue(root: string, n: number): import('./docs.mjs').Issue | null,
  *   alias(name: string): string | null,
  * }} GitHub
  */
 
-/** @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined> }} World */
+/** @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined>, reads: import('./docs.mjs').Reads }} World */
 
 // --- the edit gate ---------------------------------------------------------------
 
@@ -63,8 +69,34 @@ export function editVerdict(path, world = REAL) {
     return "this is the repository's git directory. Branch step: change branches and remotes with git and `gh issue develop`, never by editing .git/."
   }
   const linked = linkedIssue(root, world.git.branch(root), world)
-  return 'why' in linked ? linked.why : null
+  return 'why' in linked ? linked.why : readVerdict(root, linked.n, [relative(root, path)], world)
 }
+
+/** @param {string} root @param {number} n @param {string[] | null} paths @param {World} world */
+const readVerdict = (root, n, paths, world) =>
+  docsVerdict(root, n, paths, { issue: world.github.issue(root, n), slug: world.git.origin(root), reads: world.reads })
+
+/**
+ * What a PostToolUse input shows its agent has read: a Read's lines, or the
+ * parts of the linked issue a `gh` command printed.
+ *
+ * @param {{ tool_name?: string, tool_input?: Record<string, unknown>, tool_response?: unknown, cwd?: string }} input
+ * @param {World} [world]
+ * @returns {import('./docs.mjs').ReadRecord | null}
+ */
+export function readRecord(input, world = REAL) {
+  if (input.tool_name === 'Read') return fileRecord(input.tool_response)
+  const command = String(input.tool_input?.command ?? '')
+  const stdout = /** @type {{ stdout?: unknown } | null} */ (input.tool_response)?.stdout
+  if (input.tool_name !== 'Bash' || typeof stdout !== 'string' || !/\bgh\b/.test(command) || !/\b(?:issue|api)\b/.test(command)) return null
+  const root = tracedRoot(real(input.cwd ?? process.cwd()), world.git)
+  const n = Number(/^(\d+)-/.exec((root && world.git.branch(root)) ?? '')?.[1])
+  const issue = root && n ? world.github.issue(root, n) : null
+  return root && issue ? issueRecord(stdout, `${root}#${n}`, issue) : null
+}
+
+/** @param {import('./docs.mjs').Reads} reads @returns {World} the real world, as the agent with `reads` sees it */
+export const worldFor = reads => ({ ...REAL, reads })
 
 /**
  * The nearest traced repository at or above `path`, so a nested repository
@@ -293,6 +325,8 @@ function commitVerdict(run, world) {
   const { opts, unknown: unknownOption } = readOptions(parts.rest, GIT_COMMIT_OPTIONS, { abbrev: true })
   if (opts.some(([name]) => name === 'dry-run')) return null
   const { n } = linked
+  const unread = readVerdict(place.root, n, world.git.changed(place.root), world)
+  if (unread) return unread
   const slug = world.git.origin(place.root)
   return judge(unknownOption ? null : commitMessage(opts, run, { root: place.root, dir: place.dir }, config, world.git), new RegExp(`(?:^|[^\\w&/])#${n}(?!\\d)${slug ? `|${escape(slug)}#${n}(?!\\d)` : ''}`, 'i'), {
     what: 'commit message',
@@ -622,6 +656,21 @@ const realGit = {
   },
   message: (root, rev) => git(root, ['log', '-1', '--format=%B', rev, '--']),
   config: (root, key) => git(root, ['config', '--get', key]),
+  changed(root) {
+    const out = git(root, ['status', '--porcelain', '-z', '--untracked-files=all'])
+    if (out === null) return null
+    /** @type {string[]} */
+    const paths = []
+    const entries = out.split('\0')
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i] ?? ''
+      if (e.length < 4) continue
+      paths.push(e.slice(3))
+      // A rename or copy is followed by the path it came from.
+      if (/[RC]/.test(e.slice(0, 2))) paths.push(entries[++i] ?? '')
+    }
+    return paths
+  },
   root(path) {
     for (let d = path; ; d = dirname(d)) {
       if (existsSync(join(d, '.git'))) return d
@@ -667,22 +716,59 @@ const realGitHub = {
     const line = ghAliases.split('\n').find(l => l.startsWith(`${name}:`))
     return line ? line.slice(name.length + 1).trim().replace(/^'(.*)'$/s, '$1') : null
   },
-  // Asks about origin's repository by name: gh's own choice prefers a remote
-  // called upstream, which on a fork is someone else's issues.
   issueState(root, n) {
-    const slug = realGit.origin(root)
-    if (!slug) return null
-    const r = spawnSync('gh', ['api', `repos/${slug}/issues/${n}`], { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()) })
-    if (r.status !== 0) return /HTTP (404|410)/.test(r.stderr ?? '') ? 'MISSING' : null
+    const issue = issueJson(root, n)
+    if (issue === 'MISSING' || issue === null) return issue
+    if (issue.pull_request) return 'MISSING'
+    return issue.state === 'open' ? 'OPEN' : 'CLOSED'
+  },
+  issue(root, n) {
+    const issue = issueJson(root, n)
+    if (issue === 'MISSING' || issue === null) return null
+    const comments = issue.comments === 0 ? '' : gh(root, ['api', '--paginate', `repos/${realGit.origin(root)}/issues/${n}/comments`, '--jq', '.[] | {id: (.id | tostring), author: .user.login, body}'])
+    if (comments === null) return null
     try {
-      const issue = JSON.parse(r.stdout)
-      if (issue.pull_request) return 'MISSING'
-      return issue.state === 'open' ? 'OPEN' : 'CLOSED'
+      const parsed = comments.split('\n').filter(Boolean).map(l => JSON.parse(l))
+      return { title: String(issue.title ?? ''), body: String(issue.body ?? ''), comments: parsed.map(c => ({ id: String(c.id), author: String(c.author), body: String(c.body ?? '') })) }
     } catch {
       return null
     }
   },
 }
 
+/** @param {string} root @param {string[]} args @returns {string | null} stdout, or null when gh fails */
+const gh = (root, args) => {
+  const r = spawnSync('gh', args, { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()), maxBuffer: 64 << 20 })
+  return r.status === 0 ? r.stdout : null
+}
+
+/** @type {Map<string, any>} */
+const issues = new Map()
+
+/**
+ * An issue as GitHub's API gives it, asked once per hook run: 'MISSING', or
+ * null when GitHub cannot be asked. It asks about origin's repository by name:
+ * gh's own choice prefers a remote called upstream, which on a fork is
+ * someone else's issues.
+ *
+ * @param {string} root @param {number} n
+ */
+function issueJson(root, n) {
+  const key = `${root}#${n}`
+  if (!issues.has(key)) {
+    const slug = realGit.origin(root)
+    const r = slug ? spawnSync('gh', ['api', `repos/${slug}/issues/${n}`], { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()) }) : null
+    let issue = null
+    if (r && r.status !== 0) issue = /HTTP (404|410)/.test(r.stderr ?? '') ? 'MISSING' : null
+    else if (r) {
+      try {
+        issue = JSON.parse(r.stdout)
+      } catch {}
+    }
+    issues.set(key, issue)
+  }
+  return issues.get(key)
+}
+
 /** @type {World} */
-const REAL = { git: realGit, github: realGitHub, env: process.env }
+const REAL = { git: realGit, github: realGitHub, env: process.env, reads: { records: () => null, add() {} } }
