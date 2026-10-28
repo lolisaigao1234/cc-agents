@@ -29,4 +29,6 @@ This repository ships **quality-loop**, a Claude Code plugin that reviews, fixes
 - **Surface** — the text being hill-climbed: `.quality-loop/REVIEW.md`.
 - **Split** — the stable train/test partition of eval cases; the hill climber reads train only.
 - **Infra error** — a trial that failed for plumbing reasons (timeout, crash, missing output); excluded from scores.
+- **Full send** — `/quality-loop:full-send`: after a `DONE` loop, commit, push, open the PR, fix CI through the loop, merge. The only place anything commits or pushes (ADR 0004).
+- **Gate** — `ql ship gate`'s verdict on a PR: `MERGE` (every CI check on the head passed, GitHub says mergeable), `WAIT`, `FIX`, `BLOCKED` (needs a person or a rule; never bypassed), `MERGED`.
 - **Mod** — the plugin's hooks module (`hooks/quality-loop.tsx`): UI and a slash command. Enforcement lives in the classic hooks.

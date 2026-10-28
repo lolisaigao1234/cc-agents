@@ -176,3 +176,16 @@ test('the rules for every step reach the orchestrator of every entry skill, from
     assert.doesNotMatch(read(`references/round/${step}`), /single writer/i, `${step} does not repeat the rules`)
   }
 })
+
+test('full-send skill: names only `ql ship` commands ql has, reads the round rules first, and never merges past the gate', () => {
+  const md = read('skills/full-send/SKILL.md')
+  const usage = spawnSync(process.execPath, [QL, 'help'], { encoding: 'utf8' }).stdout
+  const subs = [...md.matchAll(/`ql ship (\w+)/g)].map(m => m[1])
+  assert.ok(subs.length >= 5)
+  for (const sub of new Set(subs)) assert.match(usage, new RegExp(`ql ship ${sub}\\b`), `ql ship ${sub} exists`)
+  assert.match(md.split(/^## /m)[0] ?? '', /\$\{CLAUDE_PLUGIN_ROOT\}\/references\/round\/rules\.md/)
+  for (const s of sentences(md).filter(x => /--admin/.test(x))) assert.match(s, /never|not cover/i, `--admin only as a prohibition: "${s.trim()}"`)
+  // The merge goes through `ql ship merge`, which gates first; never a bare `gh pr merge`.
+  assert.doesNotMatch(md, /gh pr merge/)
+  assert.match(md, /not as a draft/, 'the PR is opened ready, so CI runs')
+})
