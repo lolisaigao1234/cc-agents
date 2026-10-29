@@ -37,7 +37,7 @@ A PostToolUse hook records what each agent read, separately for the main session
 
 The records live in the temp directory under `trace-reads/`, signed for the agent they belong to, so one copied from another agent or written by hand does not count. The hook refuses edits there and Bash commands that name it. A model that set out to read the signing key could still forge a record: the forced reads are a seatbelt against drift, not a sandbox.
 
-It resolves symlinks and `~` first, and a nested repository that is not traced itself is gated by the traced one around it. It asks GitHub about `origin`'s repository on every edit, commit and PR; when GitHub cannot answer in time, it refuses. Edits outside any traced repository are never gated.
+It resolves symlinks and `~` first, and a nested repository that is not traced itself is gated by the traced one around it. It asks GitHub about `origin`'s repository on every edit, commit and PR; when GitHub cannot answer in time, it refuses. Edits outside any traced repository are never gated, with one exception: when git cannot answer in time, or cannot run, it cannot tell whether a repository without the marker in its working tree has it in `HEAD` or on the default branch, so it refuses edits, commits and PRs there, naming `TRACE_BYPASS=1`. Other git and gh commands still run.
 
 The human switches the trace off by launching Claude Code with `TRACE_BYPASS=1`. The edit tools cannot: everywhere, they are refused a change to `env`, `disableAllHooks`, `enabledPlugins` or `hooks` in any Claude Code settings file (user, `CLAUDE_CONFIG_DIR`, project, local or managed), any settings change the hook cannot read or predict, and any change to installed plugins. A plugin loaded with `--plugin-dir` is ordinary code in its own repository. Bash commands that write them are the guard's.
 
@@ -95,6 +95,8 @@ A PreToolUse hook on Read, Edit, Write, MultiEdit, NotebookEdit, NotebookRead, G
 - recursive commands that would walk into it (`rg`, `grep -r`, `find`, `git grep`, `tar`, `cp -r`, …), unless they exclude it (`rg -g '!archive'`, `grep --exclude-dir=archive`, `git grep … -- ':!archive'`, `find … -path ./archive -prune`).
 
 Moving files into the archive (`mv`, `git mv`), creating directories there, and staging and committing the move are allowed. A root `.ignore` listing `/archive/` lets plain `rg`, `fd`, `ag` and the Grep tool search the rest of the repository; the Glob tool ignores `.ignore`, so scope its pattern instead.
+
+Asking git what history commands print draws on the hook call's deadline, which the trace's gates share. Once the hook call is out of time, a history command is denied, with the advice to run fewer at once or add `-- ':!archive'` to each. A tool call the hook fails to check for any other reason is denied too.
 
 ## Compaction
 
