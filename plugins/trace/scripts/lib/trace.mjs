@@ -19,6 +19,8 @@ import { GIT_COMMIT_OPTIONS, computed, gitParts, literal, parseCommands, readOpt
 // The human's switch, set when launching Claude Code, that turns the trace off.
 const BYPASS = 'TRACE_BYPASS'
 const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${BYPASS}=1`
+// How an issue is opened, in the trace skill's words, with the section the issue context reads (context.mjs).
+const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
 
 /**
  * What the trace needs from git. `origin` is origin's GitHub repository as
@@ -208,14 +210,14 @@ export function linkedIssue(root, branch, { git, github }) {
   }
   const n = branchIssue(branch)
   if (!n) {
-    return { why: `the branch ${branch ?? '(detached HEAD)'} names no issue. Track step: open an issue (to-tickets), then \`gh issue develop <n> --checkout\`.` }
+    return { why: `the branch ${branch ?? '(detached HEAD)'} names no issue. Track step: open an issue (${TRACK_HINT}), then \`gh issue develop <n> --checkout\`.` }
   }
   const state = github.issueState(root, n)
   if (state === 'OPEN') return { n }
   if (state === null) {
     return { why: `GitHub could not say whether issue #${n} is open; check \`gh auth status\`, the network, and that origin is on GitHub. Track step: the work waits for an open issue; ${BYPASS_HINT}.` }
   }
-  return { why: `#${n} is ${state === 'CLOSED' ? 'a closed issue' : 'not an open issue'}. Track step: open an issue for this change (to-tickets) and work on its branch.` }
+  return { why: `#${n} is ${state === 'CLOSED' ? 'a closed issue' : 'not an open issue'}. Track step: open an issue for this change (${TRACK_HINT}) and work on its branch.` }
 }
 
 // --- the commit and PR gates -----------------------------------------------------

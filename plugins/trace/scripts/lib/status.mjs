@@ -84,7 +84,7 @@ export function traceStatus(cwd, world) {
     ['read', unread],
     ['track', null],
     ['branch', null],
-    ['implement', world.git.committed(root, n) ? null : `no commit on this branch references #${n} yet. Implement step: build it test-first (implement, tdd), committing with #${n} in each message.`],
+    ['implement', world.git.committed(root, n) ? null : `no commit on this branch references #${n} yet. Implement step: build it test-first (mattpocock-skills:tdd), committing with #${n} in each message.`],
     ['review', reviewWhy(pr, branch, n)],
     [
       'update',
@@ -112,7 +112,7 @@ function reviewWhy(pr, branch, n) {
   if (pr === null) return `GitHub could not say whether ${branch} has a PR; check \`gh auth status\` and the network.`
   if (pr !== 'NONE' && pr.state === 'OPEN') return null
   const was = pr === 'NONE' ? '' : pr.state === 'CLOSED' ? `PR #${pr.n} for ${branch} was closed unmerged. ` : `PR #${pr.n} for ${branch} was merged, but #${n} is still open: a PR closes its issue only when it merges into the default branch. `
-  return `${was}Review step: open a PR for ${branch} that says Closes #${n} (pr), and review it (code-review).`
+  return `${was}Review step: review ${branch} (/code-review, mattpocock-skills:code-review), then open a PR for it that says Closes #${n} (mattpocock-skills:pr).`
 }
 
 /** @param {string} state a check's state @returns {Outcome} */
