@@ -278,6 +278,17 @@ function where(dirs, moved, git) {
   return { root: roots[0] ?? null, dir: new Set(dirs).size === 1 ? /** @type {string} */ (dirs[0]) : null }
 }
 
+/** @template T @param {() => T} f @returns {() => T} `f`, called at most once */
+function lazy(f) {
+  let called = false
+  /** @type {T | undefined} */
+  let value
+  return () => {
+    if (!called) [value, called] = [f(), true]
+    return /** @type {T} */ (value)
+  }
+}
+
 /** @param {string} dir @param {string} to @returns {string | null} */
 const resolveIn = (dir, to) => (computed(to) || to === '-' ? null : resolve(dir, untilde(to, dir)))
 
@@ -409,8 +420,8 @@ function makerVerdict(root, world) {
 function commitVerdict(run, world) {
   let parts = gitParts(run.c.args)
   const dirs = run.at.map(d => parts.dirs.reduce((/** @type {string | null} */ x, y) => x && resolveIn(x, y), d))
-  const place = where(dirs, run.moved || parts.relocated, world.git)
-  const lookIn = place && (place.root ?? place.dir)
+  // Asked only of a command the gate judges, so one it does not still runs when git cannot answer.
+  const placed = lazy(() => where(dirs, run.moved || parts.relocated, world.git))
   let config = parts.config
   // Follow aliases, which may name other aliases; one defined earlier on the line is not known yet.
   const defines = run.earlier.some(definesGitAlias)
@@ -419,6 +430,8 @@ function commitVerdict(run, world) {
     const name = parts.sub
     // git refuses an alias loop; refusing here too says why.
     const loops = seen.has(name.toLowerCase())
+    const place = placed()
+    const lookIn = place && (place.root ?? place.dir)
     const alias = defines || loops ? null : setting(config, `alias.${name}`, lookIn, world.git)
     if (alias === null && !defines && !loops && lookIn) return null
     if (alias === null || alias.startsWith('!') || computed(alias)) return opaqueVerdict(`what \`git ${name}\` runs`, place, world, fix, 'Implement')
@@ -427,8 +440,12 @@ function commitVerdict(run, world) {
     config = [...config, ...expanded.config]
     parts = { ...expanded, rest: [...expanded.rest, ...parts.rest] }
   }
-  if (parts.sub && COMMIT_MAKERS.has(parts.sub)) return place?.root && !(parts.rest.length === 1 && MAKES_NOTHING.test(parts.rest[0] ?? '')) ? makerVerdict(place.root, world) : null
+  if (parts.sub && COMMIT_MAKERS.has(parts.sub)) {
+    const root = parts.rest.length === 1 && MAKES_NOTHING.test(parts.rest[0] ?? '') ? null : placed()?.root
+    return root ? makerVerdict(root, world) : null
+  }
   if (parts.sub !== 'commit') return null
+  const place = placed()
   if (!place) return cannotTell('which repository this commit lands in', 'run `git commit` from the repository, or with `git -C <dir>`', 'Implement')
   if (!place.root) return null
   const linked = linkedIssue(place.root, world.git.branch(place.root), world)
@@ -542,11 +559,12 @@ const isOn = v => v === undefined || /^(?:1|t|true)$/i.test(v)
 /** @param {Run} run @param {World} world */
 function prVerdict(run, world) {
   let args = run.c.args
-  const place = where(run.at, run.moved, world.git)
+  // Asked only of a command the gate judges, so one it does not still runs when git cannot answer.
+  const placed = lazy(() => where(run.at, run.moved, world.git))
   const read = (/** @type {string[]} */ a) => readOptions(a, a.includes('edit') ? GH_PR_EDIT : GH_PR_CREATE, { pflag: true })
   let { opts, operands, unknown: unknownOption } = read(args)
   const fix = (/** @type {number} */ n) => `run \`gh pr create\` directly, with "Closes #${n}" in its body`
-  if (operands.slice(0, 2).some(o => /[$`*?[]/.test(o))) return opaqueVerdict('which gh command this is', place, world, fix, 'Review')
+  if (operands.slice(0, 2).some(o => /[$`*?[]/.test(o))) return opaqueVerdict('which gh command this is', placed(), world, fix, 'Review')
   const first = operands[0]
   // gh aliases may be two words, even after one of gh's own; one set earlier on the line is not known yet.
   const two = operands.length > 1 ? `${first} ${operands[1]}` : null
@@ -554,7 +572,7 @@ function prVerdict(run, world) {
   if (name !== null) {
     const alias = world.github.alias(name)
     if (alias === null && !run.earlier.some(e => e.name === 'gh' && e.args[0] === 'alias' && (e.args[1] === 'set' || e.args[1] === 'import'))) return null
-    if (alias === null || alias.startsWith('!') || alias.includes('$')) return opaqueVerdict(`what \`gh ${name}\` runs`, place, world, fix, 'Review')
+    if (alias === null || alias.startsWith('!') || alias.includes('$')) return opaqueVerdict(`what \`gh ${name}\` runs`, placed(), world, fix, 'Review')
     const at = args.indexOf(first)
     args = [...args.slice(0, at), ...(parseCommands(`gh ${alias}`)[0]?.args ?? []), ...args.slice(at + name.split(' ').length)]
     ;({ opts, operands, unknown: unknownOption } = read(args))
@@ -570,6 +588,7 @@ function prVerdict(run, world) {
   if ('help' in last && isOn(last.help)) return null
   const edits = sub === 'edit'
   if (edits && !unknownOption && !('body' in last) && !('body-file' in last)) return null
+  const place = placed()
   if (!place) return cannotTell('which repository this PR is in', 'run gh from the repository', 'Review')
   if (!place.root) return null
   if (!edits && 'dry-run' in last && isOn(last['dry-run'])) return null

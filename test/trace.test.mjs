@@ -468,11 +468,24 @@ test('a git that cannot run refuses edits, commits and PRs in any repository, na
     for (const [tool, input] of /** @type {[string, Record<string, string>][]} */ ([
       ['Edit', { file_path: join(dir, 'a.md') }],
       ['Bash', { command: 'git commit -m "x #6"' }],
+      ['Bash', { command: 'git merge topic' }],
       ['Bash', { command: 'gh pr create -t t -b "Closes #6"' }],
     ])) {
       const out = hook({ tool_name: tool, tool_input: input, cwd: dir }, noGit)
       assert.equal(out?.permissionDecision, 'deny', `${tool} ${JSON.stringify(input)}`)
       assert.match(out.permissionDecisionReason, /could not be checked.*TRACE_BYPASS=1/)
+    }
+  }
+})
+
+test('a git that cannot run lets through git and gh commands the gates do not judge', () => {
+  // gh, and the node it runs on, but no git.
+  const bin = mkdtempSync(join(tmpdir(), 'nogit-'))
+  writeFileSync(join(bin, 'gh'), FAKE_GH, { mode: 0o755 })
+  symlinkSync(process.execPath, join(bin, 'node'))
+  for (const dir of [repo(false).dir, repo().dir]) {
+    for (const command of ['git status', 'git log --oneline', 'git rebase --abort', 'gh issue view 6 --comments', 'gh pr view']) {
+      assert.equal(hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir }, { PATH: bin }), null, `${command} in ${dir}`)
     }
   }
 })
