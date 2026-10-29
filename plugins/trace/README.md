@@ -1,6 +1,6 @@
 # trace
 
-Hooks that will keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008). So far it ships the edit, commit and PR gates of the trace, its forced reads, the issue kept in context, the progress-comment nudge, the band and `/trace`, the guard and the archive block; the rest lands ticket by ticket under #3. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
+Hooks that keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008): the edit, commit and PR gates of the trace, its forced reads, the issue kept in context, the progress-comment nudge, the band and `/trace`, the guard and the archive block. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
 
 ## The trace
 
