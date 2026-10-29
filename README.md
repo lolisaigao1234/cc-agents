@@ -7,12 +7,25 @@
 
 ## Quick start
 
+In Claude Code 2.1.275 or later, one command installs the plugin, offering first to add its marketplace:
+
+```
+/plugin install trace --marketplace lolisaigao1234/cc-agents
+```
+
+From a shell on 2.1.292 or later, run `claude plugin install trace --marketplace lolisaigao1234/cc-agents`.
+
+On an older Claude Code, run these two one at a time. Pasted together, both lines reach the first command as one source, and it rejects them.
+
 ```
 /plugin marketplace add lolisaigao1234/cc-agents
+```
+
+```
 /plugin install trace@cc-agents
 ```
 
-Then, in each repository you want traced, run `/trace:setup`. Only the human can run it. It checks `gh`, [Matt Pocock's skills](https://github.com/mattpocock/skills) and the triage labels, then opts the repository in through an issue and a PR of its own. The guard and the archive block work everywhere without it.
+After installing, in each repository you want traced, run `/trace:setup`. Only the human can run it. It checks `gh`, [Matt Pocock's skills](https://github.com/mattpocock/skills) and the triage labels, then opts the repository in through an issue and a PR of its own. The guard and the archive block work everywhere without it.
 
 To switch the trace off for a session, launch Claude Code with `TRACE_BYPASS=1`. Nothing the model can write turns it off.
 
