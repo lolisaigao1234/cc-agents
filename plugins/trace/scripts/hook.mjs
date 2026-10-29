@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // Entry point for the plugin's hooks: `node hook.mjs <event>`, with the hook
 // input as JSON on stdin and the hook output as JSON on stdout. The event
-// `status` is the band's: it prints the trace's status.
+// `status` is the band's: it prints the trace's status, or the halt.
 
 import { readFileSync } from 'node:fs'
 
 import { archiveBlock } from './lib/archive.mjs'
 import { issueContext, stopNudge } from './lib/context.mjs'
-import { readsOf, storeVerdict } from './lib/docs.mjs'
+import { haltOf, readsOf, storeVerdict } from './lib/docs.mjs'
 import { guard } from './lib/guard.mjs'
+import { Unanswered, haltOutput, haltReason, unansweredStatus } from './lib/halt.mjs'
 import { toolPath } from './lib/paths.mjs'
 import { traceStatus } from './lib/status.mjs'
 import { commandVerdict, editVerdict, readRecord, switchVerdict, worldFor } from './lib/trace.mjs'
@@ -25,17 +26,22 @@ const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
  * @returns {object | null} the hook output, or null to say nothing
  */
 function hookOutput(event, input) {
+  // The human's next prompt lifts a halt; a call that still gets no answer halts again.
+  if (event === 'user-prompt-submit') {
+    haltOf(input).clear()
+    return null
+  }
+  // A compacted context no longer holds what the agent read, so it reads again, halted or not.
+  if (event === 'post-compact' || (event === 'session-start' && input.source === 'compact')) readsOf(input).clear()
+  if (event === 'post-compact') return null
+  // While a halt stands, every hook call of the session halts at once, in every agent.
+  const halted = haltOf(input).reason()
+  if (halted) return event === 'status' ? { halt: halted } : haltOutput(event, halted)
   if (event === 'session-start' || event === 'subagent-start') {
     // The issue is the record that survives compaction (ADR 0006): each agent is told it at start.
-    if (input.source === 'compact') readsOf(input).clear()
     const context = issueContext(input.cwd ?? process.cwd(), worldFor(readsOf(input)))
     const hookEventName = event === 'session-start' ? 'SessionStart' : 'SubagentStart'
     return context ? { hookSpecificOutput: { hookEventName, additionalContext: context } } : null
-  }
-  if (event === 'post-compact') {
-    // A compacted context no longer holds what the agent read, so it reads again.
-    readsOf(input).clear()
-    return null
   }
   if (event === 'stop') {
     const why = stopNudge(input, worldFor(readsOf(input)))
@@ -74,7 +80,9 @@ function hookOutput(event, input) {
       const why = verdict()
       return why && `trace: ${why}`
     } catch (err) {
-      // Failing open here would let an untraced edit, commit or PR through.
+      // git or GitHub not answering halts the session (halting). Failing open on
+      // anything else would let an untraced edit, commit or PR through.
+      if (err instanceof Unanswered) throw err
       return `trace: the trace could not be checked (${/** @type {Error} */ (err).message}). To work untraced, the human can launch Claude Code with TRACE_BYPASS=1.`
     }
   }
@@ -84,18 +92,45 @@ function hookOutput(event, input) {
   return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
 }
 
+/**
+ * The hook output, or the halt when git or GitHub did not answer: the trace
+ * cannot work without them, so the session halts, every agent of it. The
+ * band's status only shows that: it is not a hook, and a halt it recorded
+ * would stop calls that ask git nothing.
+ *
+ * @param {string | undefined} event @param {HookInput} input
+ * @returns {object | null}
+ */
+function halting(event, input) {
+  try {
+    return hookOutput(event, input)
+  } catch (err) {
+    if (!(err instanceof Unanswered)) throw err
+    if (event === 'status') return { halt: unansweredStatus(err) }
+    const reason = haltReason(err)
+    haltOf(input).set(reason)
+    return haltOutput(event, reason)
+  }
+}
+
 let input
 try {
   input = JSON.parse(readFileSync(0, 'utf8'))
 } catch {
   process.exit(0)
 }
+const event = process.argv[2]
 try {
-  const out = hookOutput(process.argv[2], input ?? {})
+  const out = halting(event, input ?? {})
   if (out) process.stdout.write(JSON.stringify(out))
+  // A PreToolUse halt also exits 2, which blocks the tool call whatever `continue` makes of the deny.
+  if (event === 'pre-tool-use' && out && 'stopReason' in out) {
+    process.stderr.write(`${out.stopReason}\n`)
+    process.exitCode = 2
+  }
 } catch (err) {
   // Fail open: a broken hook must never wedge the session. The band's
   // status is not a hook: a failure there is not "untraced".
   process.stderr.write(`trace hook: ${/** @type {Error} */ (err).message}\n`)
-  if (process.argv[2] === 'status') process.exitCode = 1
+  if (event === 'status') process.exitCode = 1
 }

@@ -24,8 +24,14 @@ export type TraceStatus = {
   } | null
 }
 
+/** A halt of the session, or git or GitHub not answering the status itself: what failed, and what to restore (scripts/lib/halt.mjs). */
+export type TraceHalt = { halt: string }
+
+/** What the status prints: nothing (null) outside a traced repository and under the bypass. */
+export type TraceState = TraceStatus | TraceHalt | null
+
 declare module 'claude-code' {
   interface PluginState {
-    trace: { status: Shaped<TraceStatus | null> }
+    trace: { status: Shaped<TraceState> }
   }
 }

@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { archiveBlock } from '../plugins/trace/scripts/lib/archive.mjs'
+import { Unanswered } from '../plugins/trace/scripts/lib/halt.mjs'
 import { worldFor } from '../plugins/trace/scripts/lib/trace.mjs'
 import { noReads } from './helpers.mjs'
 
@@ -431,13 +432,13 @@ test('the hook denies what the archive block fails to check, whatever the failur
   }
 })
 
-test('a history command is denied when the hook call has run out of time to ask git', () => {
+test('a history command halts the session when the hook call has run out of time to ask git', () => {
   const ranOut = () => {
-    throw new Error('out of time asking git and GitHub')
+    throw new Unanswered('git and GitHub', 'the hook call ran out of time asking them')
   }
   // `git log -p -1` prints only docs/, so with time to ask git it is allowed.
   assert.equal(bash('git log -p -1'), null)
-  assert.match(String(archiveBlock('Bash', { command: 'git log -p -1' }, repo, ranOut)), /archive block: .*could not be checked in time/)
+  assert.throws(() => archiveBlock('Bash', { command: 'git log -p -1' }, repo, ranOut), Unanswered)
   // A command that needs no answer from git is judged as before.
   assert.equal(archiveBlock('Bash', { command: 'cat docs/a.md' }, repo, ranOut), null)
   assert.match(String(archiveBlock('Bash', { command: 'cat archive/old.md' }, repo, ranOut)), /archive\/old\.md, in the archive/)
@@ -448,6 +449,15 @@ test("the archive block draws on the hook call's deadline, which the gates' git 
   const world = worldFor(noReads())
   assert.equal(archiveBlock('Bash', { command: 'git log -p -1' }, repo, world.timeLeft), null)
   t.mock.timers.tick(20_000)
-  assert.match(String(archiveBlock('Bash', { command: 'git log -p -1' }, repo, world.timeLeft)), /could not be checked in time/)
-  assert.throws(() => world.git.message(repo, 'HEAD'), /out of time asking git and GitHub/)
+  assert.throws(() => archiveBlock('Bash', { command: 'git log -p -1' }, repo, world.timeLeft), /git and GitHub did not answer: the hook call ran out of time/)
+  assert.throws(() => world.git.message(repo, 'HEAD'), /git and GitHub did not answer: the hook call ran out of time/)
+})
+
+test('a history command halts the session when git cannot run, rather than being denied as printing the archive', () => {
+  const r = spawnSync(process.execPath, [HOOK, 'pre-tool-use'], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git log -p -1' }, cwd: repo }), encoding: 'utf8', env: { ...process.env, PATH: '/nonexistent' } })
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.continue, false)
+  assert.match(out.stopReason, /^trace halted the session: git did not answer: git is not on PATH\./)
+  assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
+  assert.doesNotMatch(out.stopReason, /would print changes/)
 })

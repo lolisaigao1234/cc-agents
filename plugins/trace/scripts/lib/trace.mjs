@@ -10,6 +10,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 import { decode, docsVerdict, fileRecord, isDocName, once, outputRecords, writeRecord } from './docs.mjs'
+import { Unanswered, answered } from './halt.mjs'
 
 import { fold, real, toolPath, untilde } from './paths.mjs'
 import { GIT_COMMIT_OPTIONS, computed, gitParts, literal, parseCommands, readOptions, unliteral, withCwds } from './shell.mjs'
@@ -57,8 +58,10 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
 
 /**
  * What the trace needs from GitHub: an issue's state, and its text, or null
- * when GitHub cannot be asked. A pull request is 'MISSING': it is not an issue.
- * `pr` is the latest PR from a branch, 'NONE', or null when GitHub cannot say.
+ * when GitHub's answer cannot be read (origin is not on GitHub, or gh fails in
+ * a way not listed in halt.mjs). A pull request is 'MISSING': it is not an
+ * issue. `pr` is the latest PR from a branch, 'NONE', or null likewise. When
+ * GitHub does not answer at all, each throws Unanswered (halt.mjs).
  *
  * @typedef {{
  *   issueState(root: string, n: number): 'OPEN' | 'CLOSED' | 'MISSING' | null,
@@ -70,7 +73,7 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
 
 /**
  * The hook call's deadline: the milliseconds it has left to ask git and
- * GitHub. It throws once there are none.
+ * GitHub. It throws Unanswered once there are none.
  *
  * @typedef {() => number} TimeLeft
  */
@@ -136,6 +139,8 @@ function preview(out) {
  * @returns {import('./docs.mjs').ReadRecord[]}
  */
 export function readRecord(input, world = realWorld()) {
+  // Under the bypass no gate reads them, so nothing asks git.
+  if (world.env[BYPASS] === '1') return []
   const cwd = input.cwd ?? process.cwd()
   const linked = () => {
     const root = tracedRoot(real(cwd), world.git)
@@ -776,10 +781,11 @@ const slugOf = url => /(?:^|[@/])github\.com(?::\d+)?[:/]([^/]+\/[^/]+?)(?:\.git
 
 /** @typedef {{ state?: string, pull_request?: unknown, title?: string, body?: string | null, comments?: number }} IssueJson */
 
-// A hook that times out lets the edit through, so the git and GitHub calls of
-// one hook call share one deadline well inside the hook's timeout, and running
-// out throws. Each call makes its own world, and with it its own deadline and
-// its own answers from git and GitHub: none outlives the call.
+// A hook killed at its own timeout cannot halt, and lets the edit through, so
+// the git and GitHub calls of one hook call share one deadline well inside the
+// hook's timeout, and running out halts the session. Each call makes its own
+// world, and with it its own deadline and its own answers from git and GitHub:
+// none outlives the call.
 
 /** @returns {World} a fresh real world, its deadline starting now */
 function realWorld() {
@@ -787,14 +793,13 @@ function realWorld() {
   /** @type {TimeLeft} */
   const timeLeft = () => {
     const ms = endsAt - Date.now()
-    if (ms <= 0) throw new Error('out of time asking git and GitHub')
+    if (ms <= 0) throw new Unanswered('git and GitHub', 'the hook call ran out of time asking them')
     return ms
   }
 
-  /** @param {string} root @param {string[]} args @returns {string | null} stdout, or null when git says no */
+  /** @param {string} root @param {string[]} args @returns {string | null} stdout, or null when git says no; throws Unanswered when it does not answer */
   const git = (root, args) => {
-    const r = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: Math.min(3000, timeLeft()) })
-    if (r.error) throw r.error
+    const r = answered('git', spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: Math.min(3000, timeLeft()) }))
     return r.status === 0 ? r.stdout.trim() : null
   }
 
@@ -853,8 +858,7 @@ function realWorld() {
       const names = git(root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', 'GLOSSARY.md', 'docs/adr'])
       if (names === null) return null
       const list = names.split('\0').filter(isDocName)
-      const r = spawnSync('git', ['-C', root, 'cat-file', '--batch'], { input: list.map(p => `HEAD:${p}\n`).join(''), timeout: Math.min(3000, timeLeft()), maxBuffer: 64 << 20 })
-      if (r.error) throw r.error
+      const r = answered('git', spawnSync('git', ['-C', root, 'cat-file', '--batch'], { input: list.map(p => `HEAD:${p}\n`).join(''), timeout: Math.min(3000, timeLeft()), maxBuffer: 64 << 20 }))
       if (r.status !== 0) return null
       /** @type {Record<string, string>} */
       const docs = {}
@@ -878,8 +882,9 @@ function realWorld() {
     // Deleting the marker from the working tree, or committing its deletion on a
     // branch, does not opt out: it also counts while HEAD or the default branch has it.
     // Only git saying no makes a repository untraced: when git does not answer
-    // (a timeout, the hook call's deadline run out, or no git to run), this throws, and
-    // the gates refuse rather than let an untraced edit, commit or PR through.
+    // (a timeout, the hook call's deadline run out, no git to run, a broken
+    // repository), this throws, and the session halts rather than let an
+    // untraced edit, commit or PR through.
     traced(root) {
       if (existsSync(join(root, MARKER))) return true
       const def = this.defaultBranch(root)
@@ -915,9 +920,8 @@ function realWorld() {
   const realGitHub = {
     alias(name) {
       if (ghAliases === undefined) {
-        const r = spawnSync('gh', ['alias', 'list'], { encoding: 'utf8', timeout: Math.min(5000, timeLeft()) })
         // An alias that cannot be looked up may be anything.
-        if (r.error) throw r.error
+        const r = answered('GitHub', spawnSync('gh', ['alias', 'list'], { encoding: 'utf8', timeout: Math.min(5000, timeLeft()) }))
         if (r.status !== 0 && !/no aliases/i.test(r.stderr ?? '')) throw new Error(`gh alias list failed: ${(r.stderr ?? '').trim()}`)
         ghAliases = r.stdout ?? ''
       }
@@ -971,14 +975,14 @@ function realWorld() {
   }
 
   /** @param {string} root @param {string[]} args */
-  const gh = (root, args) => spawnSync('gh', args, { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()), maxBuffer: 64 << 20 })
+  const gh = (root, args) => answered('GitHub', spawnSync('gh', args, { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()), maxBuffer: 64 << 20 }))
 
   /** @type {Map<string, IssueJson | 'MISSING' | null>} */
   const issues = new Map()
 
   /**
    * An issue as GitHub's API gives it, asked once per hook run: 'MISSING', or
-   * null when GitHub cannot be asked. It asks about origin's repository by name:
+   * null when its answer cannot be read. It asks about origin's repository by name:
    * gh's own choice prefers a remote called upstream, which on a fork is
    * someone else's issues.
    *

@@ -28,7 +28,7 @@ import { fold, real } from './paths.mjs'
 
 /**
  * The glossary and the ADRs as HEAD has them, by path relative to the root;
- * null when git cannot say.
+ * null when git has no HEAD to read them from, as before the first commit.
  *
  * @typedef {Record<string, string> | null} HeadDocs
  */
@@ -379,7 +379,7 @@ const range = (a, b) => Array.from({ length: Math.max(0, b - a + 1) }, (_, i) =>
 
 // --- the record store -----------------------------------------------------------
 
-/** Where the hook keeps each agent's reads; only the hook writes there. */
+/** Where the hook keeps each agent's reads and each session's halt; only the hook writes there. */
 const STORE = () => join(real(tmpdir()), 'trace-reads')
 
 /** @returns {Buffer} the key every record is signed with, made on first use */
@@ -443,6 +443,39 @@ export function readsOf(input) {
 }
 
 /**
+ * The halt of the session a hook input comes from (ADR 0006): one record
+ * for the main session and all its subagents, so a halt in one stops them
+ * all. Unsigned: a forged halt only stops the session. Without a session
+ * id, none can be kept.
+ *
+ * @param {{ session_id?: unknown }} input
+ * @returns {{ reason(): string | null, set(reason: string): void, clear(): void }}
+ */
+export function haltOf(input) {
+  const session = input.session_id
+  if (typeof session !== 'string' || !/^[\w-]{1,128}$/.test(session)) return { reason: () => null, set() {}, clear() {} }
+  // Agents' directories are named by ids without a dot, so none is this file.
+  const path = join(STORE(), session, 'halt.json')
+  return {
+    reason() {
+      try {
+        const { reason } = JSON.parse(readFileSync(path, 'utf8'))
+        return typeof reason === 'string' ? reason : null
+      } catch {
+        return null
+      }
+    },
+    set(reason) {
+      mkdirSync(join(STORE(), session), { recursive: true, mode: 0o700 })
+      writeFileSync(path, JSON.stringify({ reason }), { mode: 0o600 })
+    },
+    clear() {
+      rmSync(path, { force: true })
+    },
+  }
+}
+
+/**
  * Whether `key` is new: true the first time the hook asks, in any process.
  * The marks live with the read records, where only the hook writes.
  *
@@ -471,5 +504,5 @@ export function storeVerdict(subject) {
     'path' in subject
       ? fold(subject.path) === store || fold(subject.path).startsWith(`${store}/`)
       : /\/trace-reads(?=$|[/\s'"`;|&)])|(?:^|[^\w.-])trace-reads\//i.test(subject.command)
-  return touches ? "these are the trace's records of what each agent has read, and only its hook writes them. Read step: read the docs instead." : null
+  return touches ? "these are the trace's records of what each agent has read, and of a halt, and only its hook writes them. Read step: read the docs instead." : null
 }

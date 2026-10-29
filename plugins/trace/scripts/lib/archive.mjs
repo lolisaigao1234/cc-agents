@@ -11,6 +11,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
+import { Unanswered, answered } from './halt.mjs'
 import { CASE_INSENSITIVE_FS, real, untilde } from './paths.mjs'
 import { INTERPRETERS, cdTarget, gitParts, operandIndexes, parseCommands, shortFlags, withCwds } from './shell.mjs'
 
@@ -36,17 +37,8 @@ const fresh = new Set()
 /** @type {{ timeLeft: import('./trace.mjs').TimeLeft }} */
 const call = { timeLeft: () => Infinity }
 
-/** Thrown when the hook call's deadline runs out before git has answered. */
-class OutOfTime extends Error {}
-
-/** @returns {number} the timeout for one git call: 5s, or what the hook call has left; throws OutOfTime once it has none */
-function gitTimeout() {
-  try {
-    return Math.min(5000, call.timeLeft())
-  } catch {
-    throw new OutOfTime()
-  }
-}
+/** @returns {number} the timeout for one git call: 5s, or what the hook call has left; throws Unanswered once it has none */
+const gitTimeout = () => Math.min(5000, call.timeLeft())
 
 /** @param {string} dir @returns {string | null} the repository root at or above `dir` */
 function repoRoot(dir) {
@@ -720,14 +712,12 @@ const specExcludesArchive = p => p.exclude && /^archive(?:\/(?:\*{1,2})?)?$/.tes
  */
 function historyTouches(sub, opts, cwd) {
   const diff = /^diff/.test(sub)
-  const r = spawnSync('git', ['-C', cwd, sub === 'difftool' ? 'diff' : sub, ...opts, '--name-only', '--no-renames', '--no-ext-diff',
+  const r = answered('git', spawnSync('git', ['-C', cwd, sub === 'difftool' ? 'diff' : sub, ...opts, '--name-only', '--no-renames', '--no-ext-diff',
     ...(sub === 'diff' || sub === 'difftool' ? ['--no-relative'] : []), ...(diff ? [] : ['--format='])],
-  { encoding: 'utf8', timeout: gitTimeout(), maxBuffer: 64 * 1024 * 1024 })
-  if (r.status !== 0) {
-    // When git cannot say, assume the worst; when it was stopped at the deadline, say so.
-    gitTimeout()
-    return true
-  }
+  { encoding: 'utf8', timeout: gitTimeout(), maxBuffer: 64 * 1024 * 1024 }))
+  // A git that did not answer has thrown; one that refuses the command, as for
+  // a bad revision, does not say what it prints, so assume the worst.
+  if (r.status !== 0) return true
   return r.stdout.split('\n').some(l => l === 'archive' || l.startsWith('archive/'))
 }
 
@@ -994,11 +984,10 @@ export function archiveBlock(toolName, toolInput, cwd, timeLeft = () => Infinity
   try {
     why = toolTouches(toolName, toolInput, cwd)
   } catch (err) {
-    // Failing open here would let the command reach the archive.
-    why = err instanceof OutOfTime
-      ? 'the archive could not be checked in time: the hook call ran out of time asking git what the command\'s history commands print. ' +
-        "Run fewer of them at once, or add `-- ':!archive'` to each."
-      : `the archive could not be checked (${/** @type {Error} */ (err).message}).`
+    // git not answering halts the session (hook.mjs). Failing open on
+    // anything else would let the command reach the archive.
+    if (err instanceof Unanswered) throw err
+    why = `the archive could not be checked (${/** @type {Error} */ (err).message}).`
   }
   return why && `archive block: ${why}${DENY_SUFFIX}`
 }

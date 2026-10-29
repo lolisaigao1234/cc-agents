@@ -71,6 +71,10 @@ _Avoid_: warning, notice
 **Nudge**:
 A hard block that applies once, and lets the next attempt through.
 
+**Halt**:
+The stop of a whole session, in every agent, when a hook needs an answer from git or GitHub and gets none. It stands until the human's next prompt.
+_Avoid_: outage, fail closed, abort
+
 **Guard**:
 The hard block on commands that destroy work or history, or that write the switches (Claude Code's settings and installed plugins).
 _Avoid_: safety hook, git guard
