@@ -242,7 +242,8 @@ test('the guard names what it refuses', () => {
 })
 
 /** @param {object} input @param {Record<string, string>} [env] */
-const runHook = (input, env = {}) => spawnSync(process.execPath, [HOOK, 'pre-tool-use'], { input: JSON.stringify(input), encoding: 'utf8', env: { ...process.env, ...env } })
+// From outside any repository, so the trace's gates on this traced repository stay out of the guard's tests.
+const runHook = (input, env = {}) => spawnSync(process.execPath, [HOOK, 'pre-tool-use'], { input: JSON.stringify(input), encoding: 'utf8', env: { ...process.env, ...env }, cwd: tmpdir() })
 
 test('the hook denies a destructive Bash command, giving the reason', () => {
   const r = runHook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git push --force' } })

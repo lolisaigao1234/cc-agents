@@ -113,11 +113,11 @@ test('the step moves on as each one completes, up to Close', () => {
   const implement = at({})
   assert.equal(implement?.docs, 'read')
   assert.deepEqual([implement?.step, implement?.done], ['implement', ['read', 'track', 'branch']])
-  assert.match(String(implement?.why), /no commit on this branch references #10 yet/)
+  assert.match(String(implement?.why), /no commit on this branch references #10 yet\. Implement step: build it test-first \(tdd\)/)
 
   const review = at({ committed: true })
   assert.deepEqual([review?.step, review?.pr], ['review', null])
-  assert.match(String(review?.why), /Review step: open a PR for 10-trace-band that says Closes #10/)
+  assert.match(String(review?.why), /Review step: review 10-trace-band \(\/code-review, mattpocock-skills:code-review\), then open a PR for it that says Closes #10 \(pr\)\./)
 
   const pushed = { sha: 'abc', at: '2026-10-04T10:00:00Z' }
   const update = at({ committed: true, pr: PR, pushed })
@@ -131,7 +131,7 @@ test('the step moves on as each one completes, up to Close', () => {
 
   const closed = at({ committed: true, pr: { ...PR, state: 'CLOSED' }, pushed })
   assert.equal(closed?.step, 'review', 'a closed PR closes nothing')
-  assert.match(String(closed?.why), /^PR #19 for 10-trace-band was closed unmerged\. Review step: open a PR/)
+  assert.match(String(closed?.why), /^PR #19 for 10-trace-band was closed unmerged\. Review step: review 10-trace-band/)
   const merged = at({ committed: true, pr: { ...PR, state: 'MERGED' }, pushed })
   assert.equal(merged?.step, 'review', 'a PR merged into another branch leaves the issue open')
   assert.match(String(merged?.why), /^PR #19 for 10-trace-band was merged, but #10 is still open: .*Review step: /)

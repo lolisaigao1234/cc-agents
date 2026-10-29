@@ -64,7 +64,7 @@ test('an edit on the default branch is refused, naming the Branch step', () => {
 test('an edit on a branch that names no issue is refused, naming the Track step', () => {
   for (const branch of ['feature/x', 'fix-6', null]) {
     const why = editVerdict('/repo/src/a.js', world({ branch, issues: { 6: 'OPEN' } }))
-    assert.match(String(why), /Track/, String(branch))
+    assert.match(String(why), /Track step: open an issue \(`gh issue create`, with acceptance criteria\)/, String(branch))
   }
 })
 
@@ -76,7 +76,7 @@ test("an edit on a closed or missing issue's branch is refused, naming the Track
   for (const issues of /** @type {Record<number, 'OPEN' | 'CLOSED'>[]} */ ([{ 6: 'CLOSED' }, {}])) {
     const why = editVerdict('/repo/src/a.js', world({ branch: '6-trace-edit-gate', issues }))
     assert.match(String(why), /#6/)
-    assert.match(String(why), /Track/)
+    assert.match(String(why), /Track step: open an issue for this change \(`gh issue create`, with acceptance criteria\)/)
   }
 })
 

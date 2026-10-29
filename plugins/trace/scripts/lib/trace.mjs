@@ -208,14 +208,14 @@ export function linkedIssue(root, branch, { git, github }) {
   }
   const n = branchIssue(branch)
   if (!n) {
-    return { why: `the branch ${branch ?? '(detached HEAD)'} names no issue. Track step: open an issue (to-tickets), then \`gh issue develop <n> --checkout\`.` }
+    return { why: `the branch ${branch ?? '(detached HEAD)'} names no issue. Track step: open an issue (\`gh issue create\`, with acceptance criteria), then \`gh issue develop <n> --checkout\`.` }
   }
   const state = github.issueState(root, n)
   if (state === 'OPEN') return { n }
   if (state === null) {
     return { why: `GitHub could not say whether issue #${n} is open; check \`gh auth status\`, the network, and that origin is on GitHub. Track step: the work waits for an open issue; ${BYPASS_HINT}.` }
   }
-  return { why: `#${n} is ${state === 'CLOSED' ? 'a closed issue' : 'not an open issue'}. Track step: open an issue for this change (to-tickets) and work on its branch.` }
+  return { why: `#${n} is ${state === 'CLOSED' ? 'a closed issue' : 'not an open issue'}. Track step: open an issue for this change (\`gh issue create\`, with acceptance criteria) and work on its branch.` }
 }
 
 // --- the commit and PR gates -----------------------------------------------------
