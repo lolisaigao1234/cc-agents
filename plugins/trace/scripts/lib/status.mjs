@@ -16,8 +16,9 @@ export const STEPS = /** @type {const} */ (['read', 'track', 'branch', 'implemen
 /**
  * Where the trace stands: the step reached (the first not done, or `done`)
  * and why, in the hooks' own words; the steps done; the linked issue, its
- * latest progress comment and whether its related docs are read; its PR,
- * with its CI state.
+ * latest progress comment, its last comment when that is another one, and
+ * whether its related docs are read; its PR, with its CI state and each
+ * check's outcome.
  *
  * @typedef {{
  *   step: Step | 'done',
@@ -25,10 +26,14 @@ export const STEPS = /** @type {const} */ (['read', 'track', 'branch', 'implemen
  *   done: Step[],
  *   issue: { n: number, title: string, url: string | null } | null,
  *   docs: 'read' | 'unread' | null,
- *   comment: { author: string, at: string, body: string, isProgress: boolean } | null,
- *   pr: (import('./trace.mjs').PullRequest & { ci: 'passing' | 'failing' | 'pending' | 'none' }) | null,
+ *   comment: Comment | null,
+ *   last: Comment | null,
+ *   pr: (Omit<import('./trace.mjs').PullRequest, 'checks'> & { ci: Outcome | 'none', checks: { name: string, state: string, outcome: Outcome }[] }) | null,
  * }} Status
  */
+
+/** @typedef {{ author: string, at: string, body: string, isProgress: boolean }} Comment */
+/** @typedef {'passing' | 'failing' | 'pending'} Outcome */
 
 const FAILED = new Set(['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'STALE'])
 const PASSED = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED'])
@@ -46,9 +51,10 @@ export function traceStatus(cwd, world) {
   const branch = world.git.branch(root)
   const slug = world.git.origin(root)
   /** @type {Status} */
-  const status = { step: 'done', why: null, done: [], issue: null, docs: null, comment: null, pr: null }
+  const status = { step: 'done', why: null, done: [], issue: null, docs: null, comment: null, last: null, pr: null }
   const linked = linkedIssue(root, branch, world)
-  const n = 'n' in linked ? linked.n : branch !== world.git.defaultBranch(root) && world.github.issueState(root, branchIssue(branch) ?? 0) === 'CLOSED' ? branchIssue(branch) : null
+  const b = branchIssue(branch)
+  const n = 'n' in linked ? linked.n : b !== null && branch !== world.git.defaultBranch(root) && world.github.issueState(root, b) === 'CLOSED' ? b : null
   if (n === null || !branch) {
     const why = 'why' in linked ? linked.why : null
     const named = /\b(\w+) step:/.exec(why ?? '')?.[1]?.toLowerCase()
@@ -58,9 +64,15 @@ export function traceStatus(cwd, world) {
   status.issue = { n, title: issue?.title ?? '', url: slug ? `https://github.com/${slug}/issues/${n}` : null }
   const last = issue?.comments.at(-1)
   const shown = issue && latestProgress(issue.comments)
-  status.comment = shown ? { author: shown.author, at: shown.at ?? '', body: shown.body, isProgress: shown !== last || /^#+\s*progress\b/im.test(shown.body) } : null
+  /** @param {import('./docs.mjs').Issue['comments'][number]} c @param {boolean} isProgress @returns {Comment} */
+  const comment = (c, isProgress) => ({ author: c.author, at: c.at ?? '', body: c.body, isProgress })
+  status.comment = shown ? comment(shown, shown !== last || /^#+\s*progress\b/im.test(shown.body)) : null
+  status.last = last && last !== shown ? comment(last, false) : null
   const pr = world.github.pr(root, branch)
-  if (pr && pr !== 'NONE') status.pr = { ...pr, ci: ciOf(pr.checks) }
+  if (pr && pr !== 'NONE') {
+    const checks = pr.checks.map(c => ({ ...c, outcome: outcomeOf(c.state) }))
+    status.pr = { ...pr, checks, ci: !checks.length ? 'none' : checks.some(c => c.outcome === 'failing') ? 'failing' : checks.every(c => c.outcome === 'passing') ? 'passing' : 'pending' }
+  }
   if ('why' in linked) return { ...status, done: [...STEPS] }
 
   const unread = readVerdict(root, n, null, world)
@@ -73,7 +85,7 @@ export function traceStatus(cwd, world) {
     ['track', null],
     ['branch', null],
     ['implement', world.git.committed(root, n) ? null : `no commit on this branch references #${n} yet. Implement step: build it test-first (implement, tdd), committing with #${n} in each message.`],
-    ['review', pr === null ? `GitHub could not say whether ${branch} has a PR; check \`gh auth status\` and the network.` : pr === 'NONE' ? `Review step: open a PR for ${branch} that says Closes #${n} (pr), and review it (code-review).` : null],
+    ['review', reviewWhy(pr, branch, n)],
     [
       'update',
       !pushed
@@ -82,16 +94,26 @@ export function traceStatus(cwd, world) {
           ? `commits were pushed to ${branch} after the last comment on #${n}. Update step: post a progress comment on #${n} (progress, decisions, verification results), with \`gh issue comment ${n}${repo}\`.`
           : null,
     ],
-    ['close', status.pr ? `Close step: PR #${status.pr.n} is ${status.pr.state.toLowerCase()}; merging it closes #${n}. The human merges.` : `Close step: #${n} closes when its PR is merged.`],
+    ['close', `Close step: PR #${status.pr?.n} is open; merging it closes #${n}. The human merges.`],
   ]
   status.done = steps.filter(([, why]) => why === null).map(([s]) => s)
   const current = steps.find(([, why]) => why !== null)
   return current ? { ...status, step: current[0], why: current[1] } : status
 }
 
-/** @param {{ state: string }[]} checks @returns {'passing' | 'failing' | 'pending' | 'none'} */
-function ciOf(checks) {
-  if (!checks.length) return 'none'
-  if (checks.some(c => FAILED.has(c.state))) return 'failing'
-  return checks.every(c => PASSED.has(c.state)) ? 'passing' : 'pending'
+/**
+ * Why Review is not done: only an open PR does it. A PR that was closed, or
+ * merged while the issue stays open (into a branch other than the default),
+ * closes nothing.
+ *
+ * @param {import('./trace.mjs').PullRequest | 'NONE' | null} pr @param {string} branch @param {number} n
+ */
+function reviewWhy(pr, branch, n) {
+  if (pr === null) return `GitHub could not say whether ${branch} has a PR; check \`gh auth status\` and the network.`
+  if (pr !== 'NONE' && pr.state === 'OPEN') return null
+  const was = pr === 'NONE' ? '' : pr.state === 'CLOSED' ? `PR #${pr.n} for ${branch} was closed unmerged. ` : `PR #${pr.n} for ${branch} was merged, but #${n} is still open: a PR closes its issue only when it merges into the default branch. `
+  return `${was}Review step: open a PR for ${branch} that says Closes #${n} (pr), and review it (code-review).`
 }
+
+/** @param {string} state a check's state @returns {Outcome} */
+const outcomeOf = state => (FAILED.has(state) ? 'failing' : PASSED.has(state) ? 'passing' : 'pending')

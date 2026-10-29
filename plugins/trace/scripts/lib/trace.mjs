@@ -27,7 +27,8 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
  * ADRs as HEAD has them; `pushed` the head of a branch as its remote last
  * had it here, and when it got there (ISO 8601), or null when that holds
  * nothing beyond the remote's other branches; `committed` whether HEAD has a
- * commit referencing #n that the default branch does not.
+ * commit the default branch does not whose message references #n, as the
+ * commit gate reads a reference.
  *
  * @typedef {{
  *   root(path: string): string | null,
@@ -46,7 +47,8 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
 
 /**
  * A pull request, and its checks by name and state (a check run's
- * conclusion, `PENDING` until it completes, or a status's state).
+ * conclusion, `PENDING` until it completes, or a status's state), the latest
+ * run of each.
  *
  * @typedef {{ n: number, url: string, state: 'OPEN' | 'MERGED' | 'CLOSED', checks: { name: string, state: string }[] }} PullRequest
  */
@@ -319,6 +321,14 @@ function dropExpansions(text) {
 const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**
+ * What a commit message must hold to reference issue #n of `slug`: `#n` on
+ * its own, or `slug#n`.
+ *
+ * @param {number} n @param {string | null} slug
+ */
+export const refersTo = (n, slug) => new RegExp(`(?:^|[^\\w&/])#${n}(?!\\d)${slug ? `|${escape(slug)}#${n}(?!\\d)` : ''}`, 'i')
+
+/**
  * The text an option's value names: `-` for stdin, or a file. A file that a
  * command earlier on the line may write counts only when that command is
  * `cat > file <<EOF` chained before it, whose text is known.
@@ -426,7 +436,7 @@ function commitVerdict(run, world) {
   const unread = readVerdict(place.root, n, null, world)
   if (unread) return unread
   const slug = world.git.origin(place.root)
-  return judge(unknownOption ? null : commitMessage(opts, run, { root: place.root, dir: place.dir }, config, world.git), new RegExp(`(?:^|[^\\w&/])#${n}(?!\\d)${slug ? `|${escape(slug)}#${n}(?!\\d)` : ''}`, 'i'), {
+  return judge(unknownOption ? null : commitMessage(opts, run, { root: place.root, dir: place.dir }, config, world.git), refersTo(n, slug), {
     what: 'commit message',
     how: '-m or a heredoc to -F -',
     step: 'Implement',
@@ -760,8 +770,9 @@ const realGit = {
   message: (root, rev) => git(root, ['log', '-1', '--format=%B', rev, '--']),
   committed(root, n) {
     const def = this.defaultBranch(root)
-    const base = def ? ['--not', `--branches=${def}`, `--remotes=origin/${def}`] : []
-    return !!git(root, ['rev-list', '-1', '-E', `--grep=#${n}([^0-9]|$)`, 'HEAD', ...base])
+    const base = def ? ['--ignore-missing', '--not', `refs/heads/${def}`, `refs/remotes/origin/${def}`] : []
+    const refers = refersTo(n, this.origin(root))
+    return (git(root, ['log', '-z', '--format=%B', 'HEAD', ...base, '--']) ?? '').split('\0').some(m => refers.test(m))
   },
   // Where the branch is pushed: its push destination, else its upstream,
   // else origin's branch of its name. Null unless that holds commits no other
@@ -881,9 +892,18 @@ const realGitHub = {
     try {
       const pr = JSON.parse(r.stdout)
       if (!Number.isInteger(pr.number) || typeof pr.url !== 'string') return null
-      /** @type {{ name?: string, context?: string, status?: string, conclusion?: string, state?: string }[]} */
+      /** @type {{ name?: string, context?: string, workflowName?: string, status?: string, conclusion?: string, state?: string, startedAt?: string }[]} */
       const rollup = pr.statusCheckRollup ?? []
-      const checks = rollup.map(c => ({ name: String(c.name ?? c.context ?? ''), state: c.status && c.status !== 'COMPLETED' ? 'PENDING' : String(c.conclusion || c.state || 'PENDING') }))
+      // A re-run is listed beside the run it replaces; the latest counts.
+      const started = (/** @type {{ startedAt?: string }} */ c) => Date.parse(c.startedAt ?? '') || 0
+      /** @type {Map<string, typeof rollup[number]>} */
+      const latest = new Map()
+      for (const c of rollup) {
+        const key = `${c.workflowName ?? ''}\0${c.name ?? c.context ?? ''}`
+        const seen = latest.get(key)
+        if (!seen || started(c) >= started(seen)) latest.set(key, c)
+      }
+      const checks = [...latest.values()].map(c => ({ name: String(c.name ?? c.context ?? ''), state: c.status && c.status !== 'COMPLETED' ? 'PENDING' : String(c.conclusion || c.state || 'PENDING') }))
       return { n: Number(pr.number), url: String(pr.url), state: pr.state === 'MERGED' || pr.state === 'CLOSED' ? pr.state : 'OPEN', checks }
     } catch {
       return null

@@ -317,26 +317,39 @@ test('the hook tells each agent about the linked issue when it starts, nudges on
 
 test("the status event reports the trace from real git and gh: the commits, the PR and its checks", () => {
   const { dir, git } = repo()
+  git('commit', '-q', '--allow-empty', '-m', 'Split the band out to #10')
   git('checkout', '-qb', '10-trace-band')
   const issues = { 'owner/name#10': { state: 'open', title: 'Trace band', body: 'Show it.', comments: 0 } }
   const status = (/** @type {Record<string, unknown>} */ prs = {}) => hook({ cwd: dir, session_id: `s-${process.pid}` }, { FAKE_GH_PRS: JSON.stringify(prs) }, issues, 'status')
   const before = status()
-  console.log('DBG', JSON.stringify(before), hook.calls)
   assert.deepEqual([before?.step, before?.docs, before?.issue], ['read', 'unread', { n: 10, title: 'Trace band', url: 'https://github.com/owner/name/issues/10' }])
-  assert.ok(!before?.done.includes('implement'))
-  git('commit', '-q', '--allow-empty', '-m', 'the band (#100)')
-  assert.ok(!status()?.done.includes('implement'), '#100 is not #10')
+  assert.ok(!before?.done.includes('implement'), "the default branch's commits are not the branch's")
+  git('commit', '-q', '--allow-empty', '-m', 'the band (#100), other/repo#10')
+  assert.ok(!status()?.done.includes('implement'), 'as the commit gate reads them, #100 and other/repo#10 are not #10')
   git('commit', '-q', '--allow-empty', '-m', 'the band (#10)')
   assert.ok(status()?.done.includes('implement'))
   const rollup = [
-    { __typename: 'CheckRun', name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' },
-    { __typename: 'CheckRun', name: 'lint', status: 'IN_PROGRESS', conclusion: '' },
+    { __typename: 'CheckRun', name: 'test', workflowName: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', startedAt: '2026-10-28T10:05:00Z' },
+    { __typename: 'CheckRun', name: 'test', workflowName: 'CI', status: 'COMPLETED', conclusion: 'FAILURE', startedAt: '2026-10-28T10:00:00Z' },
+    { __typename: 'CheckRun', name: 'lint', workflowName: 'CI', status: 'IN_PROGRESS', conclusion: '', startedAt: '2026-10-28T10:00:00Z' },
     { __typename: 'StatusContext', context: 'ci/legacy', state: 'FAILURE' },
   ]
   const after = status({ '10-trace-band': { number: 21, url: 'https://github.com/owner/name/pull/21', state: 'OPEN', statusCheckRollup: rollup } })
-  assert.deepEqual(after?.pr, { n: 21, url: 'https://github.com/owner/name/pull/21', state: 'OPEN', ci: 'failing', checks: [{ name: 'test', state: 'SUCCESS' }, { name: 'lint', state: 'PENDING' }, { name: 'ci/legacy', state: 'FAILURE' }] })
+  assert.deepEqual(after?.pr, {
+    n: 21,
+    url: 'https://github.com/owner/name/pull/21',
+    state: 'OPEN',
+    ci: 'failing',
+    checks: [
+      { name: 'test', state: 'SUCCESS', outcome: 'passing' },
+      { name: 'lint', state: 'PENDING', outcome: 'pending' },
+      { name: 'ci/legacy', state: 'FAILURE', outcome: 'failing' },
+    ],
+  }, 'a re-run that passed replaces the run that failed')
   assert.ok(after?.done.includes('review'))
   assert.equal(hook({ cwd: repo(false).dir, session_id: 's' }, {}, issues, 'status'), null, 'untraced: nothing')
+  const failed = spawnSync(process.execPath, [HOOK, 'status'], { input: JSON.stringify({ cwd: dir, session_id: 's' }), encoding: 'utf8', env: { ...process.env, PATH: '/nonexistent' } })
+  assert.deepEqual([failed.status, failed.stdout], [1, ''], 'a status that cannot be read is a failure, not "untraced"')
 })
 
 test("the hook refuses tools that would touch the trace's read records, and only those", () => {

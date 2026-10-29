@@ -3,19 +3,24 @@
 
 export type TraceStep = 'read' | 'track' | 'branch' | 'implement' | 'review' | 'update' | 'close'
 
+export type TraceComment = { author: string; at: string; body: string; isProgress: boolean }
+
+export type TraceOutcome = 'passing' | 'failing' | 'pending'
+
 export type TraceStatus = {
   step: TraceStep | 'done'
   why: string | null
   done: TraceStep[]
   issue: { n: number; title: string; url: string | null } | null
   docs: 'read' | 'unread' | null
-  comment: { author: string; at: string; body: string; isProgress: boolean } | null
+  comment: TraceComment | null
+  last: TraceComment | null
   pr: {
     n: number
     url: string
     state: 'OPEN' | 'MERGED' | 'CLOSED'
-    ci: 'passing' | 'failing' | 'pending' | 'none'
-    checks: { name: string; state: string }[]
+    ci: TraceOutcome | 'none'
+    checks: { name: string; state: string; outcome: TraceOutcome }[]
   } | null
 }
 

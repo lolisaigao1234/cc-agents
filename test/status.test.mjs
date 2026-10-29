@@ -35,7 +35,10 @@ function docsRepo() {
  * @param {{ branch?: string, issue?: Issue | null, state?: 'OPEN' | 'CLOSED', traced?: boolean, env?: Record<string, string>, pushed?: { sha: string, at: string } | null, committed?: boolean, pr?: PullRequest | 'NONE' | null, records?: ReadRecord[] }} [o]
  */
 function world(root, { branch = '10-trace-band', issue = ISSUE, state = 'OPEN', traced = true, env = {}, pushed = null, committed = false, pr = 'NONE', records = [] } = {}) {
+  /** @type {number[]} the issues GitHub was asked the state of */
+  const asked = []
   return {
+    asked,
     git: {
       root: (/** @type {string} */ p) => (p === root || p.startsWith(`${root}/`) ? root : null),
       traced: () => traced,
@@ -49,7 +52,7 @@ function world(root, { branch = '10-trace-band', issue = ISSUE, state = 'OPEN', 
       pushed: () => pushed,
       committed: () => committed,
     },
-    github: { issueState: () => (issue ? state : null), issue: () => issue, alias: () => null, pr: () => pr },
+    github: { issueState: (/** @type {string} */ _, /** @type {number} */ n) => (asked.push(n), issue ? state : null), issue: () => issue, alias: () => null, pr: () => pr },
     env,
     reads: { records: () => records, add() {}, clear() {} },
     once: () => true,
@@ -83,7 +86,9 @@ test('off an issue branch, the step is the one the gates name', () => {
   assert.equal(main?.step, 'branch')
   assert.match(String(main?.why), /^this is the default branch \(main\)\. Branch step: /)
   assert.deepEqual([main?.issue, main?.done, main?.docs, main?.pr], [null, [], null, null])
-  assert.equal(traceStatus(root, world(root, { branch: 'feature' }))?.step, 'track')
+  const feature = world(root, { branch: 'feature' })
+  assert.equal(traceStatus(root, feature)?.step, 'track')
+  assert.deepEqual(feature.asked, [], 'a branch that names no issue asks GitHub nothing')
 })
 
 test('on an open issue whose docs are unread, the step is Read, with what is unread', () => {
@@ -95,6 +100,9 @@ test('on an open issue whose docs are unread, the step is Read, with what is unr
   assert.equal(s?.docs, 'unread')
   assert.match(String(s?.why), /^the related docs are not all read\. Unread: GLOSSARY\.md; issue #10: .*Read step: /)
   assert.deepEqual(s?.comment, { author: 'claude', at: '2026-10-02T10:00:00Z', body: '## Progress\n\nThe band draws.', isProgress: true })
+  assert.deepEqual(s?.last, { author: 'rocky', at: '2026-10-03T10:00:00Z', body: 'Thanks!', isProgress: false }, 'the last comment too, when it is another one')
+  const one = traceStatus(root, world(root, { issue: { ...ISSUE, comments: ISSUE.comments.slice(0, 1) } }))
+  assert.deepEqual([one?.comment?.author, one?.last], ['claude', null])
 })
 
 test('the step moves on as each one completes, up to Close', () => {
@@ -114,12 +122,19 @@ test('the step moves on as each one completes, up to Close', () => {
   const pushed = { sha: 'abc', at: '2026-10-04T10:00:00Z' }
   const update = at({ committed: true, pr: PR, pushed })
   assert.equal(update?.step, 'update')
-  assert.deepEqual(update?.pr, { ...PR, ci: 'passing' })
+  assert.deepEqual(update?.pr, { ...PR, ci: 'passing', checks: PR.checks.map(c => ({ ...c, outcome: 'passing' })) })
   assert.match(String(update?.why), /Update step: post a progress comment on #10 .*`gh issue comment 10 -R owner\/name`/)
 
   const close = at({ committed: true, pr: PR, pushed: { sha: 'abc', at: '2026-10-03T09:00:00Z' } })
   assert.deepEqual([close?.step, close?.done], ['close', ['read', 'track', 'branch', 'implement', 'review', 'update']])
   assert.match(String(close?.why), /Close step: PR #19 is open; merging it closes #10/)
+
+  const closed = at({ committed: true, pr: { ...PR, state: 'CLOSED' }, pushed })
+  assert.equal(closed?.step, 'review', 'a closed PR closes nothing')
+  assert.match(String(closed?.why), /^PR #19 for 10-trace-band was closed unmerged\. Review step: open a PR/)
+  const merged = at({ committed: true, pr: { ...PR, state: 'MERGED' }, pushed })
+  assert.equal(merged?.step, 'review', 'a PR merged into another branch leaves the issue open')
+  assert.match(String(merged?.why), /^PR #19 for 10-trace-band was merged, but #10 is still open: .*Review step: /)
 
   const done = at({ committed: true, pr: { ...PR, state: 'MERGED' }, pushed, state: 'CLOSED' })
   assert.deepEqual([done?.step, done?.done], ['done', ['read', 'track', 'branch', 'implement', 'review', 'update', 'close']])
@@ -129,6 +144,8 @@ test("the PR's CI is failing on any failed check, pending on any unfinished one,
   const root = docsRepo()
   const ci = (/** @type {{ name: string, state: string }[]} */ checks) => traceStatus(root, world(root, { committed: true, pr: { ...PR, checks } }))?.pr?.ci
   assert.equal(ci([{ name: 'a', state: 'SUCCESS' }, { name: 'b', state: 'FAILURE' }, { name: 'c', state: 'PENDING' }]), 'failing')
+  const outcomes = traceStatus(root, world(root, { committed: true, pr: { ...PR, checks: [{ name: 'a', state: 'EXPECTED' }, { name: 'b', state: 'TIMED_OUT' }, { name: 'c', state: 'NEUTRAL' }] } }))?.pr?.checks
+  assert.deepEqual(outcomes?.map(c => c.outcome), ['pending', 'failing', 'passing'], 'each check is judged as the CI state is')
   assert.equal(ci([{ name: 'a', state: 'SUCCESS' }, { name: 'c', state: 'PENDING' }]), 'pending')
   assert.equal(ci([{ name: 'a', state: 'SKIPPED' }, { name: 'b', state: 'NEUTRAL' }]), 'passing')
   assert.equal(ci([]), 'none')

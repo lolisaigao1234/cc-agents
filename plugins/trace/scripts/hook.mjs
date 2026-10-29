@@ -93,6 +93,8 @@ try {
   const out = hookOutput(process.argv[2], input ?? {})
   if (out) process.stdout.write(JSON.stringify(out))
 } catch (err) {
-  // Fail open: a broken hook must never wedge the session.
+  // Fail open: a broken hook must never wedge the session. The band's
+  // status is not a hook: a failure there is not "untraced".
   process.stderr.write(`trace hook: ${/** @type {Error} */ (err).message}\n`)
+  if (process.argv[2] === 'status') process.exitCode = 1
 }
