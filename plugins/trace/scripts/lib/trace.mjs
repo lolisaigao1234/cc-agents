@@ -9,7 +9,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
-import { decode, docsVerdict, fileRecord, isDocName, outputRecords, writeRecord } from './docs.mjs'
+import { decode, docsVerdict, fileRecord, isDocName, once, outputRecords, writeRecord } from './docs.mjs'
 
 import { fold, real, toolPath, untilde } from './paths.mjs'
 import { GIT_COMMIT_OPTIONS, computed, gitParts, literal, parseCommands, readOptions, unliteral, withCwds } from './shell.mjs'
@@ -24,7 +24,9 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
  * What the trace needs from git. `origin` is origin's GitHub repository as
  * `owner/name`, and `ghBase` the one gh opens PRs in when not told; `message`
  * a commit's message; `config` a setting's value; `headDocs` the glossary and
- * ADRs as HEAD has them.
+ * ADRs as HEAD has them; `pushed` the head of a branch as its remote last
+ * had it here, and when it got there (ISO 8601), or null when that holds
+ * nothing beyond the remote's other branches.
  *
  * @typedef {{
  *   root(path: string): string | null,
@@ -36,6 +38,7 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
  *   ghBase(root: string): string | null,
  *   config(root: string, key: string): string | null,
  *   headDocs(root: string): import('./docs.mjs').HeadDocs,
+ *   pushed(root: string, branch: string): { sha: string, at: string } | null,
  * }} Git
  */
 
@@ -50,7 +53,11 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
  * }} GitHub
  */
 
-/** @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined>, reads: import('./docs.mjs').Reads }} World */
+/**
+ * `once(key)` is true the first time it is asked about `key`.
+ *
+ * @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined>, reads: import('./docs.mjs').Reads, once(key: string): boolean }} World
+ */
 
 // --- the edit gate ---------------------------------------------------------------
 
@@ -170,7 +177,7 @@ export const worldFor = reads => ({ ...REAL, reads })
  *
  * @param {string} path @param {Git} git @returns {string | null}
  */
-function tracedRoot(path, git) {
+export function tracedRoot(path, git) {
   let root = git.root(path)
   while (root && !git.traced(root)) root = dirname(root) === root ? null : git.root(dirname(root))
   return root
@@ -182,7 +189,7 @@ function tracedRoot(path, git) {
  * @param {string} root @param {string | null} branch @param {World} world
  * @returns {{ n: number } | { why: string }}
  */
-function linkedIssue(root, branch, { git, github }) {
+export function linkedIssue(root, branch, { git, github }) {
   if (branch && branch === git.defaultBranch(root)) {
     return { why: `this is the default branch (${branch}). Branch step: work on the issue's branch, \`gh issue develop <n> --checkout\` (Track first if there is no issue).` }
   }
@@ -740,6 +747,19 @@ const realGit = {
     return [...remotes].filter(([, r]) => r.slug).sort(([a], [b]) => rank(a) - rank(b))[0]?.[1].slug ?? null
   },
   message: (root, rev) => git(root, ['log', '-1', '--format=%B', rev, '--']),
+  // Where the branch is pushed: its push destination, else its upstream,
+  // else origin's branch of its name. Null unless that holds commits no other
+  // branch of the remote has. Its time is when the ref last moved here (the
+  // reflog), else the commit's date.
+  pushed(root, branch) {
+    const full = (/** @type {string} */ rev) => git(root, ['rev-parse', '--symbolic-full-name', rev])
+    const ref = [full(`${branch}@{push}`), full(`${branch}@{upstream}`)].find(r => r?.startsWith('refs/remotes/')) ?? `refs/remotes/origin/${branch}`
+    const [, remote = '', name = ''] = /^refs\/remotes\/([^/]+)\/(.+)$/.exec(ref) ?? []
+    const [sha, committed] = (git(root, ['log', '-1', '--format=%H %cI', ref, '--']) ?? '').split(' ')
+    if (!sha || !committed || !git(root, ['rev-list', '-1', ref, '--not', `--exclude=${remote}/${name}`, `--remotes=${remote}`])) return null
+    const moved = /@\{(.+)\}$/.exec(git(root, ['reflog', 'show', '-1', '--format=%gd', '--date=iso-strict', ref, '--']) ?? '')?.[1]
+    return { sha, at: moved && !Number.isNaN(Date.parse(moved)) ? moved : committed }
+  },
   config: (root, key) => git(root, ['config', '--get', key]),
   headDocs(root) {
     const names = git(root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', 'GLOSSARY.md', 'docs/adr'])
@@ -827,12 +847,12 @@ const realGitHub = {
   issue(root, n) {
     const issue = issueJson(root, n)
     if (issue === 'MISSING' || issue === null) return null
-    const r = issue.comments === 0 ? null : gh(root, ['api', '--paginate', `repos/${realGit.origin(root)}/issues/${n}/comments`, '--jq', '.[] | {id: (.id | tostring), author: .user.login, body}'])
+    const r = issue.comments === 0 ? null : gh(root, ['api', '--paginate', `repos/${realGit.origin(root)}/issues/${n}/comments`, '--jq', '.[] | {id: (.id | tostring), author: .user.login, body, at: .created_at}'])
     if (r && r.status !== 0) return null
     const comments = r ? r.stdout : ''
     try {
       const parsed = comments.split('\n').filter(Boolean).map(l => JSON.parse(l))
-      return { title: String(issue.title ?? ''), body: String(issue.body ?? ''), comments: parsed.map(c => ({ id: String(c.id), author: String(c.author), body: String(c.body ?? '') })) }
+      return { title: String(issue.title ?? ''), body: String(issue.body ?? ''), comments: parsed.map(c => ({ id: String(c.id), author: String(c.author), body: String(c.body ?? ''), at: String(c.at ?? '') })) }
     } catch {
       return null
     }
@@ -875,4 +895,4 @@ function issueJson(root, n) {
 }
 
 /** @type {World} */
-const REAL = { git: realGit, github: realGitHub, env: process.env, reads: { records: () => null, add() {} } }
+const REAL = { git: realGit, github: realGitHub, env: process.env, reads: { records: () => null, add() {}, clear() {} }, once }
