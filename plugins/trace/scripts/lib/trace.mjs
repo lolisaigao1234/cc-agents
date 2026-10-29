@@ -851,15 +851,13 @@ function realWorld() {
     },
     // Deleting the marker from the working tree, or committing its deletion on a
     // branch, does not opt out: it also counts while HEAD or the default branch has it.
-    // When git fails, only the marker in the working tree counts.
+    // Only git saying no makes a repository untraced: when git does not answer
+    // (a timeout, the deadline run out, or no git to run), this throws, and
+    // the gates refuse rather than let an untraced edit, commit or PR through.
     traced(root) {
       if (existsSync(join(root, MARKER))) return true
-      try {
-        const def = this.defaultBranch(root)
-        return ['HEAD', ...(def ? [`origin/${def}`, def] : [])].some(rev => git(root, ['cat-file', '-e', `${rev}:${MARKER}`]) !== null)
-      } catch {
-        return false
-      }
+      const def = this.defaultBranch(root)
+      return ['HEAD', ...(def ? [`origin/${def}`, def] : [])].some(rev => git(root, ['cat-file', '-e', `${rev}:${MARKER}`]) !== null)
     },
     // While a rebase stops, HEAD is detached; the branch is the one being rebased.
     branch(root) {
