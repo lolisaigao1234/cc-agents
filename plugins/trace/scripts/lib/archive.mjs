@@ -19,6 +19,9 @@ import { INTERPRETERS, cdTarget, gitParts, operandIndexes, parseCommands, shortF
 
 const DENY_SUFFIX = ' The archive is managed by the human alone; agents may only move files into it (ADR 0008).'
 const EXCLUDE_HINT = "rg -g '!archive', grep --exclude-dir=archive, git … -- ':!archive', find … -name archive -prune"
+// The pathspec that leaves the archive out of what a git command prints, and the advice that names it.
+const EXCLUDE_ARCHIVE = "`-- ':!archive'`"
+const HISTORY_FIX = `Add ${EXCLUDE_ARCHIVE} or name the paths you need.`
 
 // --- where the archive is ----------------------------------------------------
 
@@ -716,7 +719,9 @@ const specExcludesArchive = p => p.exclude && /^archive(?:\/(?:\*{1,2})?)?$/.tes
  */
 function historyTouches(sub, opts, cwd) {
   const diff = /^diff/.test(sub)
-  const fix = "Add `-- ':!archive'` or name the paths you need."
+  const fix = HISTORY_FIX
+  // The hook runs before any permission prompt, so it never runs what writes.
+  if (opts.some(a => /^--output(?:=|$)/.test(a))) return `\`git ${sub} --output\` writes a file, so the archive block does not run it to check what it prints. ${fix}`
   const timeout = gitTimeout()
   const r = spawnSync('git', ['-C', cwd, sub === 'difftool' ? 'diff' : sub, ...opts, '--name-only', '--no-renames', '--no-ext-diff',
     ...(sub === 'diff' || sub === 'difftool' ? ['--no-relative'] : []), ...(diff ? [] : ['--format='])],
@@ -727,9 +732,12 @@ function historyTouches(sub, opts, cwd) {
   if (code === 'ENOBUFS' || (code === 'ETIMEDOUT' && timeout === HISTORY_CAP)) {
     return `the archive could not be checked: git took ${code === 'ENOBUFS' ? 'more room than the hook has' : `over ${HISTORY_CAP / 1000}s`} to list what \`git ${sub}\` prints. ${fix}`
   }
+  // The command is the agent's: a failure git has no words for in halt.mjs,
+  // as for a bad revision or option, may be its own mistake, so it is denied
+  // in git's words rather than halting the session.
   answered('git', r)
-  // One that refuses the command, as for a bad revision, does not say what it prints, so assume the worst.
-  if (r.status !== 0 || r.stdout.split('\n').some(l => l === 'archive' || l.startsWith('archive/'))) return `\`git ${sub}\` would print changes in the archive. ${fix}`
+  if (r.status !== 0) return `\`git ${sub}\` fails here (${String(r.stderr).trim().split('\n')[0] || `exit ${r.status}`}), so what it prints cannot be checked. ${fix}`
+  if (r.stdout.split('\n').some(l => l === 'archive' || l.startsWith('archive/'))) return `\`git ${sub}\` would print changes in the archive. ${fix}`
   return null
 }
 
@@ -900,7 +908,7 @@ function gitTouches(gitArgs, cwds) {
     }
     if (included.length || excluded) continue
     // No pathspec: the whole tree (from here), or the history.
-    if (spec.kind === 'dump') return `\`git ${sub}\` would write out the archive. Add \`-- ':!archive'\` or name the paths you need.`
+    if (spec.kind === 'dump') return `\`git ${sub}\` would write out the archive. ${HISTORY_FIX}`
     const walksTree = spec.kind === 'tree' && !blobs.length && (sub !== 'ls-tree' || has(before, 'r'))
     if (walksTree && specReaches(pathspec('.', cwd, root))) return walkMessage(`git ${sub}`)
     if (spec.kind !== 'history') continue
@@ -913,14 +921,14 @@ function gitTouches(gitArgs, cwds) {
     if (changes.length && changes.every(a => a.startsWith('-L'))) continue
     // A repository an earlier command on the line makes is not there yet to ask.
     if (!isRepoRoot(root) && !isBareRepo(root)) {
-      return `\`git ${sub}\` runs in ${root}, which an earlier command on the line makes, so what it prints cannot be checked yet. Run it as a command of its own, or add \`-- ':!archive'\`.`
+      return `\`git ${sub}\` runs in ${root}, which an earlier command on the line makes, so what it prints cannot be checked yet. Run it as a command of its own, or add ${EXCLUDE_ARCHIVE}.`
     }
     try {
       // The paths history prints are the repository's, wherever in it git runs.
       const why = historyTouches(sub, before.filter(a => !blobs.includes(a)), existsSync(cwd) ? cwd : root)
       if (why) return why
     } catch (err) {
-      if (err instanceof Unanswered) err.hint = "add `-- ':!archive'` to the history commands, which then ask git nothing"
+      if (err instanceof Unanswered) err.hint = `add ${EXCLUDE_ARCHIVE} to the history commands, which then ask git nothing`
       throw err
     }
   }

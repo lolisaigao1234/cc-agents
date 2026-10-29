@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -467,6 +467,33 @@ test("a history command's halt names the command-side fix, which asks git nothin
     spawnSync(process.execPath, [HOOK, 'pre-tool-use'], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command }, cwd: repo }), encoding: 'utf8', env: { ...process.env, PATH: '/nonexistent' } })
   assert.match(JSON.parse(run('git log -p -1').stdout).stopReason, /, or add `-- ':!archive'` to the history commands, which then ask git nothing, then reply to continue\.$/)
   assert.equal(run("git log -p -1 -- ':!archive'").stdout, '', 'and the fix works without git')
+})
+
+test("a history command git refuses is denied in git's words; one git cannot answer for a broken repository halts", () => {
+  for (const [command, words] of [
+    ['git log -p --bogus', 'fatal: unrecognized argument: --bogus'],
+    ['git show deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', 'fatal: bad object deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'],
+  ]) {
+    const why = String(bash(command))
+    assert.ok(why.startsWith(`archive block: \`${command.split(' ').slice(0, 2).join(' ')}\` fails here (${words}), so what it prints cannot be checked. Add \`-- ':!archive'\` or name the paths you need.`), why)
+  }
+  const bin = mkdtempSync(join(tmpdir(), 'brokengit-'))
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim()
+  writeFileSync(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" --name-only "*) echo "fatal: bad object HEAD" >&2; exit 128;; esac\nexec "${realGit}" "$@"\n`, { mode: 0o755 })
+  const path = process.env.PATH
+  process.env.PATH = `${bin}:${path}`
+  try {
+    assert.throws(() => bash('git log -p'), /git did not answer: fatal: bad object HEAD/)
+  } finally {
+    process.env.PATH = path
+  }
+})
+
+test('the archive block does not run a history command that writes a file to check what it prints', () => {
+  for (const command of [`git log -p --output=${at('archive/new.md')}`, `git diff HEAD~1 --output ${at('out.txt')}`]) {
+    assert.match(String(bash(command)), /^archive block: `git (?:log|diff) --output` writes a file, so the archive block does not run it to check what it prints\. Add `-- ':!archive'` or name the paths you need\./, command)
+  }
+  assert.deepEqual([at('archive/new.md'), at('out.txt')].filter(f => existsSync(f)), [])
 })
 
 test('a history command in a repository the line has yet to make is denied as not checkable yet, without asking git', () => {
