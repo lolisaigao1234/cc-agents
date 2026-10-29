@@ -2,11 +2,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { Unanswered } from '../plugins/trace/scripts/lib/halt.mjs'
 import { commandVerdict, editVerdict, worldFor } from '../plugins/trace/scripts/lib/trace.mjs'
 import { noReads } from './helpers.mjs'
 
@@ -41,7 +42,7 @@ function world(o = {}) {
       issue: () => ({ title: '', body: '', comments: [] }),
       pr: () => /** @type {const} */ ('NONE'),
       alias: (/** @type {string} */ name) => {
-        if (ghAliases === null) throw new Error('gh alias list failed')
+        if (ghAliases === null) throw new Unanswered('GitHub', 'gh alias list failed')
         return ghAliases[name] ?? null
       },
     },
@@ -212,8 +213,9 @@ test('a gh that is missing, not logged in or cannot reach GitHub halts the sessi
 
 test('a failure that is not git or GitHub going unanswered is refused as before, and halts nothing', () => {
   const { dir } = repo()
-  const out = hook({ tool_name: 'Bash', tool_input: { command: 'gh prc' }, cwd: dir, session_id: `s-${process.pid}-${Math.random().toString(36).slice(2)}` }, { FAKE_GH_ALIAS_FAIL: 'unknown flag: --x' })
-  assert.match(String(out?.permissionDecisionReason), /^trace: the trace could not be checked \(gh alias list failed: unknown flag: --x\)\. To work untraced, the human can launch Claude Code with TRACE_BYPASS=1\.$/)
+  // Bad input: a MultiEdit whose edits are not a list.
+  const out = hook({ tool_name: 'MultiEdit', tool_input: { file_path: join(dir, '.claude/settings.json'), edits: 5 }, cwd: dir, session_id: `s-${process.pid}-${Math.random().toString(36).slice(2)}` })
+  assert.match(String(out?.permissionDecisionReason), /^trace: the trace could not be checked \(.+\)\. To work untraced, the human can launch Claude Code with TRACE_BYPASS=1\.$/)
   assert.deepEqual([hook.out.continue, hook.status], [undefined, 0])
 })
 
@@ -590,7 +592,7 @@ test('every hook that gets no answer from git halts the session; the band\'s sta
   assert.equal(hook({ tool_name: 'Read', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir, session_id: session }), null)
 })
 
-test("a halt stands for the whole session, the parent's calls included, until the human's next prompt", () => {
+test("a halt stands for the whole session, the parent's calls included, until a prompt that is not a task's report, or the session is started, resumed or cleared", () => {
   const { dir } = repo()
   const session = `s-${process.pid}-${Math.random().toString(36).slice(2)}`
   const read = (/** @type {object} */ as = {}) => hook({ tool_name: 'Read', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir, session_id: session, ...as })
@@ -669,13 +671,67 @@ test("gh's aliases are asked for only where a PR could be opened in a traced rep
   const bin = mkdtempSync(join(tmpdir(), 'nogh-'))
   symlinkSync(execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim(), join(bin, 'git'))
   const outside = realpathSync(mkdtempSync(join(tmpdir(), 'norepo-')))
-  for (const dir of [outside, repo(false).dir]) {
-    for (const command of ['gh repo view cli/cli', 'gh issue list', 'gh prc', 'gh pr create -t t -b x']) {
-      assert.equal(hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir }, { PATH: bin }), null, `${command} in ${dir}`)
+  // No gh, or a gh that fails in words the trace does not know.
+  for (const [env, why] of /** @type {[Record<string, string>, string][]} */ ([
+    [{ PATH: bin }, 'gh is not on PATH'],
+    [{ FAKE_GH_ALIAS_FAIL: 'failed to read configuration: invalid config.yml' }, 'failed to read configuration: invalid config.yml'],
+  ])) {
+    for (const dir of [outside, repo(false).dir]) {
+      for (const command of ['gh repo view cli/cli', 'gh issue list', 'gh prc', 'gh pr create -t t -b x']) {
+        assert.equal(hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir }, env), null, `${command} in ${dir}`)
+      }
+    }
+    hook({ tool_name: 'Bash', tool_input: { command: 'gh repo view cli/cli' }, cwd: repo().dir }, env)
+    assert.equal(hook.out?.stopReason, `trace halted the session: GitHub did not answer: ${why}. Restore the connection to GitHub (\`gh auth status\`, the network), then reply to continue.`, 'in a traced repository, an alias it cannot list may open a PR')
+  }
+})
+
+test("git saying no to what the agent's command names is an answer: an alias name, a reflog entry, a directory not made yet", () => {
+  const outside = realpathSync(mkdtempSync(join(tmpdir(), 'norepo-')))
+  for (const command of [
+    'git status.',
+    'git x/y',
+    'git clone https://github.com/cli/cli && cd cli && git lfs pull',
+    'mkdir proj && cd proj && git init && git flow init -d',
+    'git -C not-yet co main',
+  ]) {
+    for (const dir of [outside, repo().dir]) {
+      assert.equal(hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir }), null, `${command} in ${dir}`)
+      assert.equal(hook.out?.continue, undefined, `${command} in ${dir}`)
     }
   }
-  hook({ tool_name: 'Bash', tool_input: { command: 'gh repo view cli/cli' }, cwd: repo().dir }, { PATH: bin })
-  assert.match(String(hook.out?.stopReason), /^trace halted the session: GitHub did not answer: gh is not on PATH\./, 'in a traced repository, an alias it cannot list may open a PR')
+  const { dir, git } = repo()
+  git('checkout', '-qb', '16-gates')
+  const issues = { 'owner/name#16': { state: 'open' } }
+  for (const command of ['git commit --fixup=HEAD@{9}', 'git commit -C main@{9}', 'git commit --squash=HEAD@{9} -m "x (#16)"']) {
+    const out = hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir }, {}, issues)
+    assert.match(String(out?.permissionDecisionReason), /^trace: the trace cannot tell/, command)
+    assert.equal(hook.out.continue, undefined, command)
+  }
+})
+
+test('the commit gate reads the revision the agent names as a revision, never as an option to git', () => {
+  const { dir, git } = repo()
+  git('checkout', '-qb', '16-gates')
+  const issues = { 'owner/name#16': { state: 'open' } }
+  for (const command of ['git commit --fixup=--output=fixup.txt -m "x (#16)"', 'git commit -C --output=reuse.txt']) {
+    const out = hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir }, {}, issues)
+    assert.match(String(out?.permissionDecisionReason), /^trace: the trace cannot tell/, command)
+  }
+  assert.deepEqual(['fixup.txt', 'reuse.txt'].filter(f => existsSync(join(dir, f))), [], 'the hook wrote no file')
+})
+
+test('a halt the hook cannot record still halts the call', () => {
+  const { dir } = repo()
+  const tmp = mkdtempSync(join(tmpdir(), 'ro-'))
+  chmodSync(tmp, 0o500)
+  try {
+    const out = hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir, session_id: `s-${process.pid}-ro` }, { PATH: '/nonexistent', TMPDIR: tmp })
+    assert.deepEqual([out?.permissionDecision, hook.out?.continue, hook.status], ['deny', false, 2])
+    assert.match(hook.out.stopReason, /^trace halted the session: git did not answer: git is not on PATH\./)
+  } finally {
+    chmodSync(tmp, 0o700)
+  }
 })
 
 test('a git that cannot run lets through git and gh commands the gates do not judge', () => {
@@ -961,7 +1017,7 @@ test('a PR is read as gh reads it: pflag values, booleans, the body file, the ba
   assert.equal(verdict('gh pr create -R owner/name -t t -b "Closes #7"', { base: 'upstream/name' }), null)
   assert.match(String(verdict('gh pr mine', { ghAliases: { 'pr mine': 'pr create -b x' } })), /does not close #7/)
   assert.match(String(verdict('gh pc -b "Closes #7"', { ghAliases: { pc: 'pr create -b "$1"' } })), /cannot tell/)
-  assert.throws(() => verdict('gh prc', { ghAliases: null }), /gh alias list failed/)
+  assert.throws(() => verdict('gh prc', { ghAliases: null }), /GitHub did not answer: gh alias list failed/)
 })
 
 test('the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds', () => {

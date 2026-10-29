@@ -23,25 +23,31 @@ export class Unanswered extends Error {
 }
 
 // git's words when it fails before it can say anything of what was asked: an
-// untrusted, locked, corrupt or unreadable repository. It exits 128 for these
-// and for some answers alike ("path 'x' does not exist in 'HEAD'").
-const GIT_FAILS = /dubious ownership|safe\.directory|not a git repository|cannot change to|unable to (?:access|read|open|create)|\.lock'?: File exists|corrupt|object file .* is empty|inflate:|bad config|repository format version|repo version|Permission denied/i
+// untrusted, locked, corrupt or unreadable repository, or a HEAD that names no
+// object. It exits 128 for these and for some answers alike ("path 'x' does
+// not exist in 'HEAD'").
+const GIT_FAILS = /bad object HEAD(?!\S)|dubious ownership|safe\.directory|not a git repository|cannot change to|unable to (?:access|read|open|create)|\.lock'?: File exists|corrupt|object file .* is empty|inflate:|bad config|repository format version|repo version|Permission denied/i
 
 // gh's words, and its exit code 4, when it is not logged in or cannot reach
 // GitHub. "Not Found (HTTP 404)" and "no pull requests found" are answers.
 const GH_FAILS = /gh auth login|HTTP (?:401|5\d\d)|rate limit|error connecting to|check your internet connection|dial tcp|no such host|could not resolve host|connection (?:refused|reset)|i\/o timeout|TLS handshake|network is unreachable/i
 
 // git's words when it says no to what the trace asks of it: no such path,
-// revision, remote, upstream or commit yet. With LC_ALL=C (GIT_ENV) they are
-// these words whatever the human's locale. A quiet exit 1 is a no as well.
+// revision, reflog entry, remote, upstream, config key or commit yet. With
+// LC_ALL=C (GIT_ENV) they are these words whatever the human's locale. A
+// quiet exit 1 is a no as well.
 export const GIT_NO = new RegExp([
   'does not exist in', 'invalid object name', 'not a valid object name', 'bad revision', 'unknown revision', 'ambiguous argument',
-  'does not have any commits yet', 'no such remote', 'invalid key', 'does not contain a section',
+  "log for '.*' only has \\d+ entries", "log for '.*' is empty",
+  'does not have any commits yet', 'no such remote', 'invalid key', 'does not contain a section', 'does not contain variable name',
   // A branch's upstream or push destination, as `<branch>@{upstream}` and `@{push}` resolve them (git's remote.c).
   'no upstream configured', 'not stored as a remote-tracking branch', 'has no local tracking branch', 'has no remote for pushing',
   'push refspecs for .* do not include', 'push has no destination', 'cannot resolve .* push to a single destination',
   'does not point to a branch', 'no such branch',
 ].join('|'), 'i')
+
+/** The words of no failure: with them as `answers`, every failure is git or GitHub not answering. */
+export const NO_ANSWERS = /(?!)/
 
 /** The environment git runs in, so that what it says is in its own words. */
 export const GIT_ENV = () => ({ ...process.env, LC_ALL: 'C' })

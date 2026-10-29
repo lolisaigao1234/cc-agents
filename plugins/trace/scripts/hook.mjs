@@ -31,10 +31,7 @@ const NOTIFICATION = /^\s*<task-notification>/
  * @returns {object | null} the hook output, or null to say nothing
  */
 function hookOutput(event, input) {
-  // The next prompt lifts a halt, and starting or resuming the session does;
-  // a call that still gets no answer halts again. The hook cannot tell the
-  // human's prompt from a scheduled task's or another session's, only from
-  // a background agent's report.
+  // What lifts a halt is set by ADR 0006; a call that still gets no answer halts again.
   if (event === 'user-prompt-submit') {
     if (!NOTIFICATION.test(String(input.prompt ?? ''))) haltOf(input).clear()
     return null
@@ -117,7 +114,11 @@ function halting(event, input) {
     if (!(err instanceof Unanswered)) throw err
     if (event === 'status') return { halt: unansweredStatus(err) }
     const reason = haltReason(err)
-    haltOf(input).set(reason)
+    try {
+      haltOf(input).set(reason)
+    } catch {
+      // A halt that cannot be recorded for the session still halts this call.
+    }
     return haltOutput(event, reason)
   }
 }

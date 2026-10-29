@@ -10,7 +10,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 import { decode, docsVerdict, fileRecord, isDocName, once, outputRecords, writeRecord } from './docs.mjs'
-import { GIT_ENV, GIT_NO, Unanswered, answered } from './halt.mjs'
+import { GIT_ENV, GIT_NO, NO_ANSWERS, Unanswered, answered } from './halt.mjs'
 
 import { fold, real, toolPath, untilde } from './paths.mjs'
 import { GIT_COMMIT_OPTIONS, computed, gitParts, literal, parseCommands, readOptions, unliteral, withCwds } from './shell.mjs'
@@ -62,7 +62,8 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
  * what the trace cannot parse). A pull request is 'MISSING': it is not an
  * issue. `pr` is the latest PR from a branch, 'NONE', or null likewise. When
  * GitHub does not answer, gh failing in any way but "not found" or "no pull
- * requests found", each throws Unanswered (halt.mjs).
+ * requests found", each throws Unanswered (halt.mjs); so does `alias`, for
+ * any failure but "no aliases".
  *
  * @typedef {{
  *   issueState(root: string, n: number): 'OPEN' | 'CLOSED' | 'MISSING' | null,
@@ -232,6 +233,12 @@ export function tracedRoot(path, git) {
 }
 
 /**
+ * @param {string} command the gh command that shows what gh printed
+ * @returns {string} why GitHub's answer could not be read: the two causes of a null from GitHub
+ */
+export const unreadable = command => `origin is not a GitHub repository (\`git remote get-url origin\`), or gh printed what the trace cannot read (\`${command}\` shows it)`
+
+/**
  * The linked issue of `branch` in a traced repository, or why it has none.
  *
  * @param {string} root @param {string | null} branch @param {World} world
@@ -248,7 +255,7 @@ export function linkedIssue(root, branch, { git, github }) {
   const state = github.issueState(root, n)
   if (state === 'OPEN') return { n }
   if (state === null) {
-    return { why: `the trace cannot read whether issue #${n} is open: origin must be a GitHub repository (\`git remote get-url origin\`). Track step: the work waits for an open issue; ${BYPASS_HINT}.` }
+    return { why: `the trace cannot read whether issue #${n} is open: ${unreadable(`gh issue view ${n}`)}. Track step: the work waits for an open issue; ${BYPASS_HINT}.` }
   }
   return { why: `#${n} is ${state === 'CLOSED' ? 'a closed issue' : 'not an open issue'}. Track step: open an issue for this change (${TRACK_HINT}) and work on its branch.` }
 }
@@ -320,8 +327,11 @@ function lazy(f) {
   }
 }
 
+/** @param {string} dir @returns {string} `dir`, or its nearest ancestor that is a directory */
+const existing = dir => (statSync(dir, { throwIfNoEntry: false })?.isDirectory() || dirname(dir) === dir ? dir : existing(dirname(dir)))
+
 /** @param {string} dir @param {string} to @returns {string | null} */
-const resolveIn = (dir, to) => (computed(to) || to === '-' ? null : resolve(dir, untilde(to, dir)))
+const resolveIn =(dir, to) => (computed(to) || to === '-' ? null : resolve(dir, untilde(to, dir)))
 
 /** @param {string} what @param {string} fix @param {string} step */
 const cannotTell = (what, fix, step) => `the trace cannot tell ${what}. ${step} step: ${fix}.`
@@ -462,7 +472,8 @@ function commitVerdict(run, world) {
     // git refuses an alias loop; refusing here too says why.
     const loops = seen.has(name.toLowerCase())
     const place = placed()
-    const lookIn = place && (place.root ?? place.dir)
+    // A directory an earlier command on the line makes is not there yet to ask: its nearest one that is says what git knows.
+    const lookIn = place && (place.root ?? (place.dir && existing(place.dir)))
     const alias = defines || loops ? null : setting(config, `alias.${name}`, lookIn, world.git)
     if (alias === null && !defines && !loops && lookIn) return null
     if (alias === null || alias.startsWith('!') || computed(alias)) return opaqueVerdict(`what \`git ${name}\` runs`, place, world, fix, 'Implement')
@@ -828,11 +839,11 @@ function realWorld() {
   }
 
   /**
-   * @param {string} root @param {string[]} args @param {RegExp} [no] git's words for a no beyond GIT_NO
+   * @param {string} root @param {string[]} args @param {RegExp} [answers] git's words for a no, in place of GIT_NO
    * @returns {string | null} stdout, or null when git says no; throws Unanswered when it does not answer
    */
-  const git = (root, args, no = GIT_NO) => {
-    const r = answered('git', spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', env: GIT_ENV(), timeout: Math.min(3000, timeLeft()) }), no)
+  const git = (root, args, answers = GIT_NO) => {
+    const r = answered('git', spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', env: GIT_ENV(), timeout: Math.min(3000, timeLeft()) }), answers)
     return r.status === 0 ? r.stdout.trim() : null
   }
 
@@ -866,8 +877,9 @@ function realWorld() {
       const rank = (/** @type {string} */ name) => ['upstream', 'github', 'origin'].indexOf(name) >>> 0
       return [...remotes].filter(([, r]) => r.slug).sort(([a], [b]) => rank(a) - rank(b))[0]?.[1].slug ?? null
     },
-    // The revision may be the agent's: a full hash of no commit is "bad object".
-    message: (root, rev) => git(root, ['log', '-1', '--format=%B', rev, '--'], new RegExp(`${GIT_NO.source}|bad object`, 'i')),
+    // The revision may be the agent's: a full hash of no commit is "bad object",
+    // and one that looks like an option is still only a revision.
+    message: (root, rev) => git(root, ['log', '-1', '--format=%B', '--end-of-options', rev, '--'], new RegExp(`${GIT_NO.source}|bad object`, 'i')),
     committed(root, n) {
       const def = this.defaultBranch(root)
       const base = def ? ['--ignore-missing', '--not', `refs/heads/${def}`, `refs/remotes/origin/${def}`] : []
@@ -893,7 +905,7 @@ function realWorld() {
       if (names === null) return null
       const list = names.split('\0').filter(isDocName)
       // A name it has no object for, it answers on stdout: any failure is git's own.
-      const r = answered('git', spawnSync('git', ['-C', root, 'cat-file', '--batch'], { input: list.map(p => `HEAD:${p}\n`).join(''), env: GIT_ENV(), timeout: Math.min(3000, timeLeft()), maxBuffer: 64 << 20 }), /(?!)/)
+      const r = answered('git', spawnSync('git', ['-C', root, 'cat-file', '--batch'], { input: list.map(p => `HEAD:${p}\n`).join(''), env: GIT_ENV(), timeout: Math.min(3000, timeLeft()), maxBuffer: 64 << 20 }), NO_ANSWERS)
       if (r.status !== 0) return null
       /** @type {Record<string, string>} */
       const docs = {}
@@ -955,10 +967,8 @@ function realWorld() {
   const realGitHub = {
     alias(name) {
       if (ghAliases === undefined) {
-        // An alias that cannot be looked up may be anything.
-        const r = answered('GitHub', spawnSync('gh', ['alias', 'list'], { encoding: 'utf8', timeout: Math.min(5000, timeLeft()) }))
-        if (r.status !== 0 && !/no aliases/i.test(r.stderr ?? '')) throw new Error(`gh alias list failed: ${(r.stderr ?? '').trim()}`)
-        ghAliases = r.stdout ?? ''
+        // An alias that cannot be looked up may be anything: only "no aliases" is an answer.
+        ghAliases = gh(undefined, ['alias', 'list'], /no aliases/i).stdout ?? ''
       }
       const line = ghAliases.split('\n').find(l => l.startsWith(`${name}:`))
       return line ? line.slice(name.length + 1).trim().replace(/^'(.*)'$/s, '$1') : null
@@ -1009,8 +1019,11 @@ function realWorld() {
     },
   }
 
-  /** @param {string} root @param {string[]} args @param {RegExp} no gh's words for a no; any other failure is GitHub not answering */
-  const gh = (root, args, no) => answered('GitHub', spawnSync('gh', args, { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()), maxBuffer: 64 << 20 }), no)
+  /**
+   * @param {string | undefined} root where gh runs, or the hook's own directory
+   * @param {string[]} args @param {RegExp} answers gh's words for a no; any other failure is GitHub not answering
+   */
+  const gh = (root, args, answers) => answered('GitHub', spawnSync('gh', args, { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()), maxBuffer: 64 << 20 }), answers)
 
   // gh's words for an issue that is not there, or was deleted.
   const GH_GONE = /HTTP (?:404|410)/
