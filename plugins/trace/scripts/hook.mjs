@@ -78,7 +78,8 @@ function hookOutput(event, input) {
       return `trace: the trace could not be checked (${/** @type {Error} */ (err).message}). To work untraced, the human can launch Claude Code with TRACE_BYPASS=1.`
     }
   }
-  const reason = archiveBlock(input.tool_name, toolInput, cwd) ?? traceReason() ?? guardReason()
+  // One deadline for the whole call: the archive block's git calls draw on the trace's.
+  const reason = archiveBlock(input.tool_name, toolInput, cwd, world.timeLeft) ?? traceReason() ?? guardReason()
   if (!reason) return null
   return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
 }

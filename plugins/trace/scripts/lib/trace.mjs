@@ -69,9 +69,11 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
  */
 
 /**
- * `once(key)` is true the first time it is asked about `key`.
+ * `once(key)` is true the first time it is asked about `key`. `timeLeft()`,
+ * in a real world, is the milliseconds its call has left for git and GitHub,
+ * and throws once there are none; the archive block shares it.
  *
- * @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined>, reads: import('./docs.mjs').Reads, once(key: string): boolean }} World
+ * @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined>, reads: import('./docs.mjs').Reads, once(key: string): boolean, timeLeft?: () => number }} World
  */
 
 // --- the edit gate ---------------------------------------------------------------
@@ -977,5 +979,5 @@ function realWorld() {
     return issues.get(key) ?? null
   }
 
-  return { git: realGit, github: realGitHub, env: process.env, reads: { records: () => null, add() {}, clear() {} }, once }
+  return { git: realGit, github: realGitHub, env: process.env, reads: { records: () => null, add() {}, clear() {} }, once, timeLeft }
 }
