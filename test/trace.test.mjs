@@ -137,6 +137,19 @@ test('when the deadline has run out before git says whether HEAD has the marker,
   const late = worldFor(reads)
   t.mock.timers.tick(25_000)
   assert.throws(() => editVerdict(path, late), /out of time asking git and GitHub/)
+  const marked = repo().dir
+  assert.equal(late.git.traced(marked), true, 'the marker in the working tree counts without asking git')
+})
+
+test('a git that times out saying whether HEAD has the marker refuses the edit, naming the bypass', () => {
+  const { dir } = repo()
+  rmSync(join(dir, '.claude/trace.json'))
+  const bin = mkdtempSync(join(tmpdir(), 'git-'))
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim()
+  writeFileSync(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" cat-file -e "*) exec sleep 10;; esac\nexec "${realGit}" "$@"\n`, { mode: 0o755 })
+  const out = hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir }, { PATH: `${bin}:${process.env.PATH}` })
+  assert.equal(out?.permissionDecision, 'deny')
+  assert.match(out.permissionDecisionReason, /could not be checked.*TRACE_BYPASS=1/)
 })
 
 /** A git repository on `main`, opted in to the trace unless `marked` is false. */
