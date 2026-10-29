@@ -1,0 +1,9 @@
+{
+  "name": "trace",
+  "version": "0.2.0",
+  "description": "Ties every change to an issue, a branch, commits and a PR, makes agents read the project's decisions before editing, and blocks commands that destroy work or history.",
+  "author": { "name": "Rocky Wu" },
+  "license": "MIT",
+  "keywords": ["traceability", "guardrails", "hooks", "github", "adr"],
+  "dependencies": ["mattpocock-skills@claude-plugins-official"]
+}

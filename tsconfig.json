@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["plugins/quality-loop/scripts/**/*.mjs", "test/**/*.mjs"]
+  "include": ["plugins/trace/scripts/**/*.mjs", "test/**/*.mjs"]
 }
