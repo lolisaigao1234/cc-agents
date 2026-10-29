@@ -420,6 +420,16 @@ test('the hook denies a Read of the archive, and lets other reads through', () =
   assert.equal(cat.hookSpecificOutput.permissionDecision, 'deny')
 })
 
+test('the hook denies what the archive block fails to check, whatever the failure', () => {
+  // A cwd that is not a path makes the archive block throw.
+  for (const input of [{ tool_name: 'Read', tool_input: { file_path: 'archive/old.md' }, cwd: 5 }, { tool_name: 'Bash', tool_input: { command: 'cat archive/old.md' }, cwd: 5 }]) {
+    const r = spawnSync(process.execPath, [HOOK, 'pre-tool-use'], { input: JSON.stringify(input), encoding: 'utf8' })
+    const out = r.stdout ? JSON.parse(r.stdout).hookSpecificOutput : null
+    assert.equal(out?.permissionDecision, 'deny', input.tool_name)
+    assert.match(out.permissionDecisionReason, /^archive block: the archive could not be checked \(.+\)\./)
+  }
+})
+
 test('a history command is denied when the hook call has run out of time to ask git', () => {
   const ranOut = () => {
     throw new Error('out of time asking git and GitHub')

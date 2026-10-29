@@ -992,28 +992,34 @@ function searchToolTouches(toolName, toolInput, root, cwd) {
 export function archiveBlock(toolName, toolInput, cwd, deadline = () => Infinity) {
   fresh.clear()
   timeLeft = deadline
-  const str = (/** @type {string} */ k) => (typeof toolInput[k] === 'string' ? /** @type {string} */ (toolInput[k]) : undefined)
   /** @type {string | null} */
-  let why = null
-  if (toolName === 'Bash') {
-    try {
-      why = bashTouches(str('command') ?? '', cwd)
-    } catch (err) {
-      if (!(err instanceof OutOfTime)) throw err
-      why = 'the archive could not be checked in time: the hook call ran out of time asking git what the command\'s history commands print. ' +
+  let why
+  try {
+    why = toolTouches(toolName, toolInput, cwd)
+  } catch (err) {
+    // Failing open here would let the command reach the archive.
+    why = err instanceof OutOfTime
+      ? 'the archive could not be checked in time: the hook call ran out of time asking git what the command\'s history commands print. ' +
         "Run fewer of them at once, or add `-- ':!archive'` to each."
-    }
-  } else {
-    for (const k of ['file_path', 'notebook_path']) {
-      const p = str(k)
-      if (p !== undefined && pathKind(p, [cwd])) why = `${p} is in the archive.`
-    }
-    const path = str('path')
-    if (!why && (toolName === 'Grep' || toolName === 'Glob' || toolName === 'LS')) {
-      const root = resolve(cwd, untilde(path ?? '.', cwd))
-      if (inArchive(root)) why = `${path} is in the archive.`
-      else if (toolName !== 'LS') why = searchToolTouches(toolName, toolInput, root, cwd)
-    }
+      : `the archive could not be checked (${/** @type {Error} */ (err).message}).`
   }
   return why && `archive block: ${why}${DENY_SUFFIX}`
+}
+
+/**
+ * @param {string} toolName @param {Record<string, unknown>} toolInput @param {string} cwd
+ * @returns {string | null} why a tool call touches the archive, or null if it does not
+ */
+function toolTouches(toolName, toolInput, cwd) {
+  const str = (/** @type {string} */ k) => (typeof toolInput[k] === 'string' ? /** @type {string} */ (toolInput[k]) : undefined)
+  if (toolName === 'Bash') return bashTouches(str('command') ?? '', cwd)
+  for (const k of ['file_path', 'notebook_path']) {
+    const p = str(k)
+    if (p !== undefined && pathKind(p, [cwd])) return `${p} is in the archive.`
+  }
+  const path = str('path')
+  if (toolName !== 'Grep' && toolName !== 'Glob' && toolName !== 'LS') return null
+  const root = resolve(cwd, untilde(path ?? '.', cwd))
+  if (inArchive(root)) return `${path} is in the archive.`
+  return toolName === 'LS' ? null : searchToolTouches(toolName, toolInput, root, cwd)
 }
