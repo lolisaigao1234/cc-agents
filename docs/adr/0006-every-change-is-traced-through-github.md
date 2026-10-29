@@ -22,7 +22,7 @@ Hooks hard-block, in the main session and in every subagent:
 - `git commit` without `#<n>`;
 - `gh pr create` without `Closes #<n>`.
 
-Next to the hard blocks, the hooks **halt**. Every rule above is an answer from git or GitHub, so when a hook needs one and gets none, it does not guess: it stops the whole session and asks the human to restore git or the connection. Git gets no answer when it is missing or fails to start, times out, is killed, runs past the hook call's deadline, or fails in its own way (a broken repository, `safe.directory`, a held lock). GitHub gets none when `gh` is missing, times out, is not logged in or cannot reach the network. "No such issue" and "no pull request" are answers. The halt is recorded for the session, outside the repository like the agents' reads, so every later hook call in that session halts at once, in the main session and every subagent, until the human's next prompt.
+Next to the hard blocks, the hooks **halt**. Every rule above is an answer from git or GitHub, so when a hook needs one and gets none, it does not guess: it stops the whole session and asks the human to restore git or the connection. Git gets no answer when it is missing or fails to start, times out, is killed, runs past the hook call's deadline, or fails in any way that is not an answer about what was asked (a broken repository, `safe.directory`, a held lock). GitHub gets none when `gh` is missing, times out, is not logged in, cannot reach the network, or fails in any other way than "no such issue" or "no pull request", which are answers. The halt is recorded for the session, outside the repository like the agents' reads, so every later hook call in that session halts at once, for every tool, in the main session and every subagent, until the next prompt, or until the human starts or resumes the session.
 
 When commits were pushed after the issue's last comment, the Stop hook nudges for a progress comment: it blocks stopping once. Every deny names the pipeline step to go back to.
 
@@ -37,8 +37,9 @@ The issue is also the record that survives compaction. At start, after compactio
 
 ## Consequences
 
-- The trace applies only in repositories opted in by `/trace:setup`, and only to files inside that repository's working tree. The archive block and the guard apply everywhere. Whether a repository is opted in is itself git's answer, so the halt reaches any repository where the hooks ask git and get none; commands the gates do not judge ask nothing, and do not halt.
+- The trace applies only in repositories opted in by `/trace:setup`, and only to files inside that repository's working tree. The archive block and the guard apply everywhere. Whether a repository is opted in is itself git's answer, so the halt reaches any repository where a hook needs git's answer and gets none. Hooks ask only what judging a call, or telling an agent its issue, needs: a command neither the gates nor the archive block judge asks nothing and does not halt, and recording what an agent read never halts (what it cannot place is not recorded, and the gate asks for it again).
 - A halt needs a hook that runs to the end. A hook process that itself crashes, or is killed at its timeout, cannot halt, and the tool call goes through.
+- The hook cannot tell the human's prompt from one a scheduled task or another session sends, so any of those lifts a halt; only a background agent's report, which arrives as a prompt too, does not.
 - The only bypass is an environment variable the human sets when launching Claude Code. Nothing the model can write turns the trace off, so there is no state to defend.
 - Because the human merges, a ticket blocked by an unmerged one is built on a stacked branch.
 - Repositories without a GitHub remote cannot be traced.

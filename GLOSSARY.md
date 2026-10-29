@@ -72,7 +72,7 @@ _Avoid_: warning, notice
 A hard block that applies once, and lets the next attempt through.
 
 **Halt**:
-The stop of a whole session, in every agent, when a hook needs an answer from git or GitHub and gets none. It stands until the human's next prompt.
+The stop of a whole session, in every agent, when a hook needs an answer from git or GitHub and gets none. It stands until the next prompt (the human's, or one sent in their place, such as a scheduled task's), or until the session is started or resumed.
 _Avoid_: outage, fail closed, abort
 
 **Guard**:
