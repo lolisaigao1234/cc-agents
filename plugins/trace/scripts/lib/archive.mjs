@@ -12,7 +12,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 import { CASE_INSENSITIVE_FS, real, untilde } from './paths.mjs'
-import { gitParts, operandIndexes, parseCommands, shortFlags } from './shell.mjs'
+import { cdTarget, gitParts, operandIndexes, parseCommands, shortFlags, withCwds } from './shell.mjs'
 
 /** @typedef {import('./shell.mjs').SimpleCommand} SimpleCommand */
 
@@ -918,33 +918,14 @@ function pathsTouch(what, args, cwds) {
  * @param {string} cwd
  */
 function bashTouches(command, cwd) {
-  /** @type {{ level: number, cwds: string[], prevOp?: string }[]} */
-  const stack = [{ level: 0, cwds: [cwd] }]
-  const seen = new Set([cwd])
-  for (const c of parseCommands(command)) {
-    while (stack.length > 1 && c.level < /** @type {{ level: number }} */ (stack[stack.length - 1]).level) stack.pop()
-    let top = /** @type {(typeof stack)[number]} */ (stack[stack.length - 1])
-    if (c.level > top.level) stack.push((top = { level: c.level, cwds: [...top.cwds] }))
-    const cwds = top.cwds
-    const prevOp = top.prevOp
-    top.prevOp = c.op
-
+  for (const { c, cwds, at } of withCwds(command, cwd)) {
     for (const f of c.files) if (pathKind(f, cwds)) return `\`${c.name}\` redirects to or from ${f}, in the archive.`
-    if (c.name === 'cd' || c.name === 'pushd' || c.name === 'popd') {
-      const to = c.args.find(a => !a.startsWith('-') || a === '-')
-      if (c.name === 'popd' || to === '-') {
-        top.cwds = [...new Set([...cwds, ...seen])]
-        continue
-      }
-      if (to !== undefined && /[$`]/.test(to)) continue
-      if (to !== undefined && pathKind(to, cwds)) return `\`${c.name} ${to}\` enters the archive.`
-      const targets = cwds.map(d => (to === undefined ? homedir() : resolve(d, untilde(to, d))))
-      for (const t of targets) seen.add(t)
-      top.cwds = c.op === '&&' && prevOp !== '||' ? targets : [...new Set([...cwds, ...targets])]
+    const t = cdTarget(c)
+    if (t !== null) {
+      if (typeof t === 'object' && pathKind(t.to, cwds)) return `\`${c.name} ${t.to}\` enters the archive.`
       continue
     }
     if (c.chdir !== undefined && pathKind(c.chdir, cwds)) return `\`${c.name}\` runs in ${c.chdir}, in the archive.`
-    const at = c.chdir === undefined ? cwds : cwds.map(d => resolve(d, untilde(/** @type {string} */ (c.chdir), d)))
     const why = c.name === 'git' ? gitTouches(c.args, at) : commandTouches(c, at)
     if (why) return why
   }

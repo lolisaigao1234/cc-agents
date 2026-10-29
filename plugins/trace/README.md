@@ -1,6 +1,6 @@
 # trace
 
-Hooks that will keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008). So far it ships the edit gate of the trace, the guard and the archive block; the rest lands ticket by ticket under #3. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
+Hooks that will keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008). So far it ships the edit, commit and PR gates of the trace, the guard and the archive block; the rest lands ticket by ticket under #3. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
 
 ## The trace
 
@@ -14,9 +14,17 @@ In an opted-in repository, a PreToolUse hook on Edit, Write, MultiEdit and Noteb
 - on a branch whose `<n>-` prefix names no open issue: a closed or missing issue, or a pull request;
 - to `.git/`, on any branch: git and `gh issue develop` change branches and remotes.
 
-It resolves symlinks and `~` first, and a nested repository that is not traced itself is gated by the traced one around it. It asks GitHub about `origin`'s repository on every edit; when GitHub cannot answer in time, the edit is refused. Edits outside any traced repository are never gated.
+On Bash, the same hook refuses, in a traced repository:
 
-The human switches the trace off by launching Claude Code with `TRACE_BYPASS=1`. The edit tools cannot: everywhere, they are refused a change to `env`, `disableAllHooks`, `enabledPlugins` or `hooks` in any Claude Code settings file (user, `CLAUDE_CONFIG_DIR`, project, local or managed), any settings change the hook cannot read or predict, and any change to installed plugins. A plugin loaded with `--plugin-dir` is ordinary code in its own repository. Bash is not checked here: commits are gated in #7, and a Bash command that writes those settings is still an open route (#13).
+- `git commit` whose message does not reference the linked issue (`#<n>`), read as git records it: `-m`, `--trailer`, `-F <file>`, a heredoc or here-string to `-F -`, `-C`, `--fixup`, the commit an `--amend --no-edit` rewrites, with comment lines dropped under `strip` cleanup;
+- `gh pr create` (or `gh pr new`), and `gh pr edit` changing the body, whose body does not say `Closes #<n>` (or `Fixes`, `Resolves`, with `owner/name#<n>` or the issue's URL), read from `--body-file`, else the last `--body`, outside code and HTML comments;
+- either one when it cannot tell the message, the body or the repository: an editor, `--fill`, `--web`, an option it does not know, a piped, shell-computed or same-line-written file, a `cd` it cannot follow, a variable such as `GIT_DIR` or `GH_REPO`, a git or gh alias that runs a shell (`!…`), or a PR that gh would open outside origin's repository (`-R`, a fork's upstream). Other git and gh aliases are followed.
+
+Every refusal names the pipeline step; one for a missing reference also names the linked issue and the exact text to add. The edit gate's branch rules apply to commits and PRs too.
+
+It resolves symlinks and `~` first, and a nested repository that is not traced itself is gated by the traced one around it. It asks GitHub about `origin`'s repository on every edit, commit and PR; when GitHub cannot answer in time, it refuses. Edits outside any traced repository are never gated.
+
+The human switches the trace off by launching Claude Code with `TRACE_BYPASS=1`. The edit tools cannot: everywhere, they are refused a change to `env`, `disableAllHooks`, `enabledPlugins` or `hooks` in any Claude Code settings file (user, `CLAUDE_CONFIG_DIR`, project, local or managed), any settings change the hook cannot read or predict, and any change to installed plugins. A plugin loaded with `--plugin-dir` is ordinary code in its own repository. A Bash command that writes those settings is still an open route (#13).
 
 ## The guard
 
