@@ -1,6 +1,6 @@
 # trace
 
-Hooks that will keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008). So far it ships the edit, commit and PR gates of the trace, its forced reads, the issue kept in context, the progress-comment nudge, the guard and the archive block; the rest lands ticket by ticket under #3. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
+Hooks that will keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008). So far it ships the edit, commit and PR gates of the trace, its forced reads, the issue kept in context, the progress-comment nudge, the band and `/trace`, the guard and the archive block; the rest lands ticket by ticket under #3. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
 
 ## The trace
 
@@ -48,6 +48,18 @@ The issue is the record that survives compaction (ADR 0006). When a session star
 When the agent stops after commits reached the issue's branch on its remote since the issue's last comment, the Stop hook blocks once and asks for a progress comment: progress, decisions, verification results. The branch is where git pushes it (its push destination, else its upstream, else origin's branch of its name), and it counts only when it holds commits the remote's other branches do not; the time is when that ref last moved here, else its commit date. It asks once per pushed head, in any session, and lets the next stop through. When git or GitHub cannot say, it lets the stop through.
 
 Nothing is injected, and nothing nudged, in a repository that has not opted in, or under `TRACE_BYPASS=1`.
+
+### The band and `/trace`
+
+A band above the prompt shows the trace at a glance (ADR 0005): the linked issue, the pipeline with the steps done (`✓`) and the step reached (`▸`), whether the related docs are read, and the PR with its CI state (passing, failing, pending, or none without checks). Off an issue's branch it is one line, the step the gates name. On a narrow terminal the pipeline shortens to the step reached and a count, so the docs and the PR stay in view.
+
+It reads the same state the hooks enforce, through the hook script's `status` event for the main session, and keeps none of its own. A step is done when its gate is satisfied: Read when every related doc is read, Implement when a commit on the branch and not on the default branch references `#<n>` as the commit gate reads it, Review when the branch has an open PR (a closed one, or one merged into another branch while the issue stays open, closes nothing), Update when the issue's last comment is newer than the branch's last push.
+
+It reads the state again when a session starts, clears, compacts or changes directory, after each turn, and after each Read, Bash, Edit, Write or MultiEdit, at most once every 5 seconds. While the PR's CI is pending it asks again every minute, idle or not. When the state cannot be read, it keeps what it showed.
+
+`/trace`, typed bare by the person, at the terminal or through Remote Control, prints the same in full: the issue and its URL, the step and why, in the hooks' own words, the last comment and the latest progress comment, and each of the PR's checks. `/trace` is also the `trace` skill's command; with arguments, or run by the model, the SDK or a plugin, it is the skill.
+
+In a repository that has not opted in, or under `TRACE_BYPASS=1`, the band draws nothing and `/trace` says so.
 
 ## The guard
 

@@ -38,8 +38,8 @@ export function issueContext(cwd, world) {
   }
   const criteria = section(issue.body, /^acceptance criteria$/i)
   const { comments } = issue
-  const progress = comments.findLast(c => /^#+\s*progress\b/im.test(c.body))
-  const last = progress ?? comments.at(-1)
+  const last = latestProgress(comments)
+  const progress = last && /^#+\s*progress\b/im.test(last.body)
   const docs = relatedDocNames(root, issue, world.git.headDocs(root))
   const parts = comments.length ? `title, body and ${comments.length} comment${comments.length === 1 ? '' : 's'}` : 'title and body'
   return [
@@ -50,6 +50,12 @@ export function issueContext(cwd, world) {
     `When this and your memory disagree, the issue wins: reread it with ${view}.`,
   ].join('\n')
 }
+
+/**
+ * @template {{ body: string }} C
+ * @param {C[]} comments @returns {C | undefined} the latest comment headed "Progress", else the latest
+ */
+export const latestProgress = comments => comments.findLast(c => /^#+\s*progress\b/im.test(c.body)) ?? comments.at(-1)
 
 /**
  * @param {string} body markdown @param {RegExp} heading

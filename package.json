@@ -7,7 +7,9 @@
     "test": "node --test 'test/*.test.mjs'",
     "typecheck": "tsc -p tsconfig.json",
     "validate": "claude plugin validate plugins/trace && claude plugin validate .",
-    "check": "npm run typecheck && npm test && npm run validate"
+    "test:mod": "claude plugin test plugins/trace",
+    "typecheck:mod": "tsc -p plugins/trace/tsconfig.json",
+    "check": "npm run typecheck && npm test && npm run test:mod && npm run typecheck:mod && npm run validate"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
