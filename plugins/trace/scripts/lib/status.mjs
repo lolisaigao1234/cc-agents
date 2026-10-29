@@ -109,7 +109,7 @@ export function traceStatus(cwd, world) {
  * @param {import('./trace.mjs').PullRequest | 'NONE' | null} pr @param {string} branch @param {number} n
  */
 function reviewWhy(pr, branch, n) {
-  if (pr === null) return `GitHub could not say whether ${branch} has a PR; check \`gh auth status\` and the network.`
+  if (pr === null) return `the trace cannot read whether ${branch} has a PR: origin must be a GitHub repository.`
   if (pr !== 'NONE' && pr.state === 'OPEN') return null
   const was = pr === 'NONE' ? '' : pr.state === 'CLOSED' ? `PR #${pr.n} for ${branch} was closed unmerged. ` : `PR #${pr.n} for ${branch} was merged, but #${n} is still open: a PR closes its issue only when it merges into the default branch. `
   return `${was}Review step: review ${branch} (/code-review, mattpocock-skills:code-review), then open a PR for it that says Closes #${n} (mattpocock-skills:pr).`

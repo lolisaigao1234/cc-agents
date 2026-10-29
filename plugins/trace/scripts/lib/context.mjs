@@ -29,7 +29,7 @@ export function issueContext(cwd, world) {
   const issue = world.github.issue(root, n)
   const slug = world.git.origin(root)
   const view = `\`gh issue view ${n}${slug ? ` -R ${slug}` : ''}\``
-  if (!issue) return `Trace: GitHub could not say what issue #${n} says. Read step: read it with ${view} before working.`
+  if (!issue) return `Trace: the trace cannot read what issue #${n} says. Read step: read it with ${view} before working.`
   // The issue's text is quoted, so none of it can pass for the hook's own lines.
   const quote = (/** @type {string} */ text) => {
     const t = text.trim()

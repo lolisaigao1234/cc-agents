@@ -124,7 +124,7 @@ test('off an issue branch the context names the step to go back to; untraced, by
   assert.equal(issueContext(root, world(root, { traced: false })), null)
   assert.equal(issueContext(root, world(root, { env: { TRACE_BYPASS: '1' } })), null)
   assert.equal(issueContext('/elsewhere', world(root)), null)
-  assert.match(String(issueContext(root, world(root, { issue: null }))), /^Trace: GitHub could not say whether issue #9 is open/)
+  assert.match(String(issueContext(root, world(root, { issue: null }))), /^Trace: the trace cannot read whether issue #9 is open/)
 })
 
 test('stopping after a push newer than the last comment is blocked once, then let through', () => {

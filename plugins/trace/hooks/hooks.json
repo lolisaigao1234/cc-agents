@@ -3,7 +3,6 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|NotebookRead|Grep|Glob|LS",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.mjs\" pre-tool-use", "timeout": 30 }]
       }
     ],

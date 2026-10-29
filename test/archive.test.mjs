@@ -461,3 +461,39 @@ test('a history command halts the session when git cannot run, rather than being
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
   assert.doesNotMatch(out.stopReason, /would print changes/)
 })
+
+test("a history command's halt names the command-side fix, which asks git nothing", () => {
+  const run = (/** @type {string} */ command) =>
+    spawnSync(process.execPath, [HOOK, 'pre-tool-use'], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command }, cwd: repo }), encoding: 'utf8', env: { ...process.env, PATH: '/nonexistent' } })
+  assert.match(JSON.parse(run('git log -p -1').stdout).stopReason, /, or add `-- ':!archive'` to the history commands, which then ask git nothing, then reply to continue\.$/)
+  assert.equal(run("git log -p -1 -- ':!archive'").stdout, '', 'and the fix works without git')
+})
+
+test('a history command in a repository the line has yet to make is denied as not checkable yet, without asking git', () => {
+  const outside = realpathSync(mkdtempSync(join(tmpdir(), 'no-repo-')))
+  for (const command of [`git clone ${repo} ${fresh}-c && cd ${fresh}-c && git show`, `git worktree add ${fresh}-w && git -C ${fresh}-w log -p`]) {
+    for (const cwd of [repo, outside]) {
+      const why = /^archive block: `git (?:show|log)` runs in .*, which an earlier command on the line makes, so what it prints cannot be checked yet\. Run it as a command of its own, or add `-- ':!archive'`\./
+      assert.match(String(bash(command, cwd)), why, `${command} in ${cwd}`)
+    }
+  }
+})
+
+test("a history command in a directory that does not exist yet is checked from its repository's root", () => {
+  assert.equal(bash(`mkdir -p ${repo}/later && cd ${repo}/later && git log -p -1`), null)
+  assert.match(String(bash(`mkdir -p ${repo}/later && cd ${repo}/later && git log -p`)), /would print changes in the archive/)
+})
+
+test('a history command git takes over 5s to list is denied as not checkable, naming the fix, and halts nothing', () => {
+  const bin = mkdtempSync(join(tmpdir(), 'slowgit-'))
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim()
+  writeFileSync(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" --name-only "*) exec sleep 10;; esac\nexec "${realGit}" "$@"\n`, { mode: 0o755 })
+  const path = process.env.PATH
+  process.env.PATH = `${bin}:${path}`
+  try {
+    const why = /^archive block: the archive could not be checked: git took over 5s to list what `git log` prints\. Add `-- ':!archive'` or name the paths you need\./
+    assert.match(String(bash('git log -p')), why)
+  } finally {
+    process.env.PATH = path
+  }
+})

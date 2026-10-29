@@ -321,7 +321,7 @@ export function outputRecords(shown, root, n, issue, head) {
  * @returns {string | null}
  */
 export function docsVerdict(root, n, paths, { issue, slug, head, records: recorded, unknownAgent }) {
-  if (!issue) return `GitHub could not say what #${n}, the linked issue, says, so the trace cannot tell whether it has been read. Read step: the change waits for GitHub; check \`gh auth status\` and the network.`
+  if (!issue) return `the trace cannot read what #${n}, the linked issue, says, so it cannot tell whether it has been read. Read step: the change waits until GitHub's answer can be read; \`gh issue view ${n}\` shows what gh prints.`
   const docs = relatedDocs(root, paths, issue, head)
   const parts = issueParts(issue)
   if (!docs.length && !parts.length) return null
@@ -396,6 +396,17 @@ function storeKey() {
   }
 }
 
+/** @param {unknown} id @returns {id is string} whether a session or agent id can name a directory of the store */
+const isId = id => typeof id === 'string' && /^[\w-]{1,128}$/.test(id)
+
+/**
+ * The store's directory for a session, which holds its agents' reads and its
+ * halt (halt.mjs); null for an id that cannot name one.
+ *
+ * @param {unknown} session @returns {string | null}
+ */
+export const sessionDir = session => (isId(session) ? join(STORE(), session) : null)
+
 /**
  * The reads of the agent a hook input comes from: the main session's, or a
  * subagent's by its `agent_id`. Each record is signed for that agent, so a
@@ -406,12 +417,10 @@ function storeKey() {
  * @returns {Reads}
  */
 export function readsOf(input) {
-  const id = /^[\w-]{1,128}$/
   const { session_id: session, agent_id: agent = 'main' } = input
-  if (typeof session !== 'string' || !id.test(session) || typeof agent !== 'string' || !id.test(agent)) {
-    return { records: () => null, add() {}, clear() {} }
-  }
-  const dir = join(STORE(), session, agent)
+  const sessions = sessionDir(session)
+  if (!sessions || !isId(agent)) return { records: () => null, add() {}, clear() {} }
+  const dir = join(sessions, agent)
   const mac = (/** @type {string} */ json) => createHmac('sha256', storeKey()).update(`${session}\0${agent}\0${json}`).digest('hex')
   return {
     records() {
@@ -438,39 +447,6 @@ export function readsOf(input) {
     },
     clear() {
       rmSync(dir, { recursive: true, force: true })
-    },
-  }
-}
-
-/**
- * The halt of the session a hook input comes from (ADR 0006): one record
- * for the main session and all its subagents, so a halt in one stops them
- * all. Unsigned: a forged halt only stops the session. Without a session
- * id, none can be kept.
- *
- * @param {{ session_id?: unknown }} input
- * @returns {{ reason(): string | null, set(reason: string): void, clear(): void }}
- */
-export function haltOf(input) {
-  const session = input.session_id
-  if (typeof session !== 'string' || !/^[\w-]{1,128}$/.test(session)) return { reason: () => null, set() {}, clear() {} }
-  // Agents' directories are named by ids without a dot, so none is this file.
-  const path = join(STORE(), session, 'halt.json')
-  return {
-    reason() {
-      try {
-        const { reason } = JSON.parse(readFileSync(path, 'utf8'))
-        return typeof reason === 'string' ? reason : null
-      } catch {
-        return null
-      }
-    },
-    set(reason) {
-      mkdirSync(join(STORE(), session), { recursive: true, mode: 0o700 })
-      writeFileSync(path, JSON.stringify({ reason }), { mode: 0o600 })
-    },
-    clear() {
-      rmSync(path, { force: true })
     },
   }
 }

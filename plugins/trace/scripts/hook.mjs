@@ -7,17 +7,22 @@ import { readFileSync } from 'node:fs'
 
 import { archiveBlock } from './lib/archive.mjs'
 import { issueContext, stopNudge } from './lib/context.mjs'
-import { haltOf, readsOf, storeVerdict } from './lib/docs.mjs'
+import { readsOf, storeVerdict } from './lib/docs.mjs'
 import { guard } from './lib/guard.mjs'
-import { Unanswered, haltOutput, haltReason, unansweredStatus } from './lib/halt.mjs'
+import { Unanswered, haltOf, haltOutput, haltReason, unansweredStatus } from './lib/halt.mjs'
 import { toolPath } from './lib/paths.mjs'
 import { traceStatus } from './lib/status.mjs'
 import { commandVerdict, editVerdict, readRecord, switchVerdict, worldFor } from './lib/trace.mjs'
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+// The tools the gates, the guard and the archive block judge. PreToolUse sees
+// every tool, so that a halt stops them all; the rest it only halts.
+const JUDGED = new Set(['Bash', 'Read', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'NotebookRead', 'Grep', 'Glob', 'LS'])
+// A prompt Claude Code sends when a background agent finishes, which the human did not write.
+const NOTIFICATION = /^\s*<task-notification>/
 
 /**
- * @typedef {{ tool_name?: string, tool_input?: Record<string, unknown>, tool_response?: unknown, cwd?: string, session_id?: unknown, agent_id?: unknown, source?: unknown, stop_hook_active?: unknown }} HookInput
+ * @typedef {{ tool_name?: string, tool_input?: Record<string, unknown>, tool_response?: unknown, cwd?: string, session_id?: unknown, agent_id?: unknown, source?: unknown, stop_hook_active?: unknown, prompt?: unknown }} HookInput
  */
 
 /**
@@ -26,11 +31,15 @@ const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
  * @returns {object | null} the hook output, or null to say nothing
  */
 function hookOutput(event, input) {
-  // The human's next prompt lifts a halt; a call that still gets no answer halts again.
+  // The next prompt lifts a halt, and starting or resuming the session does;
+  // a call that still gets no answer halts again. The hook cannot tell the
+  // human's prompt from a scheduled task's or another session's, only from
+  // a background agent's report.
   if (event === 'user-prompt-submit') {
-    haltOf(input).clear()
+    if (!NOTIFICATION.test(String(input.prompt ?? ''))) haltOf(input).clear()
     return null
   }
+  if (event === 'session-start' && ['startup', 'resume', 'clear'].includes(String(input.source))) haltOf(input).clear()
   // A compacted context no longer holds what the agent read, so it reads again, halted or not.
   if (event === 'post-compact' || (event === 'session-start' && input.source === 'compact')) readsOf(input).clear()
   if (event === 'post-compact') return null
@@ -57,7 +66,7 @@ function hookOutput(event, input) {
     for (const record of readRecord(input, worldFor(reads))) reads.add(record)
     return null
   }
-  if (event !== 'pre-tool-use' || !input.tool_name) return null
+  if (event !== 'pre-tool-use' || !input.tool_name || !JUDGED.has(input.tool_name)) return null
   const toolInput = input.tool_input ?? {}
   const world = worldFor(readsOf(input))
   const guardReason = () => {
@@ -80,8 +89,8 @@ function hookOutput(event, input) {
       const why = verdict()
       return why && `trace: ${why}`
     } catch (err) {
-      // git or GitHub not answering halts the session (halting). Failing open on
-      // anything else would let an untraced edit, commit or PR through.
+      // git or GitHub not answering halts the session (see `halting`). Failing
+      // open on anything else would let an untraced edit, commit or PR through.
       if (err instanceof Unanswered) throw err
       return `trace: the trace could not be checked (${/** @type {Error} */ (err).message}). To work untraced, the human can launch Claude Code with TRACE_BYPASS=1.`
     }

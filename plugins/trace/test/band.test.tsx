@@ -44,6 +44,7 @@ function engine(on: On, status: () => TraceState) {
   on('command.run', () => ({ text: 'the trace skill' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('classic.SessionStart', () => ({}))
+  on('classic.UserPromptSubmit', () => ({}))
   on('session.cwd', () => ({ value: '/repo' }))
   on('session.id', () => ({ value: 's-1' }))
   on('process.run', (_, e) => {
@@ -215,8 +216,9 @@ test('a halt replaces what the band showed with its reason, and /trace prints it
   expect(await ui.find(text(/▸ update/))).toBeUndefined()
   await ui.unmount()
   expect((await $.command.run(TRACE)).text).toBe(halt)
+  // The human's reply lifts the halt: the band reads the trace again, before any tool call.
   s = AT_UPDATE
-  await $.tool.call({ tool: 'Read', file_path: '/repo/a.md' })
+  await $.classic.UserPromptSubmit({ prompt: 'git is back' })
   await clock.advance(5_000)
   const after = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect((await after.find(text(/▸ update/)))?.text).toBeDefined()

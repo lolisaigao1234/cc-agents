@@ -160,6 +160,10 @@ test('a git that times out, is killed, or fails before it can answer halts the s
     ["echo \"fatal: detected dubious ownership in repository at '$PWD'\" >&2; exit 128", /git did not answer: fatal: detected dubious ownership/],
     ["echo \"fatal: Unable to create '$PWD/.git/index.lock': File exists.\" >&2; exit 128", /git did not answer: fatal: Unable to create/],
     ['echo "error: inflate: data stream error (incorrect header check)" >&2; exit 128', /git did not answer: error: inflate/],
+    // Failures the trace has no words for are failures too: only git's known answers are answers.
+    ['echo "fatal: bad object HEAD" >&2; exit 128', /git did not answer: fatal: bad object HEAD\./],
+    ['echo "fatal: something new went wrong" >&2; exit 128', /git did not answer: fatal: something new went wrong\./],
+    ['exit 3', /git did not answer: exit 3\./],
   ])) {
     const out = hook(edit, { PATH: `${fakeGit(`*" cat-file -e "*) ${asked};;`)}:${process.env.PATH}` })
     assert.equal(out?.permissionDecision, 'deny', asked)
@@ -169,6 +173,9 @@ test('a git that times out, is killed, or fails before it can answer halts the s
   // git's own "no": the marker is in no revision, so the repository is untraced.
   const untraced = hook(edit, { PATH: `${fakeGit(`*" cat-file -e "*) echo "fatal: path '.claude/trace.json' does not exist in 'HEAD'" >&2; exit 128;;`)}:${process.env.PATH}` })
   assert.equal(untraced, null)
+  // git is asked in its own words, whatever the human's locale: a German git would say no in German.
+  const german = fakeGit(`*" cat-file -e "*) if [ "$LC_ALL" = C ]; then echo "fatal: path '.claude/trace.json' does not exist in 'HEAD'" >&2; else echo "fatal: Pfad '.claude/trace.json' existiert nicht in 'HEAD'" >&2; fi; exit 128;;`)
+  assert.equal(hook(edit, { PATH: `${german}:${process.env.PATH}`, LANG: 'de_DE.UTF-8', LC_ALL: 'de_DE.UTF-8' }), null)
 })
 
 test('a gh that is missing, not logged in or cannot reach GitHub halts the session; "no such issue" and "no PR" are answers', () => {
@@ -181,6 +188,10 @@ test('a gh that is missing, not logged in or cannot reach GitHub halts the sessi
     ['HTTP 401: Bad credentials (https://api.github.com/repos/owner/name/issues/6)', '1'],
     ['error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com', '1'],
     ['HTTP 502: Bad Gateway (https://api.github.com/repos/owner/name/issues/6)', '1'],
+    // Failures the trace has no words for are failures too: only "not found" is an answer.
+    ['HTTP 403: Resource protected by organization SAML enforcement. You must grant your Personal Access token access to this organization.', '1'],
+    ['Get "https://api.github.com/repos/owner/name/issues/6": tls: failed to verify certificate: x509: certificate signed by unknown authority', '1'],
+    ['unexpected EOF', '1'],
   ]) {
     assert.equal(hook(edit, { FAKE_GH_FAIL: stderr, FAKE_GH_EXIT: exit })?.permissionDecision, 'deny', stderr)
     assert.equal(hook.out.continue, false, stderr)
@@ -560,9 +571,7 @@ test('a git that cannot run halts the session at an edit, commit or PR in any re
 test('every hook that gets no answer from git halts the session; the band\'s status shows it and halts nothing', () => {
   const { dir } = repo(false)
   const noGit = { PATH: '/nonexistent' }
-  const content = 'x\n'
   const inputs = {
-    'post-tool-use': { tool_name: 'Read', tool_input: { file_path: join(dir, 'a.md') }, tool_response: { type: 'text', file: { filePath: join(dir, 'a.md'), content, numLines: 2, startLine: 1, totalLines: 2 } } },
     'session-start': { hook_event_name: 'SessionStart', source: 'startup' },
     'subagent-start': { hook_event_name: 'SubagentStart', agent_id: 'a1', agent_type: 'general-purpose' },
     stop: { hook_event_name: 'Stop', stop_hook_active: false },
@@ -598,11 +607,75 @@ test("a halt stands for the whole session, the parent's calls included, until th
     assert.deepEqual(hook.out, { continue: false, stopReason: reason }, event)
   }
   assert.equal(read({ session_id: `${session}-other` }), null, 'another session goes on')
+  for (const tool of ['Agent', 'Task', 'WebFetch', 'TodoWrite', 'Skill', 'mcp__docs__update']) {
+    assert.equal(hook({ tool_name: tool, tool_input: {}, cwd: dir, session_id: session })?.permissionDecision, 'deny', `${tool}, a tool the gates do not judge`)
+  }
+  // A background agent's report arrives as a prompt the human did not send: it lifts nothing.
+  const notification = '<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>'
+  assert.equal(hook({ hook_event_name: 'UserPromptSubmit', prompt: notification, cwd: dir, session_id: session }, {}, {}, 'user-prompt-submit'), null)
+  assert.equal(read()?.permissionDecision, 'deny', "a task's notification is not the human's prompt")
   assert.equal(hook({ hook_event_name: 'UserPromptSubmit', prompt: 'git is back', cwd: dir, session_id: session }, {}, {}, 'user-prompt-submit'), null)
   assert.equal(read(), null, "the human's prompt clears the halt")
   assert.match(String(hook(edit)?.permissionDecisionReason), /default branch/, 'and git answers again')
   hook(edit, { PATH: '/nonexistent' })
   assert.equal(hook.out?.continue, false, 'while git still cannot answer, the next call that asks halts again')
+  // A session left halted is not halted when the human resumes it, or starts afresh.
+  for (const source of ['resume', 'startup', 'clear']) {
+    hook(edit, { PATH: '/nonexistent' })
+    hook({ hook_event_name: 'SessionStart', source, cwd: dir, session_id: session }, {}, {}, 'session-start')
+    assert.equal(hook.out?.continue, undefined, source)
+    assert.equal(read(), null, source)
+  }
+  hook(edit, { PATH: '/nonexistent' })
+  hook({ hook_event_name: 'SessionStart', source: 'compact', cwd: dir, session_id: session }, {}, {}, 'session-start')
+  assert.equal(hook.out?.continue, false, 'a compaction is not the human')
+})
+
+test('every tool call reaches the PreToolUse hook, which judges only the tools the gates and the archive block know', () => {
+  const { hooks } = JSON.parse(readFileSync(fileURLToPath(new URL('../plugins/trace/hooks/hooks.json', import.meta.url)), 'utf8'))
+  /** @param {string} tool */
+  const reaches = tool =>
+    hooks.PreToolUse.some((/** @type {{ matcher?: string }} */ e) => !e.matcher || e.matcher === '*' || new RegExp(`^(?:${e.matcher})$`).test(tool))
+  for (const tool of ['Bash', 'Read', 'Edit', 'Agent', 'Task', 'WebFetch', 'TodoWrite', 'Skill', 'mcp__docs__update']) assert.ok(reaches(tool), tool)
+  const { dir } = repo()
+  mkdirSync(join(dir, 'archive'))
+  for (const tool of ['WebFetch', 'mcp__files__write']) {
+    assert.equal(hook({ tool_name: tool, tool_input: { file_path: join(dir, 'archive/x.md'), command: 'git commit -m x' }, cwd: dir, session_id: `s-${process.pid}` }), null, tool)
+  }
+})
+
+test('recording what an agent read never halts: a read git cannot place is not recorded, and the gate asks again', () => {
+  const noGit = { PATH: '/nonexistent' }
+  for (const dir of [repo(false).dir, repo().dir]) {
+    const session = `s-${process.pid}-${Math.random().toString(36).slice(2)}`
+    const after = (/** @type {object} */ input) => {
+      hook({ ...input, cwd: dir, session_id: session }, noGit, {}, 'post-tool-use')
+      return [hook.out, hook.status]
+    }
+    const file = { filePath: join(dir, 'a.md'), content: 'x\n', numLines: 2, startLine: 1, totalLines: 2 }
+    assert.deepEqual(after({ tool_name: 'Read', tool_input: { file_path: file.filePath }, tool_response: { type: 'text', file } }), [null, 0], `a Read in ${dir}`)
+    const saved = join(realpathSync(mkdtempSync(join(tmpdir(), 'saved-'))), 'out.txt')
+    writeFileSync(saved, 'x\n')
+    assert.deepEqual(after({ tool_name: 'Read', tool_input: { file_path: saved }, tool_response: { type: 'text', file: { ...file, filePath: saved } } }), [null, 0], `a saved output read from ${dir}`)
+    for (const command of ['gh issue view 6 --comments', 'git show HEAD:a.md']) {
+      assert.deepEqual(after({ tool_name: 'Bash', tool_input: { command }, tool_response: { stdout: 'x\n', stderr: '' } }), [null, 0], `${command} in ${dir}`)
+    }
+    assert.equal(hook({ tool_name: 'Read', tool_input: { file_path: file.filePath }, cwd: dir, session_id: session }), null, 'and nothing halts the next call')
+  }
+})
+
+test("gh's aliases are asked for only where a PR could be opened in a traced repository", () => {
+  // git and node, but no gh.
+  const bin = mkdtempSync(join(tmpdir(), 'nogh-'))
+  symlinkSync(execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim(), join(bin, 'git'))
+  const outside = realpathSync(mkdtempSync(join(tmpdir(), 'norepo-')))
+  for (const dir of [outside, repo(false).dir]) {
+    for (const command of ['gh repo view cli/cli', 'gh issue list', 'gh prc', 'gh pr create -t t -b x']) {
+      assert.equal(hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir }, { PATH: bin }), null, `${command} in ${dir}`)
+    }
+  }
+  hook({ tool_name: 'Bash', tool_input: { command: 'gh repo view cli/cli' }, cwd: repo().dir }, { PATH: bin })
+  assert.match(String(hook.out?.stopReason), /^trace halted the session: GitHub did not answer: gh is not on PATH\./, 'in a traced repository, an alias it cannot list may open a PR')
 })
 
 test('a git that cannot run lets through git and gh commands the gates do not judge', () => {

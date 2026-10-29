@@ -11,7 +11,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
-import { Unanswered, answered } from './halt.mjs'
+import { GIT_ENV, Unanswered, answered } from './halt.mjs'
 import { CASE_INSENSITIVE_FS, real, untilde } from './paths.mjs'
 import { INTERPRETERS, cdTarget, gitParts, operandIndexes, parseCommands, shortFlags, withCwds } from './shell.mjs'
 
@@ -37,8 +37,11 @@ const fresh = new Set()
 /** @type {{ timeLeft: import('./trace.mjs').TimeLeft }} */
 const call = { timeLeft: () => Infinity }
 
-/** @returns {number} the timeout for one git call: 5s, or what the hook call has left; throws Unanswered once it has none */
-const gitTimeout = () => Math.min(5000, call.timeLeft())
+// The longest one history command's list of paths may take git, of the hook call's deadline.
+const HISTORY_CAP = 5000
+
+/** @returns {number} the timeout for one git call: HISTORY_CAP, or what the hook call has left; throws Unanswered once it has none */
+const gitTimeout = () => Math.min(HISTORY_CAP, call.timeLeft())
 
 /** @param {string} dir @returns {string | null} the repository root at or above `dir` */
 function repoRoot(dir) {
@@ -701,24 +704,33 @@ const specNamesArchive = p => (p.icase ? p.rel.toLowerCase() : p.rel).split('/')
 const specExcludesArchive = p => p.exclude && /^archive(?:\/(?:\*{1,2})?)?$/.test(p.rel)
 
 /**
- * Whether the history a git command prints touches the archive: asks git
- * for every path it would show. (A pathspec would change which commits
- * options like `-1` pick, so the paths are filtered here instead.)
+ * Why the history a git command prints touches the archive, or cannot be
+ * told to: asks git for every path it would show. (A pathspec would change
+ * which commits options like `-1` pick, so the paths are filtered here
+ * instead.) Throws Unanswered when git does not answer.
  *
  * @param {string} sub
  * @param {string[]} opts the arguments before `--`
  * @param {string} cwd
- * @returns {boolean}
+ * @returns {string | null}
  */
 function historyTouches(sub, opts, cwd) {
   const diff = /^diff/.test(sub)
-  const r = answered('git', spawnSync('git', ['-C', cwd, sub === 'difftool' ? 'diff' : sub, ...opts, '--name-only', '--no-renames', '--no-ext-diff',
+  const fix = "Add `-- ':!archive'` or name the paths you need."
+  const timeout = gitTimeout()
+  const r = spawnSync('git', ['-C', cwd, sub === 'difftool' ? 'diff' : sub, ...opts, '--name-only', '--no-renames', '--no-ext-diff',
     ...(sub === 'diff' || sub === 'difftool' ? ['--no-relative'] : []), ...(diff ? [] : ['--format='])],
-  { encoding: 'utf8', timeout: gitTimeout(), maxBuffer: 64 * 1024 * 1024 }))
-  // A git that did not answer has thrown; one that refuses the command, as for
-  // a bad revision, does not say what it prints, so assume the worst.
-  if (r.status !== 0) return true
-  return r.stdout.split('\n').some(l => l === 'archive' || l.startsWith('archive/'))
+  { encoding: 'utf8', env: GIT_ENV(), timeout, maxBuffer: 64 * 1024 * 1024 })
+  // A long history takes git long, or overflows the hook's buffer, to list:
+  // that is the command's size, not git failing to answer.
+  const code = /** @type {NodeJS.ErrnoException | undefined} */ (r.error)?.code
+  if (code === 'ENOBUFS' || (code === 'ETIMEDOUT' && timeout === HISTORY_CAP)) {
+    return `the archive could not be checked: git took ${code === 'ENOBUFS' ? 'more room than the hook has' : `over ${HISTORY_CAP / 1000}s`} to list what \`git ${sub}\` prints. ${fix}`
+  }
+  answered('git', r)
+  // One that refuses the command, as for a bad revision, does not say what it prints, so assume the worst.
+  if (r.status !== 0 || r.stdout.split('\n').some(l => l === 'archive' || l.startsWith('archive/'))) return `\`git ${sub}\` would print changes in the archive. ${fix}`
+  return null
 }
 
 // Options that make log, reflog or show print what changed, not only messages.
@@ -899,8 +911,17 @@ function gitTouches(gitArgs, cwds) {
     if (sub === 'show' && before.some(a => a === '-s' || a === '--no-patch') && !changes.some(a => a !== '-s')) continue
     // A -L range shows only the file it names.
     if (changes.length && changes.every(a => a.startsWith('-L'))) continue
-    if (historyTouches(sub, before.filter(a => !blobs.includes(a)), cwd)) {
-      return `\`git ${sub}\` would print changes in the archive. Add \`-- ':!archive'\` or name the paths you need.`
+    // A repository an earlier command on the line makes is not there yet to ask.
+    if (!isRepoRoot(root) && !isBareRepo(root)) {
+      return `\`git ${sub}\` runs in ${root}, which an earlier command on the line makes, so what it prints cannot be checked yet. Run it as a command of its own, or add \`-- ':!archive'\`.`
+    }
+    try {
+      // The paths history prints are the repository's, wherever in it git runs.
+      const why = historyTouches(sub, before.filter(a => !blobs.includes(a)), existsSync(cwd) ? cwd : root)
+      if (why) return why
+    } catch (err) {
+      if (err instanceof Unanswered) err.hint = "add `-- ':!archive'` to the history commands, which then ask git nothing"
+      throw err
     }
   }
   return null

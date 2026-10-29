@@ -117,6 +117,13 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // A prompt may lift a halt (the hooks' UserPromptSubmit), so the band reads again once those hooks ran.
+  on('classic.UserPromptSubmit', async ($, e, next) => {
+    const ran = await next(e)
+    soon($)
+    return ran
+  })
+
   on('turn.complete', ($, e, next) => {
     soon($)
     return next(e)
