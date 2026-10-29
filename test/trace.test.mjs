@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -125,6 +125,18 @@ test('the deadline on git and GitHub starts with each call, not when the module 
   assert.equal(second.git.message(dir, 'HEAD'), 'init')
   git('remote', 'set-url', 'origin', 'https://github.com/owner/other.git')
   assert.equal(second.git.origin(dir), 'owner/other', 'nor does it reuse an earlier call\'s answers')
+})
+
+test('when the deadline has run out before git says whether HEAD has the marker, the edit is not let through', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
+  const { dir } = repo()
+  rmSync(join(dir, '.claude/trace.json'))
+  const path = join(dir, 'a.md')
+  const reads = { records: () => null, add() {}, clear() {} }
+  assert.match(String(editVerdict(path, worldFor(reads))), /default branch/, 'while git answers, HEAD has the marker')
+  const late = worldFor(reads)
+  t.mock.timers.tick(25_000)
+  assert.throws(() => editVerdict(path, late), /out of time asking git and GitHub/)
 })
 
 /** A git repository on `main`, opted in to the trace unless `marked` is false. */
@@ -437,12 +449,19 @@ test("the hook reads origin's GitHub repository from every URL form, and only fr
   assert.equal(hook.calls, '')
 })
 
-test('a git that cannot run refuses edits only where the marker says the repository is traced', () => {
+test('a git that cannot run refuses edits, commits and PRs in any repository, naming the bypass', () => {
   const noGit = { PATH: '/nonexistent' }
-  const { dir } = repo(false)
-  assert.equal(hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir }, noGit), null)
-  const traced = repo().dir
-  assert.equal(hook({ tool_name: 'Edit', tool_input: { file_path: join(traced, 'a.md') }, cwd: traced }, noGit)?.permissionDecision, 'deny')
+  for (const dir of [repo(false).dir, repo().dir]) {
+    for (const [tool, input] of /** @type {[string, Record<string, string>][]} */ ([
+      ['Edit', { file_path: join(dir, 'a.md') }],
+      ['Bash', { command: 'git commit -m "x #6"' }],
+      ['Bash', { command: 'gh pr create -t t -b "Closes #6"' }],
+    ])) {
+      const out = hook({ tool_name: tool, tool_input: input, cwd: dir }, noGit)
+      assert.equal(out?.permissionDecision, 'deny', `${tool} ${JSON.stringify(input)}`)
+      assert.match(out.permissionDecisionReason, /could not be checked.*TRACE_BYPASS=1/)
+    }
+  }
 })
 
 test('the hook expands only ~ and ~/, as the edit tools do', () => {
