@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { archiveBlock } from '../plugins/trace/scripts/lib/archive.mjs'
+import { worldFor } from '../plugins/trace/scripts/lib/trace.mjs'
 
 const HOOK = fileURLToPath(new URL('../plugins/trace/scripts/hook.mjs', import.meta.url))
 
@@ -417,4 +418,25 @@ test('the hook denies a Read of the archive, and lets other reads through', () =
   assert.equal(run({ tool_name: 'Read', tool_input: { file_path: at('docs/a.md') }, cwd: repo }).stdout, '')
   const cat = JSON.parse(run({ tool_name: 'Bash', tool_input: { command: 'cat archive/old.md' }, cwd: repo }).stdout)
   assert.equal(cat.hookSpecificOutput.permissionDecision, 'deny')
+})
+
+test('a history command is denied when the hook call has run out of time to ask git', () => {
+  const ranOut = () => {
+    throw new Error('out of time asking git and GitHub')
+  }
+  // `git log -p -1` prints only docs/, so with time to ask git it is allowed.
+  assert.equal(bash('git log -p -1'), null)
+  assert.match(String(archiveBlock('Bash', { command: 'git log -p -1' }, repo, ranOut)), /archive block: .*could not be checked in time/)
+  // A command that needs no answer from git is judged as before.
+  assert.equal(archiveBlock('Bash', { command: 'cat docs/a.md' }, repo, ranOut), null)
+  assert.match(String(archiveBlock('Bash', { command: 'cat archive/old.md' }, repo, ranOut)), /archive\/old\.md, in the archive/)
+})
+
+test("the archive block draws on the same deadline as the trace's git and GitHub calls", t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
+  const world = worldFor({ records: () => null, add() {}, clear() {} })
+  assert.equal(archiveBlock('Bash', { command: 'git log -p -1' }, repo, world.timeLeft), null)
+  t.mock.timers.tick(20_000)
+  assert.match(String(archiveBlock('Bash', { command: 'git log -p -1' }, repo, world.timeLeft)), /could not be checked in time/)
+  assert.throws(() => world.git.message(repo, 'HEAD'), /out of time asking git and GitHub/)
 })

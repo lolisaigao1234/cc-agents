@@ -30,6 +30,27 @@ const isBareRepo = (/** @type {string} */ dir) => ['HEAD', 'objects', 'refs'].ev
 /** @type {Set<string>} */
 const fresh = new Set()
 
+// A hook that times out lets the command through, so the git calls of one
+// tool call draw from the hook call's deadline, which the trace's git and
+// GitHub calls share. Set for every tool call.
+/** @type {() => number} the milliseconds left; throws once there are none */
+let timeLeft = () => Infinity
+
+/** Thrown when the hook call's deadline runs out before git has answered. */
+class OutOfTime extends Error {}
+
+/** @returns {number} the milliseconds left to ask git; throws OutOfTime once there are none */
+function left() {
+  let ms
+  try {
+    ms = timeLeft()
+  } catch {
+    throw new OutOfTime()
+  }
+  if (!(ms > 0)) throw new OutOfTime()
+  return ms
+}
+
 /** @param {string} dir @returns {string | null} the repository root at or above `dir` */
 function repoRoot(dir) {
   for (let d = dir; ; d = dirname(d)) {
@@ -704,9 +725,12 @@ function historyTouches(sub, opts, cwd) {
   const diff = /^diff/.test(sub)
   const r = spawnSync('git', ['-C', cwd, sub === 'difftool' ? 'diff' : sub, ...opts, '--name-only', '--no-renames', '--no-ext-diff',
     ...(sub === 'diff' || sub === 'difftool' ? ['--no-relative'] : []), ...(diff ? [] : ['--format='])],
-  { encoding: 'utf8', timeout: 5000, maxBuffer: 64 * 1024 * 1024 })
-  // When git cannot say, assume the worst.
-  if (r.status !== 0) return true
+  { encoding: 'utf8', timeout: Math.min(5000, left()), maxBuffer: 64 * 1024 * 1024 })
+  if (r.status !== 0) {
+    // When git cannot say, assume the worst; when it was stopped at the deadline, say so.
+    left()
+    return true
+  }
   return r.stdout.split('\n').some(l => l === 'archive' || l.startsWith('archive/'))
 }
 
@@ -961,15 +985,25 @@ function searchToolTouches(toolName, toolInput, root, cwd) {
  * @param {string} toolName
  * @param {Record<string, unknown>} toolInput
  * @param {string} cwd the agent's working directory
+ * @param {() => number} [deadline] the milliseconds the hook call has left to ask git, throwing once there are none;
+ *   without it, each git call is bounded only by its own timeout
  * @returns {string | null}
  */
-export function archiveBlock(toolName, toolInput, cwd) {
+export function archiveBlock(toolName, toolInput, cwd, deadline = () => Infinity) {
   fresh.clear()
+  timeLeft = deadline
   const str = (/** @type {string} */ k) => (typeof toolInput[k] === 'string' ? /** @type {string} */ (toolInput[k]) : undefined)
   /** @type {string | null} */
   let why = null
-  if (toolName === 'Bash') why = bashTouches(str('command') ?? '', cwd)
-  else {
+  if (toolName === 'Bash') {
+    try {
+      why = bashTouches(str('command') ?? '', cwd)
+    } catch (err) {
+      if (!(err instanceof OutOfTime)) throw err
+      why = 'the archive could not be checked in time: the hook call ran out of time asking git what the command\'s history commands print. ' +
+        "Run fewer of them at once, or add `-- ':!archive'` to each."
+    }
+  } else {
     for (const k of ['file_path', 'notebook_path']) {
       const p = str(k)
       if (p !== undefined && pathKind(p, [cwd])) why = `${p} is in the archive.`
