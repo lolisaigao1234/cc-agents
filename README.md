@@ -40,7 +40,8 @@ The hooks read command text, so they are a seatbelt against drift, not a sandbox
 
 ```
 plugins/trace/        the plugin: hooks, the band, the setup and trace skills
-test/                 tests for the hook scripts
+test/                 tests for the hook scripts and the band's typecheck
+vendor/claude-code/   Claude Code's mod API declarations, which the band is type-checked against
 docs/adr/             the decisions the plugin enforces
 docs/agents/          how agents use the issue tracker, the labels and the domain docs
 GLOSSARY.md           the project's vocabulary
@@ -54,6 +55,8 @@ npm install
 npm run check                       # typecheck, tests, plugin and marketplace validation
 claude --plugin-dir plugins/trace   # a session with the working copy
 ```
+
+The band is type-checked against `vendor/claude-code/index.d.ts`, the mod API declarations Claude Code writes. Its first line names the version that wrote it. Claude Code writes them only in an interactive session, so they are committed rather than generated. To update them after a Claude Code upgrade, run `claude --plugin-dir plugins/trace` and copy `plugins/trace/.claude-plugin/types/claude-code/index.d.ts` over the vendored file, and check `plugins/trace/tsconfig.json` against the `tsconfig.json` in its header. That folder is git-ignored, and the mod's `tsconfig.json` does not read it.
 
 ## References
 
