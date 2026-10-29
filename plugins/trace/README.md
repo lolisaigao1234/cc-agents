@@ -39,7 +39,7 @@ The records live in the temp directory under `trace-reads/`, signed for the agen
 
 It resolves symlinks and `~` first, and a nested repository that is not traced itself is gated by the traced one around it. It asks GitHub about `origin`'s repository on every edit, commit and PR; when GitHub cannot answer in time, it refuses. Edits outside any traced repository are never gated.
 
-The human switches the trace off by launching Claude Code with `TRACE_BYPASS=1`. The edit tools cannot: everywhere, they are refused a change to `env`, `disableAllHooks`, `enabledPlugins` or `hooks` in any Claude Code settings file (user, `CLAUDE_CONFIG_DIR`, project, local or managed), any settings change the hook cannot read or predict, and any change to installed plugins. A plugin loaded with `--plugin-dir` is ordinary code in its own repository. A Bash command that writes those settings is still an open route (#13).
+The human switches the trace off by launching Claude Code with `TRACE_BYPASS=1`. The edit tools cannot: everywhere, they are refused a change to `env`, `disableAllHooks`, `enabledPlugins` or `hooks` in any Claude Code settings file (user, `CLAUDE_CONFIG_DIR`, project, local or managed), any settings change the hook cannot read or predict, and any change to installed plugins. A plugin loaded with `--plugin-dir` is ordinary code in its own repository. Bash commands that write them are the guard's.
 
 ### The issue in context
 
@@ -67,11 +67,15 @@ A PreToolUse hook on Bash. In every repository, and in every subagent, it refuse
 
 - `git reset --hard`, `clean -f`, discarding checkouts, switches and restores
 - force pushes, including `+refspec`
+- deleting remote branches (`push --delete`, `push origin :<branch>`), `push --mirror` and `push --prune`
 - `stash drop` / `clear`, `branch -D`
+- `reflog expire` and `reflog delete`, `gc --prune=now`, `prune`, unless dry runs
 - `--no-verify`, `commit -n`, and overriding `core.hooksPath`
-- `rm -r`
+- `rm -r`, `find -delete`, `rsync --delete` (and its variants, and `--remove-source-files`)
 
-It parses the command the way a shell does. Text that only mentions a command is allowed, such as `rg 'rm -rf'` or a commit message. Commands inside `bash -c`, `$(...)` and heredocs fed to a shell are checked. It reads command text, so it is a seatbelt, not a sandbox.
+It also refuses commands that write Claude Code's settings files or installed plugins, the files the edit gate guards from the edit tools: a redirection, `tee`, `cp`, `mv`, `rm`, `sed -i` and their kin naming one, an interpreter's code naming one, and `claude plugin install|uninstall|enable|disable|update` or `claude config set`. Reading them is allowed; a settings change other than the switches can be made with the Edit tool.
+
+It parses the command the way a shell does. Text that only mentions a command is allowed, such as `rg 'rm -rf'` or a commit message. Commands inside `bash -c`, `$(...)`, heredocs fed to a shell, and text `echo` or `printf` pipes into one are checked. It reads command text, so it is a seatbelt, not a sandbox.
 
 ## The archive block
 

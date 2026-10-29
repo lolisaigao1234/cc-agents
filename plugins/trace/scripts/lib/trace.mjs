@@ -664,6 +664,19 @@ function isSettings(path) {
 }
 
 /**
+ * What `path` is to the switches: a file of an installed plugin, one of
+ * Claude Code's settings files, or neither.
+ *
+ * @param {string} path an absolute path
+ * @returns {'plugin' | 'settings' | null}
+ */
+export function switchKind(path) {
+  const folded = fold(real(path))
+  if (configDirs().some(d => folded === `${d}/plugins` || folded.startsWith(`${d}/plugins/`))) return 'plugin'
+  return isSettings(folded) ? 'settings' : null
+}
+
+/**
  * Why an edit tool's change to `path` would switch the hooks or the trace
  * off, or null. Claude Code's settings may change in everything but those
  * switches; installed plugins may not change at all.
@@ -675,9 +688,9 @@ function isSettings(path) {
  */
 export function switchVerdict(toolName, toolInput, path) {
   const why = 'only the human changes it, by hand.'
-  const folded = fold(path)
-  if (configDirs().some(d => folded.startsWith(`${d}/plugins/`))) return `this is an installed plugin; ${why}`
-  if (!isSettings(folded)) return null
+  const kind = switchKind(path)
+  if (kind === 'plugin') return `this is an installed plugin; ${why}`
+  if (!kind) return null
   const before = existsSync(path) ? readFileSync(path, 'utf8') : ''
   const after = afterEdit(toolName, toolInput, before)
   if (after === null) return `the trace cannot tell what this edit does to Claude Code's settings; ${why}`

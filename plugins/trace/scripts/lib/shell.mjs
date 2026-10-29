@@ -15,8 +15,9 @@
  * `stdin` is the text a heredoc or here-string feeds it, when that is its
  * last input redirection, and `piped` says another command's output does.
  * `env` names the variables its assignments and `env` wrapper set.
+ * `writes` are the files among `files` that it redirects output to.
  *
- * @typedef {{ name: string, args: string[], files: string[], chdir?: string, level: number, op?: string, stdin?: string, piped?: boolean, env?: string[] }} SimpleCommand
+ * @typedef {{ name: string, args: string[], files: string[], writes: string[], chdir?: string, level: number, op?: string, stdin?: string, piped?: boolean, env?: string[] }} SimpleCommand
  */
 
 import { homedir } from 'node:os'
@@ -246,6 +247,10 @@ export function parseCommands(src, depth = 0) {
   let words = []
   /** @type {string[]} */
   let files = []
+  /** @type {string[]} */
+  let writes = []
+  /** Whether the redirection being read sends output to its file. */
+  let output = false
   /** @type {string | null} */
   let word = null
   /** `dup`: after `>&`, where a descriptor number or `-` names no file. @type {'file' | 'dup' | 'data' | null} */
@@ -272,7 +277,10 @@ export function parseCommands(src, depth = 0) {
     // An argument ends at a NUL, which $'\0' can write.
     if (word.includes('\0')) word = word.slice(0, word.indexOf('\0'))
     const expanded = expandBraces(word)
-    if (redirect === 'file' || (redirect === 'dup' && !/^(?:\d+-?|-)$/.test(word))) files.push(...expanded)
+    if (redirect === 'file' || (redirect === 'dup' && !/^(?:\d+-?|-)$/.test(word))) {
+      files.push(...expanded)
+      if (output) writes.push(...expanded)
+    }
     else if (redirect === 'data') herestring = word
     else if (redirect === null) words.push(...expanded)
     redirect = null
@@ -286,7 +294,7 @@ export function parseCommands(src, depth = 0) {
       const name = base(w[0])
       const args = w.slice(1)
       /** @type {SimpleCommand} */
-      const cmd = { name, args, files: [...files, ...inputs], level: parens }
+      const cmd = { name, args, files: [...files, ...inputs], writes: [...writes], level: parens }
       if (chdir !== undefined) cmd.chdir = chdir
       if (env.length) cmd.env = env
       if (op) cmd.op = op
@@ -304,6 +312,12 @@ export function parseCommands(src, depth = 0) {
         const script = args[c + 1] === '--' ? args[c + 2] : args[c + 1]
         if (c >= 0 && script !== undefined) nested(script)
         else if (cmd.stdin !== undefined) nested(cmd.stdin)
+        else if (cmd.piped) {
+          // `echo '…' | sh`: the text echo or printf writes is the script.
+          const from = out.findLast(p => p !== cmd && p.op === '|' && p.level === cmd.level)
+          if (from?.name === 'echo') nested(from.args.filter(a => !/^-[neE]+$/.test(a)).join(' ').replace(/\\n/g, '\n'))
+          else if (from?.name === 'printf' && from.args[0] !== undefined) nested(from.args[0].replace(/\\n/g, '\n'))
+        }
       } else if (name === 'eval') nested(args.join(' '), true)
       else if (name === 'watch') nested(args.filter(a => !a.startsWith('-')).join(' '))
       else if (name === 'find') {
@@ -319,6 +333,7 @@ export function parseCommands(src, depth = 0) {
     for (const h of heredocs) h.owner ??= null
     words = []
     files = []
+    writes = []
     herestring = undefined
     lastInput = null
     prevOp = op
@@ -438,6 +453,7 @@ export function parseCommands(src, depth = 0) {
       if (src[i + 1] === '>') {
         endWord()
         redirect = 'file'
+        output = true
         i += src[i + 2] === '>' ? 3 : 2
       } else {
         endCommand(src[i + 1] === '&' ? '&&' : '&')
@@ -468,11 +484,13 @@ export function parseCommands(src, depth = 0) {
       } else if (c === '<') {
         if (stdin) lastInput = 'file'
         redirect = src[i + 1] === '&' ? 'dup' : 'file'
+        output = src[i + 1] === '>'
         i += src[i + 1] === '>' || src[i + 1] === '&' ? 2 : 1
       } else {
         let k = i + 1
         if (src[k] === '>' || src[k] === '|') k++
         redirect = src[k] === '&' ? 'dup' : 'file'
+        output = true
         if (src[k] === '&') k++
         i = k
       }
