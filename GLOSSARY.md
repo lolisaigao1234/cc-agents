@@ -72,7 +72,7 @@ _Avoid_: warning, notice
 A hard block that applies once, and lets the next attempt through.
 
 **Guard**:
-The hard block on commands that destroy work or history.
+The hard block on commands that destroy work or history, or that write the switches (Claude Code's settings and installed plugins).
 _Avoid_: safety hook, git guard
 
 **Archive block**:

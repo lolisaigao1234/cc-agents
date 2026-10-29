@@ -55,7 +55,7 @@ function hookOutput(event, input) {
   const toolInput = input.tool_input ?? {}
   const world = worldFor(readsOf(input))
   const guardReason = () => {
-    const why = input.tool_name === 'Bash' ? guard(String(toolInput.command ?? '')) : null
+    const why = input.tool_name === 'Bash' ? guard(String(toolInput.command ?? ''), input.cwd ?? process.cwd()) : null
     return why && `trace guard: ${why}. If it is really needed, ask the user to run it.`
   }
   const cwd = input.cwd ?? process.cwd()

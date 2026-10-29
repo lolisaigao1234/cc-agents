@@ -12,7 +12,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 import { CASE_INSENSITIVE_FS, real, untilde } from './paths.mjs'
-import { cdTarget, gitParts, operandIndexes, parseCommands, shortFlags, withCwds } from './shell.mjs'
+import { INTERPRETERS, cdTarget, gitParts, operandIndexes, parseCommands, shortFlags, withCwds } from './shell.mjs'
 
 /** @typedef {import('./shell.mjs').SimpleCommand} SimpleCommand */
 
@@ -429,8 +429,6 @@ const TEXT_ONLY = new Set(['echo', 'printf', 'true', 'false', ':'])
 const GH_FILE_OPTIONS = /^(?:--body-file|-F|--input|--file|--template)$/
 // Commands whose operands name scripts, targets or images more often than paths: only a path inside the archive counts.
 const RUNNERS = new Set(['npm', 'pnpm', 'yarn', 'bun', 'make', 'just', 'cargo', 'docker', 'go', 'kubectl'])
-// Interpreters whose code, given on the command line, may name a file in the archive.
-const INTERPRETERS = /^(?:node|deno|bun|python[\d.]*|ruby|perl|php|osascript|lua|Rscript|awk|gawk|jq)$/
 
 /**
  * The options in `args` that take a value, with the value and where it is.
