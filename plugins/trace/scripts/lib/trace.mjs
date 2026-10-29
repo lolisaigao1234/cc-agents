@@ -69,11 +69,17 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
  */
 
 /**
- * `once(key)` is true the first time it is asked about `key`. `timeLeft()`,
- * in a real world, is the milliseconds its call has left for git and GitHub,
- * and throws once there are none; the archive block shares it.
+ * The hook call's deadline: the milliseconds it has left to ask git and
+ * GitHub. It throws once there are none.
  *
- * @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined>, reads: import('./docs.mjs').Reads, once(key: string): boolean, timeLeft?: () => number }} World
+ * @typedef {() => number} TimeLeft
+ */
+
+/**
+ * `once(key)` is true the first time it is asked about `key`. A real world
+ * has its hook call's `timeLeft`, which the archive block shares.
+ *
+ * @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined>, reads: import('./docs.mjs').Reads, once(key: string): boolean, timeLeft?: TimeLeft }} World
  */
 
 // --- the edit gate ---------------------------------------------------------------
@@ -777,9 +783,10 @@ const slugOf = url => /(?:^|[@/])github\.com(?::\d+)?[:/]([^/]+\/[^/]+?)(?:\.git
 
 /** @returns {World} a fresh real world, its deadline starting now */
 function realWorld() {
-  const deadline = Date.now() + 20_000
+  const endsAt = Date.now() + 20_000
+  /** @type {TimeLeft} */
   const timeLeft = () => {
-    const ms = deadline - Date.now()
+    const ms = endsAt - Date.now()
     if (ms <= 0) throw new Error('out of time asking git and GitHub')
     return ms
   }
@@ -871,7 +878,7 @@ function realWorld() {
     // Deleting the marker from the working tree, or committing its deletion on a
     // branch, does not opt out: it also counts while HEAD or the default branch has it.
     // Only git saying no makes a repository untraced: when git does not answer
-    // (a timeout, the deadline run out, or no git to run), this throws, and
+    // (a timeout, the hook call's deadline run out, or no git to run), this throws, and
     // the gates refuse rather than let an untraced edit, commit or PR through.
     traced(root) {
       if (existsSync(join(root, MARKER))) return true

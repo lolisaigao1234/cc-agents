@@ -31,24 +31,21 @@ const isBareRepo = (/** @type {string} */ dir) => ['HEAD', 'objects', 'refs'].ev
 const fresh = new Set()
 
 // A hook that times out lets the command through, so the git calls of one
-// tool call draw from the hook call's deadline, which the trace's git and
+// tool call draw from the hook call's deadline, which the gates' git and
 // GitHub calls share. Set for every tool call.
-/** @type {() => number} the milliseconds left; throws once there are none */
-let timeLeft = () => Infinity
+/** @type {{ timeLeft: import('./trace.mjs').TimeLeft }} */
+const call = { timeLeft: () => Infinity }
 
 /** Thrown when the hook call's deadline runs out before git has answered. */
 class OutOfTime extends Error {}
 
-/** @returns {number} the milliseconds left to ask git; throws OutOfTime once there are none */
-function left() {
-  let ms
+/** @returns {number} the timeout for one git call: 5s, or what the hook call has left; throws OutOfTime once it has none */
+function gitTimeout() {
   try {
-    ms = timeLeft()
+    return Math.min(5000, call.timeLeft())
   } catch {
     throw new OutOfTime()
   }
-  if (!(ms > 0)) throw new OutOfTime()
-  return ms
 }
 
 /** @param {string} dir @returns {string | null} the repository root at or above `dir` */
@@ -725,10 +722,10 @@ function historyTouches(sub, opts, cwd) {
   const diff = /^diff/.test(sub)
   const r = spawnSync('git', ['-C', cwd, sub === 'difftool' ? 'diff' : sub, ...opts, '--name-only', '--no-renames', '--no-ext-diff',
     ...(sub === 'diff' || sub === 'difftool' ? ['--no-relative'] : []), ...(diff ? [] : ['--format='])],
-  { encoding: 'utf8', timeout: Math.min(5000, left()), maxBuffer: 64 * 1024 * 1024 })
+  { encoding: 'utf8', timeout: gitTimeout(), maxBuffer: 64 * 1024 * 1024 })
   if (r.status !== 0) {
     // When git cannot say, assume the worst; when it was stopped at the deadline, say so.
-    left()
+    gitTimeout()
     return true
   }
   return r.stdout.split('\n').some(l => l === 'archive' || l.startsWith('archive/'))
@@ -985,13 +982,13 @@ function searchToolTouches(toolName, toolInput, root, cwd) {
  * @param {string} toolName
  * @param {Record<string, unknown>} toolInput
  * @param {string} cwd the agent's working directory
- * @param {() => number} [deadline] the milliseconds the hook call has left to ask git, throwing once there are none;
- *   without it, each git call is bounded only by its own timeout
+ * @param {import('./trace.mjs').TimeLeft} [timeLeft] the hook call's deadline; without it, each git call is
+ *   bounded only by its own timeout
  * @returns {string | null}
  */
-export function archiveBlock(toolName, toolInput, cwd, deadline = () => Infinity) {
+export function archiveBlock(toolName, toolInput, cwd, timeLeft = () => Infinity) {
   fresh.clear()
-  timeLeft = deadline
+  call.timeLeft = timeLeft
   /** @type {string | null} */
   let why
   try {
