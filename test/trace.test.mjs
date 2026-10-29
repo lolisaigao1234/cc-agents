@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { commandVerdict, editVerdict } from '../plugins/trace/scripts/lib/trace.mjs'
+import { commandVerdict, editVerdict, worldFor } from '../plugins/trace/scripts/lib/trace.mjs'
 
 const HOOK = fileURLToPath(new URL('../plugins/trace/scripts/hook.mjs', import.meta.url))
 
@@ -106,6 +106,25 @@ test('edits outside the repository are never gated, and its .git directory is', 
   const why = editVerdict('/repo/.git/config', world({ branch: '6-x', issues: { 6: 'OPEN' } }))
   assert.match(String(why), /git directory/)
   assert.match(String(why), /Branch step/)
+})
+
+test('the deadline on git and GitHub starts with each call, not when the module loads', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
+  const { dir, git } = repo()
+  t.mock.timers.tick(25_000)
+  assert.match(String(editVerdict(join(dir, 'a.md'))), /default branch/, 'a call long after the module loaded still asks git')
+  const reads = { records: () => null, add() {}, clear() {} }
+  const first = worldFor(reads)
+  assert.equal(first.git.message(dir, 'HEAD'), 'init')
+  assert.equal(first.git.origin(dir), 'owner/name')
+  t.mock.timers.tick(15_000)
+  const second = worldFor(reads)
+  t.mock.timers.tick(15_000)
+  assert.throws(() => first.git.message(dir, 'HEAD'), /out of time asking git and GitHub/, 'a later call does not extend an earlier one')
+  assert.throws(() => first.github.issueState(dir, 1), /out of time asking git and GitHub/, 'GitHub is bounded too')
+  assert.equal(second.git.message(dir, 'HEAD'), 'init')
+  git('remote', 'set-url', 'origin', 'https://github.com/owner/other.git')
+  assert.equal(second.git.origin(dir), 'owner/other', 'nor does it reuse an earlier call\'s answers')
 })
 
 /** A git repository on `main`, opted in to the trace unless `marked` is false. */
