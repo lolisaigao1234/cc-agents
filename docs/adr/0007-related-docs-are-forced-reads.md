@@ -29,3 +29,6 @@ A hard deny on Edit, Write, MultiEdit and NotebookEdit, and on `git commit` as t
 ## Consequences
 
 - Forced reads apply where the trace does: in traced repositories, to files inside the repository's working tree (ADR 0006).
+- What a commit takes cannot be told from its text, so at a commit every active ADR is related, whatever its `applies-to:`. The same holds for the other git commands that make or move commits.
+- The glossary and the ADRs are taken from `HEAD` as well as the working tree, so a doc moved, emptied or re-marked there is still related.
+- What each agent has read is a record the hook keeps outside the repository, signed for that agent. A model that deliberately read the signing key through Bash could forge one. The forced reads guard against drift, not against a model working to defeat them.

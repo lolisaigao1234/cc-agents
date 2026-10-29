@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -30,15 +31,18 @@ function world(o = {}) {
       message: (/** @type {string} */ _root, /** @type {string} */ rev) => messages[rev] ?? null,
       config: (/** @type {string} */ _root, /** @type {string} */ key) =>
         config[key] ?? (key.startsWith('alias.') ? aliases[key.slice('alias.'.length)] : undefined) ?? null,
+      headDocs: () => ({}),
     },
     github: {
       issueState: (/** @type {string} */ _root, /** @type {number} */ n) => (offline ? null : issues[n] ?? 'MISSING'),
+      issue: () => ({ title: '', body: '', comments: [] }),
       alias: (/** @type {string} */ name) => {
         if (ghAliases === null) throw new Error('gh alias list failed')
         return ghAliases[name] ?? null
       },
     },
     env,
+    reads: { records: () => [], add() {} },
   }
 }
 
@@ -119,26 +123,27 @@ function repo(marked = true) {
 
 /**
  * A `gh` on PATH that answers `gh api repos/<repo>/issues/<n>` from `issues`
- * (JSON keyed by "<repo>#<n>") and logs every call to `log`.
+ * (JSON keyed by "<repo>#<n>"), and `…/comments` with its `thread`, one
+ * JSON line each, and logs every call to `log`.
  */
 const FAKE_GH = `#!/usr/bin/env node
 const { appendFileSync } = require('node:fs')
 const args = process.argv.slice(2)
 appendFileSync(process.env.FAKE_GH_LOG, args.join(' ') + '\\n')
 if (args[0] === 'alias' && args[1] === 'list') process.exit(0)
-const m = /^repos\\/(.+)\\/issues\\/(\\d+)$/.exec(args[0] === 'api' ? args[1] : '')
+const m = /^repos\\/(.+)\\/issues\\/(\\d+)(\\/comments)?$/.exec(args[0] === 'api' ? args.find(a => a.startsWith('repos/')) ?? '' : '')
 const issue = m && JSON.parse(process.env.FAKE_GH_ISSUES)[m[1] + '#' + m[2]]
 if (!issue) { process.stderr.write('gh: Not Found (HTTP 404)\\n'); process.exit(1) }
-process.stdout.write(JSON.stringify(issue))
+process.stdout.write(m[3] ? (issue.thread ?? []).map(c => JSON.stringify(c) + '\\n').join('') : JSON.stringify(issue))
 `
 
 /** @param {object} input @param {Record<string, string>} [env] @param {Record<string, object>} [issues] */
-function hook(input, env = {}, issues = {}) {
+function hook(input, env = {}, issues = {}, event = 'pre-tool-use') {
   const bin = mkdtempSync(join(tmpdir(), 'gh-'))
   writeFileSync(join(bin, 'gh'), FAKE_GH, { mode: 0o755 })
   const log = join(bin, 'log')
   writeFileSync(log, '')
-  const r = spawnSync(process.execPath, [HOOK, 'pre-tool-use'], {
+  const r = spawnSync(process.execPath, [HOOK, event], {
     input: JSON.stringify(input),
     encoding: 'utf8',
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_GH_LOG: log, FAKE_GH_ISSUES: JSON.stringify(issues), TRACE_BYPASS: '', ...env },
@@ -183,6 +188,70 @@ test("the hook asks origin's repository about the issue, and refuses a pull requ
   assert.match(hook.calls, /repos\/owner\/name\/issues\/15/)
   git('checkout', '-qb', '16-an-issue')
   assert.equal(hook(edit, {}, { 'owner/name#16': { state: 'open' } }), null)
+})
+
+test("the hook counts an agent's own full reads only, and only while the docs are unchanged", () => {
+  const { dir, git } = repo()
+  git('checkout', '-qb', '8-doc-authority')
+  const glossary = join(dir, 'GLOSSARY.md')
+  writeFileSync(glossary, '# Terms\n\nA term.\n')
+  const issues = { 'owner/name#8': { state: 'open', title: 'Doc authority', body: '', comments: 1, thread: [{ id: '5', author: 'h', body: 'Keep it short.' }] } }
+  const session = `s-${process.pid}-${Math.random().toString(36).slice(2)}`
+  const as = (/** @type {string | undefined} */ agent) => (agent ? { session_id: session, agent_id: agent, agent_type: 'general-purpose' } : { session_id: session })
+  const edit = (/** @type {string} */ agent = '') => hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir, ...as(agent) }, {}, issues)
+  /** @param {string} agent @param {string} tool_name @param {object} tool_input @param {object} tool_response */
+  const post = (agent, tool_name, tool_input, tool_response) => hook({ tool_name, tool_input, tool_response, cwd: dir, ...as(agent) }, {}, issues, 'post-tool-use')
+  const readAll = (/** @type {string} */ agent = '') => {
+    const content = readFileSync(glossary, 'utf8')
+    const lines = content.split('\n').length
+    post(agent, 'Read', { file_path: glossary }, { type: 'text', file: { filePath: glossary, content, numLines: lines, startLine: 1, totalLines: lines } })
+    post(agent, 'Bash', { command: 'gh issue view 8' }, { stdout: 'title:\tDoc authority\nstate:\tOPEN\n', stderr: '', interrupted: false })
+    post(agent, 'Bash', { command: 'gh issue view 8 --comments' }, { stdout: 'author:\th\n--\nKeep it short.\n--\n', stderr: '', interrupted: false })
+  }
+  assert.match(String(edit()?.permissionDecisionReason), /^trace: the related docs are not all read\. Unread: GLOSSARY\.md; issue #8: its title, comment 5 by h/)
+  readAll()
+  assert.equal(edit(), null)
+  assert.match(String(edit('a1b2c3')?.permissionDecisionReason), /Unread: GLOSSARY\.md; issue #8/, "a parent's reads do not count for its subagent")
+  // A record copied from another agent, or written by hand, is not signed for this one.
+  const store = join(realpathSync(tmpdir()), 'trace-reads', session)
+  mkdirSync(join(store, 'f00d'), { recursive: true })
+  for (const name of readdirSync(join(store, 'main'))) copyFileSync(join(store, 'main', name), join(store, 'f00d', name))
+  const forged = { file: glossary, hash: createHash('sha256').update(readFileSync(glossary, 'utf8')).digest('hex'), from: 1, to: 4 }
+  writeFileSync(join(store, 'f00d', 'forged.json'), JSON.stringify({ record: forged, sig: 'x' }))
+  writeFileSync(join(store, 'f00d', 'bare.json'), JSON.stringify(forged))
+  assert.match(String(edit('f00d')?.permissionDecisionReason), /Unread: GLOSSARY\.md; issue #8/)
+  readAll('a1b2c3')
+  assert.equal(edit('a1b2c3'), null)
+  writeFileSync(glossary, '# Terms\n\nA changed term.\n')
+  assert.match(String(edit()?.permissionDecisionReason), /Unread: GLOSSARY\.md \(stale: changed since this agent read it\)\./)
+  assert.match(String(hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir }, {}, issues)?.permissionDecisionReason), /cannot tell which agent this is/)
+  assert.match(String(hook({ tool_name: 'Bash', tool_input: { command: 'git commit -m "x (#8)"' }, cwd: dir, ...as('') }, {}, issues)?.permissionDecisionReason), /GLOSSARY\.md \(stale/)
+})
+
+test('during a rebase, the branch being rebased is the one the trace reads', () => {
+  const { dir, git } = repo()
+  git('checkout', '-qb', '8-doc-authority')
+  writeFileSync(join(dir, 'a.md'), 'mine\n')
+  git('commit', '-qam', 'mine (#8)')
+  git('checkout', '-q', 'main')
+  writeFileSync(join(dir, 'a.md'), 'theirs\n')
+  git('commit', '-qam', 'theirs')
+  git('checkout', '-q', '8-doc-authority')
+  assert.throws(() => git('rebase', 'main'), 'the rebase stops on the conflict')
+  const issues = { 'owner/name#8': { state: 'open', title: '', body: '', comments: 0 } }
+  const out = hook({ tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir, session_id: `s-${process.pid}` }, {}, issues)
+  assert.equal(out, null, String(out?.permissionDecisionReason))
+})
+
+test("the hook refuses tools that would touch the trace's read records, and only those", () => {
+  const { dir } = repo(false)
+  for (const command of ['echo {} > "$TMPDIR/trace-reads/s/main/x.json"', `rm ${join(tmpdir(), 'trace-reads')}/s/main/x.json`, 'cd "$TMPDIR" && cat trace-reads/.key']) {
+    assert.match(String(hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir })?.permissionDecisionReason), /records of what each agent has read/, command)
+  }
+  const out = hook({ tool_name: 'Write', tool_input: { file_path: join(tmpdir(), 'trace-reads', 's', 'main', 'x.json'), content: '{}' }, cwd: dir })
+  assert.match(String(out?.permissionDecisionReason), /records of what each agent has read/)
+  for (const command of ['rg -n trace-reads plugins', 'rg -n foo /tmp/trace-reads-notes']) assert.equal(hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir }), null, command)
+  assert.equal(hook({ tool_name: 'Write', tool_input: { file_path: join(dir, 'src/trace-reads/index.js'), content: '' }, cwd: dir }), null)
 })
 
 test('the hook resolves symlinks and ~ before deciding', () => {

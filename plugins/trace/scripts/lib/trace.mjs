@@ -1,14 +1,17 @@
 // The trace: whether an action is traceable, from git and GitHub state
 // (ADR 0006). In a traced repository, a file inside it may be edited only on
-// the branch of an open issue, a commit must reference that issue and a PR
-// close it, and nothing the model writes turns that off.
+// the branch of an open issue, by an agent that has read the related docs
+// (ADR 0007); a commit must reference that issue and a PR close it, and
+// nothing the model writes turns that off.
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
-import { fold, real, untilde } from './paths.mjs'
+import { decode, docsVerdict, fileRecord, isDocName, outputRecords, writeRecord } from './docs.mjs'
+
+import { fold, real, toolPath, untilde } from './paths.mjs'
 import { GIT_COMMIT_OPTIONS, computed, gitParts, literal, parseCommands, readOptions, unliteral, withCwds } from './shell.mjs'
 
 /** @typedef {import('./shell.mjs').SimpleCommand} SimpleCommand */
@@ -20,7 +23,8 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
 /**
  * What the trace needs from git. `origin` is origin's GitHub repository as
  * `owner/name`, and `ghBase` the one gh opens PRs in when not told; `message`
- * a commit's message; `config` a setting's value.
+ * a commit's message; `config` a setting's value; `headDocs` the glossary and
+ * ADRs as HEAD has them.
  *
  * @typedef {{
  *   root(path: string): string | null,
@@ -31,20 +35,22 @@ const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${B
  *   message(root: string, rev: string): string | null,
  *   ghBase(root: string): string | null,
  *   config(root: string, key: string): string | null,
+ *   headDocs(root: string): import('./docs.mjs').HeadDocs,
  * }} Git
  */
 
 /**
- * What the trace needs from GitHub: an issue's state, or null when GitHub
- * cannot be asked. A pull request is 'MISSING': it is not an issue.
+ * What the trace needs from GitHub: an issue's state, and its text, or null
+ * when GitHub cannot be asked. A pull request is 'MISSING': it is not an issue.
  *
  * @typedef {{
  *   issueState(root: string, n: number): 'OPEN' | 'CLOSED' | 'MISSING' | null,
+ *   issue(root: string, n: number): import('./docs.mjs').Issue | null,
  *   alias(name: string): string | null,
  * }} GitHub
  */
 
-/** @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined> }} World */
+/** @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined>, reads: import('./docs.mjs').Reads }} World */
 
 // --- the edit gate ---------------------------------------------------------------
 
@@ -63,8 +69,100 @@ export function editVerdict(path, world = REAL) {
     return "this is the repository's git directory. Branch step: change branches and remotes with git and `gh issue develop`, never by editing .git/."
   }
   const linked = linkedIssue(root, world.git.branch(root), world)
-  return 'why' in linked ? linked.why : null
+  return 'why' in linked ? linked.why : readVerdict(root, linked.n, [relative(root, path)], world)
 }
+
+/** @param {string} root @param {number} n @param {string[] | null} paths @param {World} world */
+const readVerdict = (root, n, paths, world) =>
+  docsVerdict(root, n, paths, {
+    issue: world.github.issue(root, n),
+    slug: world.git.origin(root),
+    head: world.git.headDocs(root),
+    records: () => world.reads.records(),
+    unknownAgent: cannotTell('which agent this is, so not what it has read', `the change waits for a hook input that names the agent; ${BYPASS_HINT}`, 'Read'),
+  })
+
+// Claude Code cuts a Bash output this long to a short preview, which is all the agent sees.
+const PERSISTED = 30_000
+const PREVIEW = 2_000
+
+/** @param {string} out @returns {string} the preview of a cut output, as Claude Code makes it */
+function preview(out) {
+  const t = out.replace(/^(\s*\n)+/, '').trimEnd()
+  if (t.length <= PREVIEW) return t
+  const nl = t.slice(0, PREVIEW).lastIndexOf('\n')
+  return t.slice(0, nl > PREVIEW / 2 ? nl : PREVIEW)
+}
+
+/**
+ * What a PostToolUse input shows its agent has read: a Read's lines, and, in
+ * a file outside the repository (a saved output), the linked issue's parts
+ * and HEAD's docs it holds; what a `gh` or `git show` command printed of
+ * them, counting only the preview when the output was too long to show
+ * whole; or a doc the agent wrote or edited knowing all of it.
+ *
+ * @param {{ tool_name?: string, tool_input?: Record<string, unknown>, tool_response?: unknown, cwd?: string }} input
+ * @param {World} [world]
+ * @returns {import('./docs.mjs').ReadRecord[]}
+ */
+export function readRecord(input, world = REAL) {
+  const cwd = input.cwd ?? process.cwd()
+  const linked = () => {
+    const root = tracedRoot(real(cwd), world.git)
+    const n = root && branchIssue(world.git.branch(root))
+    return root && n ? { root, n } : null
+  }
+  const response = /** @type {Record<string, unknown> | null} */ (input.tool_response)
+  if (input.tool_name === 'Read') {
+    const file = fileRecord(response)
+    const read = /** @type {{ filePath?: unknown, content?: unknown } | undefined} */ (response?.file)
+    const at = typeof read?.filePath === 'string' && typeof read.content === 'string' ? linked() : null
+    if (!at || !read || typeof read.content !== 'string') return file ? [file] : []
+    const path = fold(real(String(read.filePath)))
+    const inside = path === fold(at.root) || path.startsWith(`${fold(at.root)}/`)
+    return [...(file ? [file] : []), ...(inside ? [] : outputRecords(read.content, at.root, at.n, world.github.issue(at.root, at.n), world.git.headDocs(at.root)))]
+  }
+  if (input.tool_name === 'Write' || input.tool_name === 'Edit' || input.tool_name === 'MultiEdit') {
+    const raw = input.tool_input?.file_path
+    if (typeof raw !== 'string') return []
+    const change =
+      input.tool_name === 'Write'
+        ? { written: String(input.tool_input?.content ?? '') }
+        : typeof response?.originalFile === 'string'
+          ? { expected: afterEdit(input.tool_name, input.tool_input ?? {}, response.originalFile), original: response.originalFile, userModified: response.userModified === true }
+          : null
+    const record = change && writeRecord(toolPath(raw, cwd), change, world.reads.records())
+    return record ? [record] : []
+  }
+  const command = String(input.tool_input?.command ?? '')
+  const stdout = response?.stdout
+  const asksGitHub = /\bgh\b/.test(command) && /\b(?:issue|api)\b/.test(command)
+  const asksGit = /\bgit\b/.test(command) && /\b(?:show|cat-file)\b/.test(command)
+  if (input.tool_name !== 'Bash' || typeof stdout !== 'string' || !(asksGitHub || asksGit)) return []
+  const at = linked()
+  if (!at) return []
+  const cut = typeof response?.persistedOutputPath === 'string' || stdout.length >= PERSISTED
+  const shown = [command, ...postedTexts(command), cut ? preview(stdout) : stdout].join('\n')
+  return outputRecords(shown, at.root, at.n, asksGitHub ? world.github.issue(at.root, at.n) : null, asksGit ? world.git.headDocs(at.root) : null)
+}
+
+/**
+ * The words of a `gh` command line as the shell passes them: text the agent
+ * wrote, such as a comment it posts. A `--body-file` does not count; the
+ * agent may never have seen what is in it.
+ *
+ * @param {string} command @returns {string[]}
+ */
+const postedTexts = command =>
+  parseCommands(command)
+    .filter(c => c.name === 'gh')
+    .flatMap(c => c.args.map(unliteral))
+
+/** @param {string | null} branch @returns {number | null} the issue a branch's `<n>-` prefix names */
+const branchIssue = branch => Number(/^(\d+)-/.exec(branch ?? '')?.[1]) || null
+
+/** @param {import('./docs.mjs').Reads} reads @returns {World} the real world, as the agent with `reads` sees it */
+export const worldFor = reads => ({ ...REAL, reads })
 
 /**
  * The nearest traced repository at or above `path`, so a nested repository
@@ -88,7 +186,7 @@ function linkedIssue(root, branch, { git, github }) {
   if (branch && branch === git.defaultBranch(root)) {
     return { why: `this is the default branch (${branch}). Branch step: work on the issue's branch, \`gh issue develop <n> --checkout\` (Track first if there is no issue).` }
   }
-  const n = Number(/^(\d+)-/.exec(branch ?? '')?.[1])
+  const n = branchIssue(branch)
   if (!n) {
     return { why: `the branch ${branch ?? '(detached HEAD)'} names no issue. Track step: open an issue (to-tickets), then \`gh issue develop <n> --checkout\`.` }
   }
@@ -263,6 +361,18 @@ function definesGitAlias(c) {
   return words.some(w => /^(?:alias\.|--file|-f$|--edit|-e$)/i.test(w) || computed(w))
 }
 
+// Git commands other than commit that make or move commits; the related docs
+// must be read before them as before a commit. Stopping one, skipping a step
+// or asking for help makes nothing new.
+const COMMIT_MAKERS = new Set(['commit-tree', 'update-ref', 'merge', 'cherry-pick', 'revert', 'am', 'rebase', 'pull'])
+const MAKES_NOTHING = /^(?:--abort|--quit|--skip|--show-current-patch|--help|-h)$/
+
+/** @param {string} root @param {World} world @returns {string | null} */
+function makerVerdict(root, world) {
+  const n = world.git.branch(root) === world.git.defaultBranch(root) ? null : branchIssue(world.git.branch(root))
+  return n && world.github.issueState(root, n) === 'OPEN' ? readVerdict(root, n, null, world) : null
+}
+
 /** @param {Run} run @param {World} world */
 function commitVerdict(run, world) {
   let parts = gitParts(run.c.args)
@@ -285,6 +395,7 @@ function commitVerdict(run, world) {
     config = [...config, ...expanded.config]
     parts = { ...expanded, rest: [...expanded.rest, ...parts.rest] }
   }
+  if (parts.sub && COMMIT_MAKERS.has(parts.sub)) return place?.root && !(parts.rest.length === 1 && MAKES_NOTHING.test(parts.rest[0] ?? '')) ? makerVerdict(place.root, world) : null
   if (parts.sub !== 'commit') return null
   if (!place) return cannotTell('which repository this commit lands in', 'run `git commit` from the repository, or with `git -C <dir>`', 'Implement')
   if (!place.root) return null
@@ -293,6 +404,9 @@ function commitVerdict(run, world) {
   const { opts, unknown: unknownOption } = readOptions(parts.rest, GIT_COMMIT_OPTIONS, { abbrev: true })
   if (opts.some(([name]) => name === 'dry-run')) return null
   const { n } = linked
+  // What a commit takes cannot be told from its text, so every active ADR counts.
+  const unread = readVerdict(place.root, n, null, world)
+  if (unread) return unread
   const slug = world.git.origin(place.root)
   return judge(unknownOption ? null : commitMessage(opts, run, { root: place.root, dir: place.dir }, config, world.git), new RegExp(`(?:^|[^\\w&/])#${n}(?!\\d)${slug ? `|${escape(slug)}#${n}(?!\\d)` : ''}`, 'i'), {
     what: 'commit message',
@@ -597,10 +711,15 @@ const slugOf = url => /(?:^|[@/])github\.com(?::\d+)?[:/]([^/]+\/[^/]+?)(?:\.git
 
 /** @type {Map<string, string | null>} */
 const defaults = new Map()
+/** @type {Map<string, string | null>} */
+const origins = new Map()
 
 /** @type {Git} */
 const realGit = {
-  origin: root => slugOf(git(root, ['remote', 'get-url', 'origin']) ?? ''),
+  origin(root) {
+    if (!origins.has(root)) origins.set(root, slugOf(git(root, ['remote', 'get-url', 'origin']) ?? ''))
+    return origins.get(root) ?? null
+  },
   // As gh resolves it: a remote marked by `gh repo set-default`, else the
   // first GitHub remote of upstream, github, origin and the rest.
   ghBase(root) {
@@ -622,6 +741,26 @@ const realGit = {
   },
   message: (root, rev) => git(root, ['log', '-1', '--format=%B', rev, '--']),
   config: (root, key) => git(root, ['config', '--get', key]),
+  headDocs(root) {
+    const names = git(root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', 'GLOSSARY.md', 'docs/adr'])
+    if (names === null) return null
+    const list = names.split('\0').filter(isDocName)
+    const r = spawnSync('git', ['-C', root, 'cat-file', '--batch'], { input: list.map(p => `HEAD:${p}\n`).join(''), timeout: Math.min(3000, timeLeft()), maxBuffer: 64 << 20 })
+    if (r.error) throw r.error
+    if (r.status !== 0) return null
+    /** @type {Record<string, string>} */
+    const docs = {}
+    let at = 0
+    for (const name of list) {
+      const end = r.stdout.indexOf(10, at)
+      const size = Number(/ blob (\d+)$/.exec(r.stdout.subarray(at, end).toString())?.[1])
+      if (Number.isNaN(size)) return null
+      const text = decode(r.stdout.subarray(end + 1, end + 1 + size))
+      if (text !== null) docs[name] = text
+      at = end + 1 + size + 1
+    }
+    return docs
+  },
   root(path) {
     for (let d = path; ; d = dirname(d)) {
       if (existsSync(join(d, '.git'))) return d
@@ -640,7 +779,19 @@ const realGit = {
       return false
     }
   },
-  branch: root => git(root, ['symbolic-ref', '--short', '-q', 'HEAD']) || null,
+  // While a rebase stops, HEAD is detached; the branch is the one being rebased.
+  branch(root) {
+    const branch = git(root, ['symbolic-ref', '--short', '-q', 'HEAD'])
+    if (branch) return branch
+    for (const dir of ['rebase-merge', 'rebase-apply']) {
+      const at = git(root, ['rev-parse', '--git-path', `${dir}/head-name`])
+      try {
+        const name = at && readFileSync(resolve(root, at), 'utf8').trim()
+        if (name) return name.replace(/^refs\/heads\//, '')
+      } catch {}
+    }
+    return null
+  },
   defaultBranch(root) {
     if (!defaults.has(root)) {
       const remote = git(root, ['symbolic-ref', '--short', '-q', 'refs/remotes/origin/HEAD'])
@@ -667,22 +818,61 @@ const realGitHub = {
     const line = ghAliases.split('\n').find(l => l.startsWith(`${name}:`))
     return line ? line.slice(name.length + 1).trim().replace(/^'(.*)'$/s, '$1') : null
   },
-  // Asks about origin's repository by name: gh's own choice prefers a remote
-  // called upstream, which on a fork is someone else's issues.
   issueState(root, n) {
-    const slug = realGit.origin(root)
-    if (!slug) return null
-    const r = spawnSync('gh', ['api', `repos/${slug}/issues/${n}`], { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()) })
-    if (r.status !== 0) return /HTTP (404|410)/.test(r.stderr ?? '') ? 'MISSING' : null
+    const issue = issueJson(root, n)
+    if (issue === 'MISSING' || issue === null) return issue
+    if (issue.pull_request) return 'MISSING'
+    return issue.state === 'open' ? 'OPEN' : 'CLOSED'
+  },
+  issue(root, n) {
+    const issue = issueJson(root, n)
+    if (issue === 'MISSING' || issue === null) return null
+    const r = issue.comments === 0 ? null : gh(root, ['api', '--paginate', `repos/${realGit.origin(root)}/issues/${n}/comments`, '--jq', '.[] | {id: (.id | tostring), author: .user.login, body}'])
+    if (r && r.status !== 0) return null
+    const comments = r ? r.stdout : ''
     try {
-      const issue = JSON.parse(r.stdout)
-      if (issue.pull_request) return 'MISSING'
-      return issue.state === 'open' ? 'OPEN' : 'CLOSED'
+      const parsed = comments.split('\n').filter(Boolean).map(l => JSON.parse(l))
+      return { title: String(issue.title ?? ''), body: String(issue.body ?? ''), comments: parsed.map(c => ({ id: String(c.id), author: String(c.author), body: String(c.body ?? '') })) }
     } catch {
       return null
     }
   },
 }
 
+/** @param {string} root @param {string[]} args */
+const gh = (root, args) => spawnSync('gh', args, { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()), maxBuffer: 64 << 20 })
+
+/** @typedef {{ state?: string, pull_request?: unknown, title?: string, body?: string | null, comments?: number }} IssueJson */
+
+/** @type {Map<string, IssueJson | 'MISSING' | null>} */
+const issues = new Map()
+
+/**
+ * An issue as GitHub's API gives it, asked once per hook run: 'MISSING', or
+ * null when GitHub cannot be asked. It asks about origin's repository by name:
+ * gh's own choice prefers a remote called upstream, which on a fork is
+ * someone else's issues.
+ *
+ * @param {string} root @param {number} n
+ * @returns {IssueJson | 'MISSING' | null}
+ */
+function issueJson(root, n) {
+  const key = `${root}#${n}`
+  if (!issues.has(key)) {
+    const slug = realGit.origin(root)
+    const r = slug ? gh(root, ['api', `repos/${slug}/issues/${n}`]) : null
+    /** @type {IssueJson | 'MISSING' | null} */
+    let issue = null
+    if (r && r.status !== 0) issue = /HTTP (404|410)/.test(r.stderr ?? '') ? 'MISSING' : null
+    else if (r) {
+      try {
+        issue = JSON.parse(r.stdout)
+      } catch {}
+    }
+    issues.set(key, issue)
+  }
+  return issues.get(key) ?? null
+}
+
 /** @type {World} */
-const REAL = { git: realGit, github: realGitHub, env: process.env }
+const REAL = { git: realGit, github: realGitHub, env: process.env, reads: { records: () => null, add() {} } }
