@@ -9,7 +9,7 @@ Every change, code or docs or config, ties to one GitHub issue from start to fin
 
 | Step | Do it with | Done when |
 |---|---|---|
-| **Read** | the related docs: `GLOSSARY.md`, every active ADR (one with `applies-to:` only for the paths it names), and, once you are on its branch, the linked issue with its comments and the `docs/` files it links | this agent itself, not its parent, has read each in full since its last compaction: the band shows the docs read |
+| **Read** | the related docs: `GLOSSARY.md`, every active ADR, and, once you are on its branch, the linked issue with its comments and the `docs/` files it links | this agent's own full read of each is current, made since its last compaction; the band shows the main session's reads, and a refusal lists what this agent lacks |
 | **Track** | `gh issue create` with an `## Acceptance criteria` section; `grilling` first when the change is unclear. To split larger work, ask the human to run `/to-spec` and `/to-tickets` | an open issue states what to build and how to verify it |
 | **Branch** | `gh issue develop <n> --checkout`, with `--base <blocker's branch>` while the blocker's PR awaits merge | you are on `<n>-<slug>` |
 | **Implement** | `tdd`; `diagnosing-bugs` for a hard bug. The human may run `/implement <n>` instead | every acceptance criterion passes and every commit message carries `#<n>` |
@@ -17,7 +17,9 @@ Every change, code or docs or config, ties to one GitHub issue from start to fin
 | **Update** | `gh issue comment <n>` | the issue shows this round's progress, decisions and verification |
 | **Close** | the human merges | the issue is closed by its PR, or closed with a state reason and a comment |
 
-Review and fix run in rounds. Answer every finding with a fix or, in the progress comment, a reason. Fix the finding's whole class, every instance of it. After the first round, review only the new diff. After three rounds, step back: reconsider the approach and ask the human before a fourth.
+A skill named bare here is Matt's: invoke it as `mattpocock-skills:<name>`.
+
+Review and fix run in rounds. Answer every finding with a fix or, in the progress comment, a reason. Fix the finding's whole class. After the first round, review only the new diff. After three rounds, step back: reconsider the approach and ask the human before a fourth.
 
 The issue is the source of truth across compaction, resumes and subagents: when memory and the issue disagree, reread the issue.
 

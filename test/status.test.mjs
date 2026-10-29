@@ -113,11 +113,11 @@ test('the step moves on as each one completes, up to Close', () => {
   const implement = at({})
   assert.equal(implement?.docs, 'read')
   assert.deepEqual([implement?.step, implement?.done], ['implement', ['read', 'track', 'branch']])
-  assert.match(String(implement?.why), /no commit on this branch references #10 yet\. Implement step: build it test-first \(tdd\)/)
+  assert.match(String(implement?.why), /no commit on this branch references #10 yet\. Implement step: build it test-first \(mattpocock-skills:tdd\)/)
 
   const review = at({ committed: true })
   assert.deepEqual([review?.step, review?.pr], ['review', null])
-  assert.match(String(review?.why), /Review step: review 10-trace-band \(\/code-review, mattpocock-skills:code-review\), then open a PR for it that says Closes #10 \(pr\)\./)
+  assert.match(String(review?.why), /Review step: review 10-trace-band since its base \(\/code-review, mattpocock-skills:code-review\), then open a PR for it that says Closes #10 \(mattpocock-skills:pr\)\./)
 
   const pushed = { sha: 'abc', at: '2026-10-04T10:00:00Z' }
   const update = at({ committed: true, pr: PR, pushed })
