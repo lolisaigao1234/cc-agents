@@ -59,8 +59,7 @@ function soon($: EngineInterface) {
 }
 
 export const register: Register = on => {
-  on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'trace', description: "Show the trace: the linked issue's step, unread docs, latest progress comment and PR checks" })
+  on('session.start', ($, e, next) => {
     soon($)
     return next(e)
   })
@@ -76,7 +75,10 @@ export const register: Register = on => {
     return ran
   })
 
-  on('command.run', { command: 'trace' }, async $ => {
+  // `/trace` is the plugin's trace skill. Typed bare by the person, it prints
+  // the status; with arguments, or run by anyone else, it is the skill.
+  on('command.run', { command: 'trace:trace' }, async ($, e, next) => {
+    if (e.origin.kind !== 'composer' || e.args.trim()) return next(e)
     let s: TraceStatus | null
     try {
       s = await traceStatus($)

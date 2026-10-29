@@ -9,8 +9,9 @@ const BAND = {
   props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100, scroll: { offset: 0, bodyRows: 10 }, view: {} },
 } as const
 
-// `/trace` as the person types it at the prompt.
-const TRACE = { command: 'trace', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as const
+// `/trace` as the person types it at the prompt: the plugin's trace skill's
+// name, which the band answers with the status.
+const TRACE = { command: 'trace:trace', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as const
 
 const AT_REVIEW: TraceStatus = {
   step: 'update',
@@ -38,7 +39,7 @@ const AT_REVIEW: TraceStatus = {
  */
 function engine(on: On, status: () => TraceStatus | null) {
   const runs: { argv: readonly string[]; stdin?: string }[] = []
-  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('command.run', () => ({ text: 'the trace skill' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.cwd', () => ({ value: '/repo' }))
   on('session.id', () => ({ value: 's-1' }))
@@ -129,4 +130,12 @@ test('/trace in a repository that has not opted in says so', async ($, on) => {
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const { text } = await $.command.run(TRACE)
   expect(text).toBe('Trace: this repository has not opted in (no .claude/trace.json), or TRACE_BYPASS=1 is set.')
+})
+
+test("/trace with arguments, or run by anyone but the person, is the trace skill's", async ($, on) => {
+  mock.clock(on)
+  engine(on, () => AT_REVIEW)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  expect((await $.command.run({ ...TRACE, args: 'which step?' })).text).toBe('the trace skill')
+  expect((await $.command.run({ ...TRACE, origin: { kind: 'sdk' } })).text).toBe('the trace skill')
 })
