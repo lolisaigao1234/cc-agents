@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { commandVerdict, editVerdict } from '../plugins/trace/scripts/lib/trace.mjs'
+import { commandVerdict, editVerdict, worldFor } from '../plugins/trace/scripts/lib/trace.mjs'
 
 const HOOK = fileURLToPath(new URL('../plugins/trace/scripts/hook.mjs', import.meta.url))
 
@@ -106,6 +106,17 @@ test('edits outside the repository are never gated, and its .git directory is', 
   const why = editVerdict('/repo/.git/config', world({ branch: '6-x', issues: { 6: 'OPEN' } }))
   assert.match(String(why), /git directory/)
   assert.match(String(why), /Branch step/)
+})
+
+test('the deadline on git and GitHub starts with each call, not when the module loads', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
+  const { dir } = repo()
+  t.mock.timers.tick(25_000)
+  assert.match(String(editVerdict(join(dir, 'a.md'))), /default branch/, 'a call long after the module loaded still asks git')
+  const world = worldFor({ records: () => null, add() {}, clear() {} })
+  assert.equal(world.git.message(dir, 'HEAD')?.trim(), 'init')
+  t.mock.timers.tick(25_000)
+  assert.throws(() => world.git.message(dir, 'HEAD'), /out of time asking git and GitHub/, 'within one call, the deadline still holds')
 })
 
 /** A git repository on `main`, opted in to the trace unless `marked` is false. */

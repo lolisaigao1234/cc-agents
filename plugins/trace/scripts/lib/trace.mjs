@@ -83,7 +83,7 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
  * @param {World} [world]
  * @returns {string | null}
  */
-export function editVerdict(path, world = REAL) {
+export function editVerdict(path, world = realWorld()) {
   if (world.env[BYPASS] === '1') return null
   const root = tracedRoot(path, world.git)
   if (!root) return null
@@ -127,7 +127,7 @@ function preview(out) {
  * @param {World} [world]
  * @returns {import('./docs.mjs').ReadRecord[]}
  */
-export function readRecord(input, world = REAL) {
+export function readRecord(input, world = realWorld()) {
   const cwd = input.cwd ?? process.cwd()
   const linked = () => {
     const root = tracedRoot(real(cwd), world.git)
@@ -184,7 +184,7 @@ const postedTexts = command =>
 export const branchIssue = branch => Number(/^(\d+)-/.exec(branch ?? '')?.[1]) || null
 
 /** @param {import('./docs.mjs').Reads} reads @returns {World} the real world, as the agent with `reads` sees it */
-export const worldFor = reads => ({ ...REAL, reads })
+export const worldFor = reads => ({ ...realWorld(), reads })
 
 /**
  * The nearest traced repository at or above `path`, so a nested repository
@@ -245,7 +245,7 @@ const DECLARES = new Set(['export', 'declare', 'typeset', 'readonly'])
  * @param {World} [world]
  * @returns {string | null}
  */
-export function commandVerdict(command, cwd, world = REAL) {
+export function commandVerdict(command, cwd, world = realWorld()) {
   if (world.env[BYPASS] === '1') return null
   /** @type {SimpleCommand[]} */
   const earlier = []
@@ -744,11 +744,18 @@ function afterEdit(toolName, input, text) {
 /** The marker `/trace:setup` commits to opt a repository in. */
 const MARKER = '.claude/trace.json'
 
-// A hook that times out lets the edit through, so every call shares one
-// deadline well inside the hook's timeout, and running out throws.
-const DEADLINE = Date.now() + 20_000
+// A hook that times out lets the edit through, so the git and GitHub calls of
+// one hook call share one deadline well inside the hook's timeout, and running
+// out throws. It starts with each call's world, not when the module loads: a
+// process that serves many calls, as the tests do, would otherwise run out.
+let deadline = 0
+/** @returns {World} the real world, its deadline started now */
+const realWorld = () => {
+  deadline = Date.now() + 20_000
+  return REAL
+}
 const timeLeft = () => {
-  const ms = DEADLINE - Date.now()
+  const ms = deadline - Date.now()
   if (ms <= 0) throw new Error('out of time asking git and GitHub')
   return ms
 }
