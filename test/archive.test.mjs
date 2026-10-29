@@ -418,3 +418,15 @@ test('the hook denies a Read of the archive, and lets other reads through', () =
   const cat = JSON.parse(run({ tool_name: 'Bash', tool_input: { command: 'cat archive/old.md' }, cwd: repo }).stdout)
   assert.equal(cat.hookSpecificOutput.permissionDecision, 'deny')
 })
+
+test('a history command is denied when the hook call has run out of time to ask git', () => {
+  const ranOut = () => {
+    throw new Error('out of time asking git and GitHub')
+  }
+  // `git log -p -1` prints only docs/, so with time to ask git it is allowed.
+  assert.equal(bash('git log -p -1'), null)
+  assert.match(String(archiveBlock('Bash', { command: 'git log -p -1' }, repo, ranOut)), /archive block: .*could not be checked in time/)
+  // A command that needs no answer from git is judged as before.
+  assert.equal(archiveBlock('Bash', { command: 'cat docs/a.md' }, repo, ranOut), null)
+  assert.match(String(archiveBlock('Bash', { command: 'cat archive/old.md' }, repo, ranOut)), /archive\/old\.md, in the archive/)
+})
