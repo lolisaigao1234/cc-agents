@@ -113,10 +113,16 @@ test('the deadline on git and GitHub starts with each call, not when the module 
   const { dir } = repo()
   t.mock.timers.tick(25_000)
   assert.match(String(editVerdict(join(dir, 'a.md'))), /default branch/, 'a call long after the module loaded still asks git')
-  const world = worldFor({ records: () => null, add() {}, clear() {} })
-  assert.equal(world.git.message(dir, 'HEAD')?.trim(), 'init')
-  t.mock.timers.tick(25_000)
-  assert.throws(() => world.git.message(dir, 'HEAD'), /out of time asking git and GitHub/, 'within one call, the deadline still holds')
+  const reads = { records: () => null, add() {}, clear() {} }
+  const first = worldFor(reads)
+  assert.equal(first.git.message(dir, 'HEAD'), 'init')
+  assert.equal(first.git.origin(dir), 'owner/name')
+  t.mock.timers.tick(15_000)
+  const second = worldFor(reads)
+  t.mock.timers.tick(15_000)
+  assert.throws(() => first.git.message(dir, 'HEAD'), /out of time asking git and GitHub/, 'a later call does not extend an earlier one')
+  assert.throws(() => first.github.issueState(dir, 1), /out of time asking git and GitHub/, 'GitHub is bounded too')
+  assert.equal(second.git.message(dir, 'HEAD'), 'init')
 })
 
 /** A git repository on `main`, opted in to the trace unless `marked` is false. */

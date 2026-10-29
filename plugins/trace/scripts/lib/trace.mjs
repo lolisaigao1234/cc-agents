@@ -744,240 +744,238 @@ function afterEdit(toolName, input, text) {
 /** The marker `/trace:setup` commits to opt a repository in. */
 const MARKER = '.claude/trace.json'
 
-// A hook that times out lets the edit through, so the git and GitHub calls of
-// one hook call share one deadline well inside the hook's timeout, and running
-// out throws. It starts with each call's world, not when the module loads: a
-// process that serves many calls, as the tests do, would otherwise run out.
-let deadline = 0
-/** @returns {World} the real world, its deadline started now */
-const realWorld = () => {
-  deadline = Date.now() + 20_000
-  return REAL
-}
-const timeLeft = () => {
-  const ms = deadline - Date.now()
-  if (ms <= 0) throw new Error('out of time asking git and GitHub')
-  return ms
-}
-
-/** @param {string} root @param {string[]} args @returns {string | null} stdout, or null when git says no */
-const git = (root, args) => {
-  const r = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: Math.min(3000, timeLeft()) })
-  if (r.error) throw r.error
-  return r.status === 0 ? r.stdout.trim() : null
-}
-
 /** @param {string} url @returns {string | null} the GitHub repository a remote URL names, as `owner/name` */
 const slugOf = url => /(?:^|[@/])github\.com(?::\d+)?[:/]([^/]+\/[^/]+?)(?:\.git)?\/?$/i.exec(url)?.[1] ?? null
 
-/** @type {Map<string, string | null>} */
-const defaults = new Map()
-/** @type {Map<string, string | null>} */
-const origins = new Map()
-
-/** @type {Git} */
-const realGit = {
-  origin(root) {
-    if (!origins.has(root)) origins.set(root, slugOf(git(root, ['remote', 'get-url', 'origin']) ?? ''))
-    return origins.get(root) ?? null
-  },
-  // As gh resolves it: a remote marked by `gh repo set-default`, else the
-  // first GitHub remote of upstream, github, origin and the rest.
-  ghBase(root) {
-    const lines = (git(root, ['config', '--get-regexp', '^remote\\..*\\.(url|gh-resolved)$']) ?? '').split('\n')
-    /** @type {Map<string, { slug: string | null, resolved?: string }>} */
-    const remotes = new Map()
-    for (const line of lines) {
-      const m = /^remote\.(.+)\.(url|gh-resolved) (.*)$/i.exec(line)
-      if (!m) continue
-      const [, name = '', key = '', value = ''] = m
-      const r = remotes.get(name) ?? { slug: null }
-      if (key.toLowerCase() === 'url') r.slug = slugOf(value)
-      else r.resolved = value
-      remotes.set(name, r)
-    }
-    for (const r of remotes.values()) if (r.resolved) return r.resolved === 'base' ? r.slug : r.resolved
-    const rank = (/** @type {string} */ name) => ['upstream', 'github', 'origin'].indexOf(name) >>> 0
-    return [...remotes].filter(([, r]) => r.slug).sort(([a], [b]) => rank(a) - rank(b))[0]?.[1].slug ?? null
-  },
-  message: (root, rev) => git(root, ['log', '-1', '--format=%B', rev, '--']),
-  committed(root, n) {
-    const def = this.defaultBranch(root)
-    const base = def ? ['--ignore-missing', '--not', `refs/heads/${def}`, `refs/remotes/origin/${def}`] : []
-    const refers = refersTo(n, this.origin(root))
-    return (git(root, ['log', '-z', '--format=%B', 'HEAD', ...base, '--']) ?? '').split('\0').some(m => refers.test(m))
-  },
-  // Where the branch is pushed: its push destination, else its upstream,
-  // else origin's branch of its name. Null unless that holds commits no other
-  // branch of the remote has. Its time is when the ref last moved here (the
-  // reflog), else the commit's date.
-  pushed(root, branch) {
-    const full = (/** @type {string} */ rev) => git(root, ['rev-parse', '--symbolic-full-name', rev])
-    const ref = [full(`${branch}@{push}`), full(`${branch}@{upstream}`)].find(r => r?.startsWith('refs/remotes/')) ?? `refs/remotes/origin/${branch}`
-    const [, remote = '', name = ''] = /^refs\/remotes\/([^/]+)\/(.+)$/.exec(ref) ?? []
-    const [sha, committed] = (git(root, ['log', '-1', '--format=%H %cI', ref, '--']) ?? '').split(' ')
-    if (!sha || !committed || !git(root, ['rev-list', '-1', ref, '--not', `--exclude=${remote}/${name}`, `--remotes=${remote}`])) return null
-    const moved = /@\{(.+)\}$/.exec(git(root, ['reflog', 'show', '-1', '--format=%gd', '--date=iso-strict', ref, '--']) ?? '')?.[1]
-    return { sha, at: moved && !Number.isNaN(Date.parse(moved)) ? moved : committed }
-  },
-  config: (root, key) => git(root, ['config', '--get', key]),
-  headDocs(root) {
-    const names = git(root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', 'GLOSSARY.md', 'docs/adr'])
-    if (names === null) return null
-    const list = names.split('\0').filter(isDocName)
-    const r = spawnSync('git', ['-C', root, 'cat-file', '--batch'], { input: list.map(p => `HEAD:${p}\n`).join(''), timeout: Math.min(3000, timeLeft()), maxBuffer: 64 << 20 })
-    if (r.error) throw r.error
-    if (r.status !== 0) return null
-    /** @type {Record<string, string>} */
-    const docs = {}
-    let at = 0
-    for (const name of list) {
-      const end = r.stdout.indexOf(10, at)
-      const size = Number(/ blob (\d+)$/.exec(r.stdout.subarray(at, end).toString())?.[1])
-      if (Number.isNaN(size)) return null
-      const text = decode(r.stdout.subarray(end + 1, end + 1 + size))
-      if (text !== null) docs[name] = text
-      at = end + 1 + size + 1
-    }
-    return docs
-  },
-  root(path) {
-    for (let d = path; ; d = dirname(d)) {
-      if (existsSync(join(d, '.git'))) return d
-      if (dirname(d) === d) return null
-    }
-  },
-  // Deleting the marker from the working tree, or committing its deletion on a
-  // branch, does not opt out: it also counts while HEAD or the default branch has it.
-  // When git fails, only the marker in the working tree counts.
-  traced(root) {
-    if (existsSync(join(root, MARKER))) return true
-    try {
-      const def = this.defaultBranch(root)
-      return ['HEAD', ...(def ? [`origin/${def}`, def] : [])].some(rev => git(root, ['cat-file', '-e', `${rev}:${MARKER}`]) !== null)
-    } catch {
-      return false
-    }
-  },
-  // While a rebase stops, HEAD is detached; the branch is the one being rebased.
-  branch(root) {
-    const branch = git(root, ['symbolic-ref', '--short', '-q', 'HEAD'])
-    if (branch) return branch
-    for (const dir of ['rebase-merge', 'rebase-apply']) {
-      const at = git(root, ['rev-parse', '--git-path', `${dir}/head-name`])
-      try {
-        const name = at && readFileSync(resolve(root, at), 'utf8').trim()
-        if (name) return name.replace(/^refs\/heads\//, '')
-      } catch {}
-    }
-    return null
-  },
-  defaultBranch(root) {
-    if (!defaults.has(root)) {
-      const remote = git(root, ['symbolic-ref', '--short', '-q', 'refs/remotes/origin/HEAD'])
-      const local = () => ['main', 'master'].find(b => git(root, ['show-ref', '--verify', '-q', `refs/heads/${b}`]) !== null) ?? null
-      defaults.set(root, remote ? remote.replace(/^origin\//, '') : local())
-    }
-    return defaults.get(root) ?? null
-  },
-}
-
-/** @type {string | undefined} `gh alias list`, asked once */
-let ghAliases
-
-/** @type {GitHub} */
-const realGitHub = {
-  alias(name) {
-    if (ghAliases === undefined) {
-      const r = spawnSync('gh', ['alias', 'list'], { encoding: 'utf8', timeout: Math.min(5000, timeLeft()) })
-      // An alias that cannot be looked up may be anything.
-      if (r.error) throw r.error
-      if (r.status !== 0 && !/no aliases/i.test(r.stderr ?? '')) throw new Error(`gh alias list failed: ${(r.stderr ?? '').trim()}`)
-      ghAliases = r.stdout ?? ''
-    }
-    const line = ghAliases.split('\n').find(l => l.startsWith(`${name}:`))
-    return line ? line.slice(name.length + 1).trim().replace(/^'(.*)'$/s, '$1') : null
-  },
-  issueState(root, n) {
-    const issue = issueJson(root, n)
-    if (issue === 'MISSING' || issue === null) return issue
-    if (issue.pull_request) return 'MISSING'
-    return issue.state === 'open' ? 'OPEN' : 'CLOSED'
-  },
-  issue(root, n) {
-    const issue = issueJson(root, n)
-    if (issue === 'MISSING' || issue === null) return null
-    const r = issue.comments === 0 ? null : gh(root, ['api', '--paginate', `repos/${realGit.origin(root)}/issues/${n}/comments`, '--jq', '.[] | {id: (.id | tostring), author: .user.login, body, at: .created_at}'])
-    if (r && r.status !== 0) return null
-    const comments = r ? r.stdout : ''
-    try {
-      const parsed = comments.split('\n').filter(Boolean).map(l => JSON.parse(l))
-      return { title: String(issue.title ?? ''), body: String(issue.body ?? ''), comments: parsed.map(c => ({ id: String(c.id), author: String(c.author), body: String(c.body ?? ''), at: String(c.at ?? '') })) }
-    } catch {
-      return null
-    }
-  },
-  pr(root, branch) {
-    const slug = realGit.origin(root)
-    if (!slug) return null
-    const r = gh(root, ['pr', 'view', branch, '-R', slug, '--json', 'number,url,state,statusCheckRollup'])
-    if (r.status !== 0) return /no pull requests found/i.test(r.stderr ?? '') ? 'NONE' : null
-    try {
-      const pr = JSON.parse(r.stdout)
-      if (!Number.isInteger(pr.number) || typeof pr.url !== 'string') return null
-      /** @type {{ name?: string, context?: string, workflowName?: string, status?: string, conclusion?: string, state?: string, startedAt?: string }[]} */
-      const rollup = pr.statusCheckRollup ?? []
-      // A re-run is listed beside the run it replaces; the latest counts.
-      const started = (/** @type {{ startedAt?: string }} */ c) => Date.parse(c.startedAt ?? '') || 0
-      /** @type {Map<string, typeof rollup[number]>} */
-      const latest = new Map()
-      for (const c of rollup) {
-        const key = `${c.workflowName ?? ''}\0${c.name ?? c.context ?? ''}`
-        const seen = latest.get(key)
-        if (!seen || started(c) >= started(seen)) latest.set(key, c)
-      }
-      const checks = [...latest.values()].map(c => ({ name: String(c.name ?? c.context ?? ''), state: c.status && c.status !== 'COMPLETED' ? 'PENDING' : String(c.conclusion || c.state || 'PENDING') }))
-      return { n: Number(pr.number), url: String(pr.url), state: pr.state === 'MERGED' || pr.state === 'CLOSED' ? pr.state : 'OPEN', checks }
-    } catch {
-      return null
-    }
-  },
-}
-
-/** @param {string} root @param {string[]} args */
-const gh = (root, args) => spawnSync('gh', args, { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()), maxBuffer: 64 << 20 })
-
 /** @typedef {{ state?: string, pull_request?: unknown, title?: string, body?: string | null, comments?: number }} IssueJson */
 
-/** @type {Map<string, IssueJson | 'MISSING' | null>} */
-const issues = new Map()
+// A hook that times out lets the edit through, so the git and GitHub calls of
+// one hook call share one deadline well inside the hook's timeout, and running
+// out throws. Each call makes its own world, and with it its own deadline and
+// its own answers from git and GitHub: none outlives the call.
 
-/**
- * An issue as GitHub's API gives it, asked once per hook run: 'MISSING', or
- * null when GitHub cannot be asked. It asks about origin's repository by name:
- * gh's own choice prefers a remote called upstream, which on a fork is
- * someone else's issues.
- *
- * @param {string} root @param {number} n
- * @returns {IssueJson | 'MISSING' | null}
- */
-function issueJson(root, n) {
-  const key = `${root}#${n}`
-  if (!issues.has(key)) {
-    const slug = realGit.origin(root)
-    const r = slug ? gh(root, ['api', `repos/${slug}/issues/${n}`]) : null
-    /** @type {IssueJson | 'MISSING' | null} */
-    let issue = null
-    if (r && r.status !== 0) issue = /HTTP (404|410)/.test(r.stderr ?? '') ? 'MISSING' : null
-    else if (r) {
-      try {
-        issue = JSON.parse(r.stdout)
-      } catch {}
-    }
-    issues.set(key, issue)
+/** @returns {World} a fresh real world, its deadline starting now */
+function realWorld() {
+  const deadline = Date.now() + 20_000
+  const timeLeft = () => {
+    const ms = deadline - Date.now()
+    if (ms <= 0) throw new Error('out of time asking git and GitHub')
+    return ms
   }
-  return issues.get(key) ?? null
-}
 
-/** @type {World} */
-const REAL = { git: realGit, github: realGitHub, env: process.env, reads: { records: () => null, add() {}, clear() {} }, once }
+  /** @param {string} root @param {string[]} args @returns {string | null} stdout, or null when git says no */
+  const git = (root, args) => {
+    const r = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: Math.min(3000, timeLeft()) })
+    if (r.error) throw r.error
+    return r.status === 0 ? r.stdout.trim() : null
+  }
+
+  /** @type {Map<string, string | null>} */
+  const defaults = new Map()
+  /** @type {Map<string, string | null>} */
+  const origins = new Map()
+
+  /** @type {Git} */
+  const realGit = {
+    origin(root) {
+      if (!origins.has(root)) origins.set(root, slugOf(git(root, ['remote', 'get-url', 'origin']) ?? ''))
+      return origins.get(root) ?? null
+    },
+    // As gh resolves it: a remote marked by `gh repo set-default`, else the
+    // first GitHub remote of upstream, github, origin and the rest.
+    ghBase(root) {
+      const lines = (git(root, ['config', '--get-regexp', '^remote\\..*\\.(url|gh-resolved)$']) ?? '').split('\n')
+      /** @type {Map<string, { slug: string | null, resolved?: string }>} */
+      const remotes = new Map()
+      for (const line of lines) {
+        const m = /^remote\.(.+)\.(url|gh-resolved) (.*)$/i.exec(line)
+        if (!m) continue
+        const [, name = '', key = '', value = ''] = m
+        const r = remotes.get(name) ?? { slug: null }
+        if (key.toLowerCase() === 'url') r.slug = slugOf(value)
+        else r.resolved = value
+        remotes.set(name, r)
+      }
+      for (const r of remotes.values()) if (r.resolved) return r.resolved === 'base' ? r.slug : r.resolved
+      const rank = (/** @type {string} */ name) => ['upstream', 'github', 'origin'].indexOf(name) >>> 0
+      return [...remotes].filter(([, r]) => r.slug).sort(([a], [b]) => rank(a) - rank(b))[0]?.[1].slug ?? null
+    },
+    message: (root, rev) => git(root, ['log', '-1', '--format=%B', rev, '--']),
+    committed(root, n) {
+      const def = this.defaultBranch(root)
+      const base = def ? ['--ignore-missing', '--not', `refs/heads/${def}`, `refs/remotes/origin/${def}`] : []
+      const refers = refersTo(n, this.origin(root))
+      return (git(root, ['log', '-z', '--format=%B', 'HEAD', ...base, '--']) ?? '').split('\0').some(m => refers.test(m))
+    },
+    // Where the branch is pushed: its push destination, else its upstream,
+    // else origin's branch of its name. Null unless that holds commits no other
+    // branch of the remote has. Its time is when the ref last moved here (the
+    // reflog), else the commit's date.
+    pushed(root, branch) {
+      const full = (/** @type {string} */ rev) => git(root, ['rev-parse', '--symbolic-full-name', rev])
+      const ref = [full(`${branch}@{push}`), full(`${branch}@{upstream}`)].find(r => r?.startsWith('refs/remotes/')) ?? `refs/remotes/origin/${branch}`
+      const [, remote = '', name = ''] = /^refs\/remotes\/([^/]+)\/(.+)$/.exec(ref) ?? []
+      const [sha, committed] = (git(root, ['log', '-1', '--format=%H %cI', ref, '--']) ?? '').split(' ')
+      if (!sha || !committed || !git(root, ['rev-list', '-1', ref, '--not', `--exclude=${remote}/${name}`, `--remotes=${remote}`])) return null
+      const moved = /@\{(.+)\}$/.exec(git(root, ['reflog', 'show', '-1', '--format=%gd', '--date=iso-strict', ref, '--']) ?? '')?.[1]
+      return { sha, at: moved && !Number.isNaN(Date.parse(moved)) ? moved : committed }
+    },
+    config: (root, key) => git(root, ['config', '--get', key]),
+    headDocs(root) {
+      const names = git(root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', 'GLOSSARY.md', 'docs/adr'])
+      if (names === null) return null
+      const list = names.split('\0').filter(isDocName)
+      const r = spawnSync('git', ['-C', root, 'cat-file', '--batch'], { input: list.map(p => `HEAD:${p}\n`).join(''), timeout: Math.min(3000, timeLeft()), maxBuffer: 64 << 20 })
+      if (r.error) throw r.error
+      if (r.status !== 0) return null
+      /** @type {Record<string, string>} */
+      const docs = {}
+      let at = 0
+      for (const name of list) {
+        const end = r.stdout.indexOf(10, at)
+        const size = Number(/ blob (\d+)$/.exec(r.stdout.subarray(at, end).toString())?.[1])
+        if (Number.isNaN(size)) return null
+        const text = decode(r.stdout.subarray(end + 1, end + 1 + size))
+        if (text !== null) docs[name] = text
+        at = end + 1 + size + 1
+      }
+      return docs
+    },
+    root(path) {
+      for (let d = path; ; d = dirname(d)) {
+        if (existsSync(join(d, '.git'))) return d
+        if (dirname(d) === d) return null
+      }
+    },
+    // Deleting the marker from the working tree, or committing its deletion on a
+    // branch, does not opt out: it also counts while HEAD or the default branch has it.
+    // When git fails, only the marker in the working tree counts.
+    traced(root) {
+      if (existsSync(join(root, MARKER))) return true
+      try {
+        const def = this.defaultBranch(root)
+        return ['HEAD', ...(def ? [`origin/${def}`, def] : [])].some(rev => git(root, ['cat-file', '-e', `${rev}:${MARKER}`]) !== null)
+      } catch {
+        return false
+      }
+    },
+    // While a rebase stops, HEAD is detached; the branch is the one being rebased.
+    branch(root) {
+      const branch = git(root, ['symbolic-ref', '--short', '-q', 'HEAD'])
+      if (branch) return branch
+      for (const dir of ['rebase-merge', 'rebase-apply']) {
+        const at = git(root, ['rev-parse', '--git-path', `${dir}/head-name`])
+        try {
+          const name = at && readFileSync(resolve(root, at), 'utf8').trim()
+          if (name) return name.replace(/^refs\/heads\//, '')
+        } catch {}
+      }
+      return null
+    },
+    defaultBranch(root) {
+      if (!defaults.has(root)) {
+        const remote = git(root, ['symbolic-ref', '--short', '-q', 'refs/remotes/origin/HEAD'])
+        const local = () => ['main', 'master'].find(b => git(root, ['show-ref', '--verify', '-q', `refs/heads/${b}`]) !== null) ?? null
+        defaults.set(root, remote ? remote.replace(/^origin\//, '') : local())
+      }
+      return defaults.get(root) ?? null
+    },
+  }
+
+  /** @type {string | undefined} `gh alias list`, asked once */
+  let ghAliases
+
+  /** @type {GitHub} */
+  const realGitHub = {
+    alias(name) {
+      if (ghAliases === undefined) {
+        const r = spawnSync('gh', ['alias', 'list'], { encoding: 'utf8', timeout: Math.min(5000, timeLeft()) })
+        // An alias that cannot be looked up may be anything.
+        if (r.error) throw r.error
+        if (r.status !== 0 && !/no aliases/i.test(r.stderr ?? '')) throw new Error(`gh alias list failed: ${(r.stderr ?? '').trim()}`)
+        ghAliases = r.stdout ?? ''
+      }
+      const line = ghAliases.split('\n').find(l => l.startsWith(`${name}:`))
+      return line ? line.slice(name.length + 1).trim().replace(/^'(.*)'$/s, '$1') : null
+    },
+    issueState(root, n) {
+      const issue = issueJson(root, n)
+      if (issue === 'MISSING' || issue === null) return issue
+      if (issue.pull_request) return 'MISSING'
+      return issue.state === 'open' ? 'OPEN' : 'CLOSED'
+    },
+    issue(root, n) {
+      const issue = issueJson(root, n)
+      if (issue === 'MISSING' || issue === null) return null
+      const r = issue.comments === 0 ? null : gh(root, ['api', '--paginate', `repos/${realGit.origin(root)}/issues/${n}/comments`, '--jq', '.[] | {id: (.id | tostring), author: .user.login, body, at: .created_at}'])
+      if (r && r.status !== 0) return null
+      const comments = r ? r.stdout : ''
+      try {
+        const parsed = comments.split('\n').filter(Boolean).map(l => JSON.parse(l))
+        return { title: String(issue.title ?? ''), body: String(issue.body ?? ''), comments: parsed.map(c => ({ id: String(c.id), author: String(c.author), body: String(c.body ?? ''), at: String(c.at ?? '') })) }
+      } catch {
+        return null
+      }
+    },
+    pr(root, branch) {
+      const slug = realGit.origin(root)
+      if (!slug) return null
+      const r = gh(root, ['pr', 'view', branch, '-R', slug, '--json', 'number,url,state,statusCheckRollup'])
+      if (r.status !== 0) return /no pull requests found/i.test(r.stderr ?? '') ? 'NONE' : null
+      try {
+        const pr = JSON.parse(r.stdout)
+        if (!Number.isInteger(pr.number) || typeof pr.url !== 'string') return null
+        /** @type {{ name?: string, context?: string, workflowName?: string, status?: string, conclusion?: string, state?: string, startedAt?: string }[]} */
+        const rollup = pr.statusCheckRollup ?? []
+        // A re-run is listed beside the run it replaces; the latest counts.
+        const started = (/** @type {{ startedAt?: string }} */ c) => Date.parse(c.startedAt ?? '') || 0
+        /** @type {Map<string, typeof rollup[number]>} */
+        const latest = new Map()
+        for (const c of rollup) {
+          const key = `${c.workflowName ?? ''}\0${c.name ?? c.context ?? ''}`
+          const seen = latest.get(key)
+          if (!seen || started(c) >= started(seen)) latest.set(key, c)
+        }
+        const checks = [...latest.values()].map(c => ({ name: String(c.name ?? c.context ?? ''), state: c.status && c.status !== 'COMPLETED' ? 'PENDING' : String(c.conclusion || c.state || 'PENDING') }))
+        return { n: Number(pr.number), url: String(pr.url), state: pr.state === 'MERGED' || pr.state === 'CLOSED' ? pr.state : 'OPEN', checks }
+      } catch {
+        return null
+      }
+    },
+  }
+
+  /** @param {string} root @param {string[]} args */
+  const gh = (root, args) => spawnSync('gh', args, { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()), maxBuffer: 64 << 20 })
+
+  /** @type {Map<string, IssueJson | 'MISSING' | null>} */
+  const issues = new Map()
+
+  /**
+   * An issue as GitHub's API gives it, asked once per hook run: 'MISSING', or
+   * null when GitHub cannot be asked. It asks about origin's repository by name:
+   * gh's own choice prefers a remote called upstream, which on a fork is
+   * someone else's issues.
+   *
+   * @param {string} root @param {number} n
+   * @returns {IssueJson | 'MISSING' | null}
+   */
+  function issueJson(root, n) {
+    const key = `${root}#${n}`
+    if (!issues.has(key)) {
+      const slug = realGit.origin(root)
+      const r = slug ? gh(root, ['api', `repos/${slug}/issues/${n}`]) : null
+      /** @type {IssueJson | 'MISSING' | null} */
+      let issue = null
+      if (r && r.status !== 0) issue = /HTTP (404|410)/.test(r.stderr ?? '') ? 'MISSING' : null
+      else if (r) {
+        try {
+          issue = JSON.parse(r.stdout)
+        } catch {}
+      }
+      issues.set(key, issue)
+    }
+    return issues.get(key) ?? null
+  }
+
+  return { git: realGit, github: realGitHub, env: process.env, reads: { records: () => null, add() {}, clear() {} }, once }
+}
