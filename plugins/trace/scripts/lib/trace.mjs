@@ -677,6 +677,17 @@ export function switchKind(path) {
 }
 
 /**
+ * Whether `path` is a directory that holds the switches: a `.claude`
+ * directory, Claude Code's config directory, or a directory above it.
+ *
+ * @param {string} path an absolute path
+ */
+export function holdsSwitches(path) {
+  const folded = fold(real(path))
+  return basename(folded) === '.claude' || configDirs().some(d => d === folded || d.startsWith(folded.endsWith('/') ? folded : `${folded}/`))
+}
+
+/**
  * Why an edit tool's change to `path` would switch the hooks or the trace
  * off, or null. Claude Code's settings may change in everything but those
  * switches; installed plugins may not change at all.

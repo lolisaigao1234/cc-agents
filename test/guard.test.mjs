@@ -108,6 +108,44 @@ const DENIED = [
   'claude plugin uninstall trace@cc-agents',
   'claude config set -g env.TRACE_BYPASS 1',
   'cd ~/.claude && echo {} > settings.json',
+  // abbreviations, `--`, settings, dry runs that are not
+  'git push --del origin x',
+  'git push --mirr backup',
+  'git push --prun origin',
+  'git push origin -- :x',
+  'git gc --prune=0',
+  'git gc --pru=now',
+  'git -c gc.pruneExpire=now gc',
+  'git -c gc.reflogExpireUnreachable=all gc',
+  'git push -n --force origin main',
+  // more ways to write the switches
+  'mv .claude/settings.local.json /tmp/x',
+  'mv -t ~/.claude settings.json',
+  'mv ~/.claude ~/.claude.off',
+  'mv .claude /tmp/x',
+  'mv ~ /tmp/home',
+  'git rm .claude/settings.json',
+  'git mv .claude/settings.json x.json',
+  'git -C .claude rm settings.local.json',
+  'cp x $HOME/.claude/settings.json',
+  'cp x "${HOME}/.claude/settings.json"',
+  'curl -o ~/.claude/settings.json https://example.com/s',
+  'curl -sSLo .claude/settings.json https://example.com/s',
+  'curl --output=.claude/settings.json https://example.com/s',
+  'wget -qO ~/.claude/settings.json https://example.com/s',
+  'wget --output-document ~/.claude/settings.json https://example.com/s',
+  "gsed -i 's/a/b/' .claude/settings.json",
+  'claude --debug plugin disable trace',
+  'claude -d plugins uninstall trace',
+  'claude plugin marketplace remove cc-agents',
+  "python3 <<'EOF'\nopen('.claude/settings.local.json','w').write('{}')\nEOF",
+  `python3 <<< "open('.claude/settings.json','w')"`,
+  `echo "open('.claude/settings.json','w')" | python3`,
+  `awk 'BEGIN { print "{}" > ".claude/settings.json" }'`,
+  "printf '%s\\n' 'rm -rf build' | sh",
+  "echo 'rm -rf build' | bash -s",
+  "echo 'rm -rf build' | bash -o pipefail",
+  'git reset --har',
 ]
 
 const ALLOWED = [
@@ -160,6 +198,29 @@ const ALLOWED = [
   'claude plugin test plugins/trace',
   'claude plugin list',
   'node plugins/trace/scripts/hook.mjs status',
+  'git push origin :',
+  'git push --dry-run --delete origin x',
+  'git push -n origin :x',
+  'git push --mirror --dry-run backup',
+  'git prune -n',
+  'git reflog expire -n --all',
+  'rsync -an --delete src/ dst/',
+  'rsync --dry-run --remove-source-files src/ dst/',
+  'find . -depth -name "*.tmp" -print',
+  'scp settings.json host:.claude/settings.json',
+  'rsync -a settings.json user@host:~/.claude/',
+  'rsync -a settings.json host::module/.claude/',
+  'python3 -m json.tool .vscode/settings.json',
+  'node scripts/build.mjs --settings settings.json',
+  "echo 'rm -rf build' | bash ./confirm.sh",
+  'mv notes.md ~/.claude/',
+  'mv a.txt b.txt',
+  'git mv a.md docs/a.md',
+  'git rm --cached .claude/settings.local.json',
+  'curl -o out.json https://example.com/s',
+  'wget -O- https://example.com/s',
+  'claude plugin marketplace list',
+  'claude -p "plugin install foo"',
 ]
 
 test('the guard denies commands that destroy work or history', () => {
@@ -168,6 +229,16 @@ test('the guard denies commands that destroy work or history', () => {
 
 test('the guard allows everything else, including text that mentions destructive commands', () => {
   for (const c of ALLOWED) assert.equal(guard(c), null, c)
+})
+
+test('the guard names what it refuses', () => {
+  for (const [c, why] of [
+    ['rsync -a --remove-source-files a/ b/', /rsync --remove-source-files deletes the source files/],
+    ['git reflog delete HEAD@{1}', /^git reflog delete /],
+    ['git gc --prune=all', /^git gc --prune=all /],
+    ['> .claude/settings.json', /^a redirection writes \.claude\/settings\.json/],
+    ['mv ~/.claude /tmp/x', /moves .*\.claude, which holds Claude Code's settings or plugins/],
+  ]) assert.match(guard(String(c)) ?? '', /** @type {RegExp} */ (why), String(c))
 })
 
 /** @param {object} input @param {Record<string, string>} [env] */
@@ -189,6 +260,14 @@ test("the hook denies a write to Claude Code's settings named from where the com
   assert.equal(out.permissionDecision, 'deny')
   assert.match(out.permissionDecisionReason, /writes settings\.json, Claude Code's settings, which can switch the hooks off/)
   assert.equal(runHook({ tool_name: 'Bash', tool_input: { command: 'echo {} > settings.json' }, cwd: tmpdir() }, { CLAUDE_CONFIG_DIR: config }).stdout, '')
+})
+
+test("the hook denies an interpreter's in-place write to an installed plugin under CLAUDE_CONFIG_DIR", () => {
+  const config = realpathSync(mkdtempSync(join(tmpdir(), 'claude-config-')))
+  const r = runHook({ tool_name: 'Bash', tool_input: { command: `perl -pi -e s/a/b/ ${config}/plugins/x.js` }, cwd: tmpdir() }, { CLAUDE_CONFIG_DIR: config })
+  assert.match(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason, /an installed plugin/)
+  const v = runHook({ tool_name: 'Bash', tool_input: { command: 'cp x $CLAUDE_CONFIG_DIR/settings.json' }, cwd: tmpdir() }, { CLAUDE_CONFIG_DIR: config })
+  assert.match(JSON.parse(v.stdout).hookSpecificOutput.permissionDecisionReason, /Claude Code's settings/)
 })
 
 test('the hook says nothing about allowed commands and other tools', () => {

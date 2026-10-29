@@ -26,6 +26,8 @@ import { resolve } from 'node:path'
 import { CASE_INSENSITIVE_FS, untilde } from './paths.mjs'
 
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'fish'])
+// Interpreters whose code, given on the command line or on stdin, may read or write any file.
+export const INTERPRETERS = /^(?:node|deno|bun|python[\d.]*|ruby|perl|php|osascript|lua|Rscript|awk|gawk|jq)$/
 const KEYWORDS = new Set(['!', '{', '}', 'if', 'then', 'else', 'elif', 'fi', 'do', 'done', 'while', 'until', 'time'])
 
 /** @param {string | undefined} w the command a word names, case-folded where the file system folds case */
@@ -310,13 +312,16 @@ export function parseCommands(src, depth = 0) {
       if (SHELLS.has(name)) {
         const c = args.findIndex(a => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a))
         const script = args[c + 1] === '--' ? args[c + 2] : args[c + 1]
+        // Without a script file to run (or with -s), the shell runs its stdin.
+        const file = args.some((a, i) => !/^[-+]/.test(a) && !/^[-+][a-zA-Z]*[oO]$/.test(args[i - 1] ?? ''))
+        const readsStdin = !file || args.some(a => /^-[a-zA-Z]*s/.test(a))
         if (c >= 0 && script !== undefined) nested(script)
-        else if (cmd.stdin !== undefined) nested(cmd.stdin)
-        else if (cmd.piped) {
+        else if (readsStdin && cmd.stdin !== undefined) nested(cmd.stdin)
+        else if (readsStdin && cmd.piped) {
           // `echo '…' | sh`: the text echo or printf writes is the script.
           const from = out.findLast(p => p !== cmd && p.op === '|' && p.level === cmd.level)
           if (from?.name === 'echo') nested(from.args.filter(a => !/^-[neE]+$/.test(a)).join(' ').replace(/\\n/g, '\n'))
-          else if (from?.name === 'printf' && from.args[0] !== undefined) nested(from.args[0].replace(/\\n/g, '\n'))
+          else if (from?.name === 'printf' && from.args.length) nested(from.args.join('\n').replace(/\\n/g, '\n'))
         }
       } else if (name === 'eval') nested(args.join(' '), true)
       else if (name === 'watch') nested(args.filter(a => !a.startsWith('-')).join(' '))

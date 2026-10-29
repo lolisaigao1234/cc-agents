@@ -69,13 +69,22 @@ A PreToolUse hook on Bash. In every repository, and in every subagent, it refuse
 - force pushes, including `+refspec`
 - deleting remote branches (`push --delete`, `push origin :<branch>`), `push --mirror` and `push --prune`
 - `stash drop` / `clear`, `branch -D`
-- `reflog expire` and `reflog delete`, `gc --prune=now`, `prune`, unless dry runs
+- `reflog expire` and `reflog delete`, `gc --prune=now` (or `gc` under a `gc.*Expire=now` setting), `prune`
 - `--no-verify`, `commit -n`, and overriding `core.hooksPath`
 - `rm -r`, `find -delete`, `rsync --delete` (and its variants, and `--remove-source-files`)
 
-It also refuses commands that write Claude Code's settings files or installed plugins, the files the edit gate guards from the edit tools: a redirection, `tee`, `cp`, `mv`, `rm`, `sed -i` and their kin naming one, an interpreter's code naming one, and `claude plugin install|uninstall|enable|disable|update` or `claude config set`. Reading them is allowed; a settings change other than the switches can be made with the Edit tool.
+A dry run (`-n`, `--dry-run`) of a push that deletes, mirrors or prunes, of `reflog`, `prune` or `rsync`, is allowed; a forced one is not. git's abbreviations of long options (`--del`, `--mirr`) count as the option.
 
-It parses the command the way a shell does. Text that only mentions a command is allowed, such as `rg 'rm -rf'` or a commit message. Commands inside `bash -c`, `$(...)`, heredocs fed to a shell, and text `echo` or `printf` pipes into one are checked. It reads command text, so it is a seatbelt, not a sandbox.
+It also refuses commands that write Claude Code's settings files or installed plugins, the files the edit gate guards from the edit tools:
+
+- a redirection, `tee`, `cp`, `mv`, `rm`, `git rm`, `git mv`, `sed -i`, `curl -o`, `wget -O` and their kin naming one, from where the command runs, with `~`, `$HOME` and `$CLAUDE_CONFIG_DIR` expanded; copies to another host are not;
+- moving a directory that holds them: a `.claude` directory, Claude Code's config directory, or one above it;
+- an interpreter's code naming one, on its command line, in a heredoc or piped in;
+- `claude plugin install|uninstall|enable|disable|update`, `claude plugin marketplace add|remove|update`, and `claude config set|add|remove`.
+
+Reading them is allowed; a settings change other than the switches can be made with the Edit tool.
+
+It parses the command the way a shell does. Text that only mentions a command is allowed, such as `rg 'rm -rf'` or a commit message. Commands inside `bash -c`, `$(...)`, and the heredocs and `echo` or `printf` text a shell reads as its script are checked. It reads command text, so it is a seatbelt, not a sandbox.
 
 ## The archive block
 
