@@ -1,3 +1,5 @@
+> Superseded by ADR-0005 (2026-10-28, #3). Archived: human-managed, not read by agents.
+
 # What quality-loop can take from tstack
 
 [t3dotgg/tstack](https://github.com/t3dotgg/tstack) is a set of nine agent skills for Claude Code and Codex. This note goes through each of them, technique by technique: what quality-loop already has, what it lacks, and whether to take it. Read 2026-10-28. Paths are relative to `plugins/quality-loop/`.

@@ -1,3 +1,5 @@
+> Superseded by ADR-0005 (2026-10-28, #3). Archived: human-managed, not read by agents.
+
 # 0002: A finding is the same finding where its lines went, not where its text looks alike
 
 Date: 2026-10-27 · Status: accepted

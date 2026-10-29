@@ -1,3 +1,5 @@
+> Superseded by ADR-0005 (2026-10-28, #3). Archived: human-managed, not read by agents.
+
 # Context
 
 This repository ships **quality-loop**, a Claude Code plugin that reviews, fixes and validates code changes in any repository, and tunes its own reviewer with evals.

@@ -1,3 +1,5 @@
+> Superseded by ADR-0005 (2026-10-28, #3). Archived: human-managed, not read by agents.
+
 # 0001: A deterministic core decides what counts; the model decides what is wrong
 
 Date: 2026-10-27 · Status: accepted
