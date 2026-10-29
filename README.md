@@ -56,7 +56,9 @@ npm run check                       # typecheck, tests, plugin and marketplace v
 claude --plugin-dir plugins/trace   # a session with the working copy
 ```
 
-The band is type-checked against `vendor/claude-code/index.d.ts`, the mod API declarations Claude Code writes. Its first line names the version that wrote it. Claude Code writes them only in an interactive session, so they are committed rather than generated. To update them after a Claude Code upgrade, run `claude --plugin-dir plugins/trace` and copy `plugins/trace/.claude-plugin/types/claude-code/index.d.ts` over the vendored file, and check `plugins/trace/tsconfig.json` against the `tsconfig.json` in its header. That folder is git-ignored, and the mod's `tsconfig.json` does not read it.
+The band is type-checked against `vendor/claude-code/index.d.ts`, the mod API declarations Claude Code writes. Its first line names the version that wrote it. Claude Code writes them when an interactive session loads the mod; as of 2.1.312, `claude -p`, `claude plugin test` and `claude plugin validate` do not, so they are committed rather than generated. To update them after a Claude Code upgrade, run `claude --plugin-dir plugins/trace` and copy `plugins/trace/.claude-plugin/types/claude-code/index.d.ts` over the vendored file, and check `plugins/trace/tsconfig.json` against the `tsconfig.json` in its header. That folder is git-ignored, and the mod's `tsconfig.json` does not read it.
+
+`npm test` fails while the vendored file comes from a different Claude Code than the installed one, or differs from a copy Claude Code has written into the plugin. Upgrade Claude Code if it is the older one, otherwise refresh the file as above. Without `claude` on the PATH, the version check is skipped.
 
 ## References
 
