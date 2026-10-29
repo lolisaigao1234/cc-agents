@@ -25,4 +25,4 @@ Merging is the human's step. Your work is done when the PR is ready for review.
 
 Only the human can switch the trace off, by launching Claude Code with `TRACE_BYPASS=1`.
 
-When git or GitHub cannot answer, a hook halts the session: every call stops until the next prompt, or until the session is resumed. Tell the human what failed, in the halt's own words, and what to restore (`git status`, `gh auth status`, the network), then wait. Do not work around it, retry it in a subagent or suggest the bypass.
+When git or GitHub cannot answer, a hook halts the session: every call stops until the halt is lifted (ADR 0006). Tell the human what failed, in the halt's own words, and what to restore (`git status`, `gh auth status`, the network), then wait. Do not work around it, unless the halt itself names a form of the command that asks git nothing; do not retry it in a subagent or suggest the bypass.
