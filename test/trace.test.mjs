@@ -110,7 +110,7 @@ test('edits outside the repository are never gated, and its .git directory is', 
 
 test('the deadline on git and GitHub starts with each call, not when the module loads', t => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
-  const { dir } = repo()
+  const { dir, git } = repo()
   t.mock.timers.tick(25_000)
   assert.match(String(editVerdict(join(dir, 'a.md'))), /default branch/, 'a call long after the module loaded still asks git')
   const reads = { records: () => null, add() {}, clear() {} }
@@ -123,6 +123,8 @@ test('the deadline on git and GitHub starts with each call, not when the module 
   assert.throws(() => first.git.message(dir, 'HEAD'), /out of time asking git and GitHub/, 'a later call does not extend an earlier one')
   assert.throws(() => first.github.issueState(dir, 1), /out of time asking git and GitHub/, 'GitHub is bounded too')
   assert.equal(second.git.message(dir, 'HEAD'), 'init')
+  git('remote', 'set-url', 'origin', 'https://github.com/owner/other.git')
+  assert.equal(second.git.origin(dir), 'owner/other', 'nor does it reuse an earlier call\'s answers')
 })
 
 /** A git repository on `main`, opted in to the trace unless `marked` is false. */
