@@ -127,18 +127,25 @@ test('the deadline on git and GitHub starts with each call, not when the module 
   assert.equal(second.git.origin(dir), 'owner/other', 'nor does it reuse an earlier call\'s answers')
 })
 
-test('when the deadline has run out before git says whether HEAD has the marker, the edit is not let through', t => {
-  t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
+test('with the marker only in HEAD and the deadline run out, the hook refuses an edit on the default branch, naming the bypass', () => {
   const { dir } = repo()
   rmSync(join(dir, '.claude/trace.json'))
-  const path = join(dir, 'a.md')
-  const reads = { records: () => null, add() {}, clear() {} }
-  assert.match(String(editVerdict(path, worldFor(reads))), /default branch/, 'while git answers, HEAD has the marker')
-  const late = worldFor(reads)
+  const edit = { tool_name: 'Edit', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir }
+  assert.match(String(hook(edit)?.permissionDecisionReason), /default branch/, 'while git answers, HEAD has the marker')
+  // A clock 25s later each time it is read: the deadline has run out before git is first asked.
+  const clock = join(mkdtempSync(join(tmpdir(), 'clock-')), 'clock.mjs')
+  writeFileSync(clock, 'let t = Date.now()\nDate.now = () => (t += 25_000)\n')
+  const out = hook(edit, { NODE_OPTIONS: `--import=${clock}` })
+  assert.equal(out?.permissionDecision, 'deny')
+  assert.match(out.permissionDecisionReason, /^trace: the trace could not be checked \(out of time asking git and GitHub\)\. .*TRACE_BYPASS=1/)
+})
+
+test('the marker in the working tree counts without asking git', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
+  const late = worldFor({ records: () => null, add() {}, clear() {} })
   t.mock.timers.tick(25_000)
-  assert.throws(() => editVerdict(path, late), /out of time asking git and GitHub/)
-  const marked = repo().dir
-  assert.equal(late.git.traced(marked), true, 'the marker in the working tree counts without asking git')
+  assert.equal(late.git.traced(repo().dir), true)
+  assert.throws(() => late.git.traced(repo(false).dir), /out of time asking git and GitHub/)
 })
 
 test('a git that times out saying whether HEAD has the marker refuses the edit, naming the bypass', () => {
