@@ -9,7 +9,7 @@ Every change, code or docs or config, ties to one GitHub issue from start to fin
 
 | Step | Do it with | Done when |
 |---|---|---|
-| **Read** | the related docs (ADR 0007), as the hooks list them on the issue's branch at start, after a compaction and in each refusal; read each in full yourself, in every agent and after every compaction | no gate lists a doc as unread or stale for this agent |
+| **Read** | the related docs: `GLOSSARY.md`, every active ADR under `docs/adr/`, and, on the issue's branch, the issue with its comments and the `docs/` files it links. Read each in full yourself, in every agent and after every compaction | no gate lists a doc as unread or stale for this agent (the band shows the main session's reads) |
 | **Track** | `gh issue create` with an `## Acceptance criteria` section; `mattpocock-skills:grilling` first when the change is unclear. To split larger work, ask the human to run `/to-spec` and `/to-tickets` | an open issue states what to build and how to verify it |
 | **Branch** | `gh issue develop <n> --checkout`, with `--base <blocker's branch>` while the blocker's PR awaits merge | you are on `<n>-<slug>` |
 | **Implement** | `mattpocock-skills:tdd`; `mattpocock-skills:diagnosing-bugs` for a hard bug. The human may run `/implement <n>` instead | every acceptance criterion passes and every commit message carries `#<n>` |
