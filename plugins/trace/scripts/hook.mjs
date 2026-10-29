@@ -4,24 +4,24 @@
 
 import { readFileSync } from 'node:fs'
 
+import { archiveBlock } from './lib/archive.mjs'
 import { guard } from './lib/guard.mjs'
 
 /**
  * @param {string | undefined} event
- * @param {{ tool_name?: string, tool_input?: { command?: unknown } }} input
+ * @param {{ tool_name?: string, tool_input?: Record<string, unknown>, cwd?: string }} input
  * @returns {object | null} the hook output, or null to say nothing
  */
 function hookOutput(event, input) {
-  if (event !== 'pre-tool-use' || input.tool_name !== 'Bash') return null
-  const why = guard(String(input.tool_input?.command ?? ''))
-  if (!why) return null
-  return {
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      permissionDecision: 'deny',
-      permissionDecisionReason: `trace guard: ${why}. If it is really needed, ask the user to run it.`,
-    },
+  if (event !== 'pre-tool-use' || !input.tool_name) return null
+  const toolInput = input.tool_input ?? {}
+  const guardReason = () => {
+    const why = input.tool_name === 'Bash' ? guard(String(toolInput.command ?? '')) : null
+    return why && `trace guard: ${why}. If it is really needed, ask the user to run it.`
   }
+  const reason = archiveBlock(input.tool_name, toolInput, input.cwd ?? process.cwd()) ?? guardReason()
+  if (!reason) return null
+  return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
 }
 
 let input

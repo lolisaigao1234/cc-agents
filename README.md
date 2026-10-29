@@ -15,7 +15,7 @@ The work itself goes through [Matt Pocock's skills](https://github.com/mattpococ
 - **The archive**: superseded docs live in `archive/`, which only the human reads (ADR 0008).
 - **The guard**: commands that destroy work or history are refused, such as `git reset --hard`, `git push --force` and `rm -r`.
 
-Shipped so far: the guard. The rest lands ticket by ticket under [#3](https://github.com/lolisaigao1234/cc-agents/issues/3). See [plugins/trace/README.md](plugins/trace/README.md).
+Shipped so far: the guard and the archive block. The rest lands ticket by ticket under [#3](https://github.com/lolisaigao1234/cc-agents/issues/3). See [plugins/trace/README.md](plugins/trace/README.md).
 
 ```
 /plugin install trace --marketplace lolisaigao1234/cc-agents
