@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 import { archiveBlock } from '../plugins/trace/scripts/lib/archive.mjs'
 import { worldFor } from '../plugins/trace/scripts/lib/trace.mjs'
+import { noReads } from './helpers.mjs'
 
 const HOOK = fileURLToPath(new URL('../plugins/trace/scripts/hook.mjs', import.meta.url))
 
@@ -442,9 +443,9 @@ test('a history command is denied when the hook call has run out of time to ask 
   assert.match(String(archiveBlock('Bash', { command: 'cat archive/old.md' }, repo, ranOut)), /archive\/old\.md, in the archive/)
 })
 
-test("the archive block draws on the same deadline as the trace's git and GitHub calls", t => {
+test("the archive block draws on the hook call's deadline, which the gates' git and GitHub calls share", t => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
-  const world = worldFor({ records: () => null, add() {}, clear() {} })
+  const world = worldFor(noReads())
   assert.equal(archiveBlock('Bash', { command: 'git log -p -1' }, repo, world.timeLeft), null)
   t.mock.timers.tick(20_000)
   assert.match(String(archiveBlock('Bash', { command: 'git log -p -1' }, repo, world.timeLeft)), /could not be checked in time/)

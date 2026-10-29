@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { commandVerdict, editVerdict, worldFor } from '../plugins/trace/scripts/lib/trace.mjs'
+import { noReads } from './helpers.mjs'
 
 const HOOK = fileURLToPath(new URL('../plugins/trace/scripts/hook.mjs', import.meta.url))
 
@@ -113,7 +114,7 @@ test('the deadline on git and GitHub starts with each call, not when the module 
   const { dir, git } = repo()
   t.mock.timers.tick(25_000)
   assert.match(String(editVerdict(join(dir, 'a.md'))), /default branch/, 'a call long after the module loaded still asks git')
-  const reads = { records: () => null, add() {}, clear() {} }
+  const reads = noReads()
   const first = worldFor(reads)
   assert.equal(first.git.message(dir, 'HEAD'), 'init')
   assert.equal(first.git.origin(dir), 'owner/name')
@@ -142,7 +143,7 @@ test('with the marker only in HEAD and the deadline run out, the hook refuses an
 
 test('the marker in the working tree counts without asking git', t => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
-  const late = worldFor({ records: () => null, add() {}, clear() {} })
+  const late = worldFor(noReads())
   t.mock.timers.tick(25_000)
   assert.equal(late.git.traced(repo().dir), true)
   assert.throws(() => late.git.traced(repo(false).dir), /out of time asking git and GitHub/)
