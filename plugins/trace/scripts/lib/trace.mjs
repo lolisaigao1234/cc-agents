@@ -19,8 +19,8 @@ import { GIT_COMMIT_OPTIONS, computed, gitParts, literal, parseCommands, readOpt
 // The human's switch, set when launching Claude Code, that turns the trace off.
 const BYPASS = 'TRACE_BYPASS'
 const BYPASS_HINT = `to work untraced, the human can launch Claude Code with ${BYPASS}=1`
-// How an issue is opened, with the heading the issue context reads its criteria from (context.mjs).
-const TRACK_HINT = '`gh issue create`, with an `Acceptance criteria` heading'
+// How an issue is opened, in the trace skill's words, with the section the issue context reads (context.mjs).
+const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
 
 /**
  * What the trace needs from git. `origin` is origin's GitHub repository as

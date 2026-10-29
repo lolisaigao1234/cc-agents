@@ -117,7 +117,7 @@ test('the step moves on as each one completes, up to Close', () => {
 
   const review = at({ committed: true })
   assert.deepEqual([review?.step, review?.pr], ['review', null])
-  assert.match(String(review?.why), /Review step: review 10-trace-band since its base, the default branch or its blocker's \(\/code-review, mattpocock-skills:code-review\), then open a PR for it that says Closes #10 \(mattpocock-skills:pr\)\./)
+  assert.match(String(review?.why), /Review step: review 10-trace-band \(\/code-review, mattpocock-skills:code-review\), then open a PR for it that says Closes #10 \(mattpocock-skills:pr\)\./)
 
   const pushed = { sha: 'abc', at: '2026-10-04T10:00:00Z' }
   const update = at({ committed: true, pr: PR, pushed })
