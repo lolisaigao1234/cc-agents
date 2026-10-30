@@ -1,0 +1,13 @@
+{
+  "family": "A-verify-before-review",
+  "ideas": [
+    "run-tests-build-lint-before-review",
+    "show-output-not-claim",
+    "domain-specific-e2e-check",
+    "simplify-before-review",
+    "format-lint-hooks",
+    "claude-md-lists-checks",
+    "checks-block-pr"
+  ],
+  "deferred": []
+}

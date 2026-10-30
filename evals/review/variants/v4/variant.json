@@ -1,0 +1,14 @@
+{
+  "family": "D-finding-filters",
+  "ideas": [
+    "verifier-vote",
+    "drop-style-findings",
+    "cap-nits",
+    "skip-paths",
+    "file-line-evidence",
+    "count-first-summary",
+    "severity-sorted-findings",
+    "tag-important-nit-preexisting"
+  ],
+  "deferred": []
+}

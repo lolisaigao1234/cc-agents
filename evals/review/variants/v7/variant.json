@@ -1,0 +1,5 @@
+{
+  "family": "G-change-shape-and-timing",
+  "ideas": ["continuous-review-per-commit", "raise-direction-early"],
+  "deferred": ["small-changes"]
+}

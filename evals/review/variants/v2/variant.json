@@ -1,0 +1,13 @@
+{
+  "family": "B-reviewer-context",
+  "ideas": [
+    "claude-md-goals-nongoals",
+    "flag-stale-doc-lines",
+    "review-md-owner-guidance",
+    "define-failure",
+    "reviewer-reads-intent",
+    "agent-explainer-before-review"
+  ],
+  "deferred": [],
+  "sweep": false
+}

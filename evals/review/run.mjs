@@ -270,7 +270,7 @@ async function runCase(c, ctx) {
       denyRead: R.denyRead, allowRead: [replay.dir, home, R.matt], denyReadTool: R.denyReadTool,
       limitS, budgetUsd: ctx.budgetUsd, oauth: R.oauth, ghToken: R.token, slug: replay.slug,
     });
-    const d = digest(a.events, R.leak, R.seen);
+    const d = digest(a.events, R.leak, R.seen, R.variant.round_workflows ?? []);
     const res = d.result;
     const mu = res?.modelUsage ?? {};
     // modelUsage keys can carry a context suffix such as [1m].

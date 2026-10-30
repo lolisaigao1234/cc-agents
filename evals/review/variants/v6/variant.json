@@ -1,0 +1,12 @@
+{
+  "family": "F-convergence",
+  "ideas": [
+    "round-cap",
+    "diff-only-rereview-timing",
+    "no-repeat-findings",
+    "finding-auto-clears-when-fixed",
+    "extra-rounds-only-on-risky",
+    "review-bound-to-commit"
+  ],
+  "deferred": []
+}

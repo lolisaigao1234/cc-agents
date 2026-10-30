@@ -1,0 +1,18 @@
+{
+  "family": "C-finders",
+  "ideas": [
+    "fresh-context-subagent-review",
+    "parallel-bug-finders",
+    "review-effort-level",
+    "separate-security-review",
+    "root-cause-on-bug-fix",
+    "reviewer-flags-bug-class",
+    "what-could-go-wrong-premortem"
+  ],
+  "deferred": [
+    "layer-ablation"
+  ],
+  "round_workflows": [
+    "review-finders"
+  ]
+}

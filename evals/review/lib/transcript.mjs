@@ -13,8 +13,16 @@ const isBugReview = input => /^\/?code-review\b/.test(String(input?.skill ?? inp
 const isStdReview = input => /mattpocock-skills:code-review/.test(String(input?.skill ?? input?.command ?? ''));
 const HOOK_DENY = /PreToolUse:\S+ hook|hook (error|denied|blocking)|blocked by .*hook/i;
 
-/** @param {any[]} events @param {RegExp} leak tool inputs that reach for the answer key @param {RegExp} [seen] tool output that shows it */
-export function digest(events, leak, seen) {
+const NOTICE = /^\s*<task-notification>/;
+
+/**
+ * @param {any[]} events @param {RegExp} leak tool inputs that reach for the answer key
+ * @param {RegExp} [seen] tool output or hook feedback that shows it
+ * @param {string[]} [roundWorkflows] workflows a variant runs as its bug review: each call is a round
+ */
+export function digest(events, leak, seen, roundWorkflows = []) {
+  const isRoundWorkflow = input => roundWorkflows.some(w => JSON.stringify(input ?? {}).includes(w));
+  const saw = (text, where) => { if (seen?.test(text)) leaks.push(`${where}: ${text.slice(Math.max(0, text.search(seen) - 150), text.search(seen) + 150)}`); };
   const turns = [];
   const material = [];
   const servedMain = new Set();
@@ -44,9 +52,9 @@ export function digest(events, leak, seen) {
           toolNames.set(b.id, b.name);
           const input = JSON.stringify(b.input ?? {}, null, 2);
           if (leak.test(input)) leaks.push(`${b.name}: ${input.slice(0, 300)}`);
-          if (b.name === 'Skill' && isBugReview(b.input)) {
+          if ((b.name === 'Skill' && isBugReview(b.input)) || (b.name === 'Workflow' && isRoundWorkflow(b.input))) {
             counts.bug_reviews++;
-            material.push(`=== REVIEW ROUND ${counts.bug_reviews} (/code-review) ===`);
+            material.push(`=== REVIEW ROUND ${counts.bug_reviews} (${b.name === 'Workflow' ? 'review workflow' : '/code-review'}) ===`);
           } else if (b.name === 'Skill' && isStdReview(b.input)) {
             counts.std_reviews++;
             material.push(`=== standards and spec review (${counts.std_reviews}) ===`);
@@ -58,16 +66,23 @@ export function digest(events, leak, seen) {
       }
     } else if (ev.type === 'user') {
       const c = ev.message?.content;
-      if (typeof c === 'string') { turns.push({ role: 'user', content: c }); continue; }
+      // Hook feedback and background-task notifications arrive as user text; a
+      // finished Workflow's findings arrive this way.
+      const texts = typeof c === 'string' ? [c] : (c ?? []).filter(b => b.type === 'text').map(b => b.text);
+      for (const t of texts) {
+        turns.push({ role: 'user', content: t });
+        saw(t, 'feedback');
+        if (NOTICE.test(t)) material.push(`[task notification]\n${clip(t, 12_000)}`);
+      }
+      if (typeof c === 'string') continue;
       for (const b of c ?? []) {
-        if (b.type === 'text') turns.push({ role: 'user', content: b.text });
         if (b.type !== 'tool_result') continue;
         const body = textOf(b.content);
         if (b.is_error && HOOK_DENY.test(body)) counts.hook_denials++;
-        if (seen?.test(body)) leaks.push(`result: ${body.slice(Math.max(0, body.search(seen) - 150), body.search(seen) + 150)}`);
+        saw(body, 'result');
         const name = toolNames.get(b.tool_use_id);
         // Subagent reports and skill output carry the findings.
-        if (name === 'Agent' || name === 'Task' || name === 'Skill') material.push(`[${name} result]\n${clip(body, 12_000)}`);
+        if (['Agent', 'Task', 'Skill', 'Workflow'].includes(name)) material.push(`[${name} result]\n${clip(body, 12_000)}`);
         turns.push({ role: 'tool_result', content: clip(body) });
       }
     } else if (ev.type === 'result') {
