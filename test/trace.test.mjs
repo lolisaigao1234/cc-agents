@@ -166,17 +166,70 @@ test('a git that times out, is killed, or fails before it can answer halts the s
     ['echo "fatal: something new went wrong" >&2; exit 128', /git did not answer: fatal: something new went wrong\./],
     ['exit 3', /git did not answer: exit 3\./],
   ])) {
-    const out = hook(edit, { PATH: `${fakeGit(`*" cat-file -e "*) ${asked};;`)}:${process.env.PATH}` })
+    const out = hook(edit, { PATH: `${fakeGit(`*" ls-tree "*) ${asked};;`)}:${process.env.PATH}` })
     assert.equal(out?.permissionDecision, 'deny', asked)
     assert.equal(hook.out.continue, false, asked)
     assert.match(hook.out.stopReason, why)
   }
-  // git's own "no": the marker is in no revision, so the repository is untraced.
-  const untraced = hook(edit, { PATH: `${fakeGit(`*" cat-file -e "*) echo "fatal: path '.claude/trace.json' does not exist in 'HEAD'" >&2; exit 128;;`)}:${process.env.PATH}` })
+  // git's own "no": the marker is in no revision, or there is no such revision, so the repository is untraced.
+  assert.equal(hook(edit, { PATH: `${fakeGit('*" ls-tree "*) exit 0;;')}:${process.env.PATH}` }), null)
+  const untraced = hook(edit, { PATH: `${fakeGit(`*" ls-tree "*) echo "fatal: Not a valid object name HEAD" >&2; exit 128;;`)}:${process.env.PATH}` })
   assert.equal(untraced, null)
   // git is asked in its own words, whatever the human's locale: a German git would say no in German.
-  const german = fakeGit(`*" cat-file -e "*) if [ "$LC_ALL" = C ]; then echo "fatal: path '.claude/trace.json' does not exist in 'HEAD'" >&2; else echo "fatal: Pfad '.claude/trace.json' existiert nicht in 'HEAD'" >&2; fi; exit 128;;`)
+  const german = fakeGit(`*" ls-tree "*) if [ "$LC_ALL" = C ]; then echo "fatal: Not a valid object name HEAD" >&2; else echo "fatal: Kein gültiger Objektname HEAD" >&2; fi; exit 128;;`)
   assert.equal(hook(edit, { PATH: `${german}:${process.env.PATH}`, LANG: 'de_DE.UTF-8', LC_ALL: 'de_DE.UTF-8' }), null)
+})
+
+test("git's no about a name the branch or the agent chose is an answer, whatever words the name holds", () => {
+  const { dir, git } = repo()
+  git('checkout', '-qb', '16-fix-corrupt-index')
+  const world = worldFor(noReads())
+  assert.equal(world.git.pushed(dir, '16-fix-corrupt-index'), null, 'no upstream configured')
+  assert.equal(world.git.config(dir, 'alias.corrupt_x'), null, 'an invalid key')
+  assert.equal(world.git.message(dir, 'fix-corrupt-index'), null, 'no such revision')
+})
+
+test('a HEAD that names no object halts the session, rather than reading as a HEAD without the marker', () => {
+  const { dir, git } = repo(false)
+  git('checkout', '-qb', '16-x')
+  mkdirSync(join(dir, '.claude'))
+  writeFileSync(join(dir, '.claude/trace.json'), '{}\n')
+  git('add', '-A')
+  git('commit', '-qm', 'marker')
+  rmSync(join(dir, '.claude/trace.json'))
+  writeFileSync(join(dir, '.git/refs/heads/16-x'), `${'1'.repeat(40)}\n`)
+  assert.throws(() => worldFor(noReads()).git.traced(dir), (/** @type {Error} */ err) => err instanceof Unanswered && /^git did not answer: /.test(err.message))
+  // A branch with no commits yet is git's no: it has no marker.
+  const empty = realpathSync(mkdtempSync(join(tmpdir(), 'trace-')))
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: empty })
+  assert.equal(worldFor(noReads()).git.traced(empty), false)
+})
+
+test("a commit's message is read with a git older than --end-of-options, and a revision that looks like an option is no commit", () => {
+  const { dir } = repo()
+  // git before 2.24 does not know --end-of-options.
+  const old = fakeGit(`*" --end-of-options "*) echo "fatal: unrecognized argument: --end-of-options" >&2; exit 128;;`)
+  const path = process.env.PATH
+  process.env.PATH = `${old}:${path}`
+  try {
+    const world = worldFor(noReads())
+    assert.equal(world.git.message(dir, 'HEAD'), 'init')
+    assert.equal(world.git.message(dir, '--output=zz'), null)
+    assert.equal(existsSync(join(dir, 'zz')), false)
+  } finally {
+    process.env.PATH = path
+  }
+})
+
+test('a git alias run from under a directory the agent cannot search is looked up in the nearest one it can', () => {
+  const outside = realpathSync(mkdtempSync(join(tmpdir(), 'no-repo-')))
+  mkdirSync(join(outside, 'np/sub'), { recursive: true })
+  chmodSync(join(outside, 'np'), 0o000)
+  try {
+    assert.equal(commandVerdict('git -C np/sub/new co main', outside, world()), null)
+  } finally {
+    chmodSync(join(outside, 'np'), 0o700)
+  }
 })
 
 test('a gh that is missing, not logged in or cannot reach GitHub halts the session; "no such issue" and "no PR" are answers', () => {
@@ -592,7 +645,7 @@ test('every hook that gets no answer from git halts the session; the band\'s sta
   assert.equal(hook({ tool_name: 'Read', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir, session_id: session }), null)
 })
 
-test("a halt stands for the whole session, the parent's calls included, until a prompt that is not a task's report, or the session is started, resumed or cleared", () => {
+test("a halt stands for the whole session, the parent's calls included, until a prompt that is not a background agent's report, or the session is started, resumed or cleared", () => {
   const { dir } = repo()
   const session = `s-${process.pid}-${Math.random().toString(36).slice(2)}`
   const read = (/** @type {object} */ as = {}) => hook({ tool_name: 'Read', tool_input: { file_path: join(dir, 'a.md') }, cwd: dir, session_id: session, ...as })

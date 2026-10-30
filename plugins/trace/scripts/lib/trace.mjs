@@ -327,11 +327,20 @@ function lazy(f) {
   }
 }
 
-/** @param {string} dir @returns {string} `dir`, or its nearest ancestor that is a directory */
-const existing = dir => (statSync(dir, { throwIfNoEntry: false })?.isDirectory() || dirname(dir) === dir ? dir : existing(dirname(dir)))
+/** @param {string} dir @returns {string} `dir`, or its nearest ancestor that can be told to be a directory */
+const existing = dir => (isDirectory(dir) || dirname(dir) === dir ? dir : existing(dirname(dir)))
+
+/** @param {string} path @returns {boolean} */
+function isDirectory(path) {
+  try {
+    return statSync(path).isDirectory()
+  } catch {
+    return false
+  }
+}
 
 /** @param {string} dir @param {string} to @returns {string | null} */
-const resolveIn =(dir, to) => (computed(to) || to === '-' ? null : resolve(dir, untilde(to, dir)))
+const resolveIn = (dir, to) => (computed(to) || to === '-' ? null : resolve(dir, untilde(to, dir)))
 
 /** @param {string} what @param {string} fix @param {string} step */
 const cannotTell = (what, fix, step) => `the trace cannot tell ${what}. ${step} step: ${fix}.`
@@ -878,8 +887,8 @@ function realWorld() {
       return [...remotes].filter(([, r]) => r.slug).sort(([a], [b]) => rank(a) - rank(b))[0]?.[1].slug ?? null
     },
     // The revision may be the agent's: a full hash of no commit is "bad object",
-    // and one that looks like an option is still only a revision.
-    message: (root, rev) => git(root, ['log', '-1', '--format=%B', '--end-of-options', rev, '--'], new RegExp(`${GIT_NO.source}|bad object`, 'i')),
+    // and one that looks like an option names no commit, so git is not given it.
+    message: (root, rev) => (rev.startsWith('-') ? null : git(root, ['log', '-1', '--format=%B', rev, '--'], new RegExp(`${GIT_NO.source}|bad object`, 'i'))),
     committed(root, n) {
       const def = this.defaultBranch(root)
       const base = def ? ['--ignore-missing', '--not', `refs/heads/${def}`, `refs/remotes/origin/${def}`] : []
@@ -931,11 +940,12 @@ function realWorld() {
     // Only git saying no makes a repository untraced: when git does not answer
     // (a timeout, the hook call's deadline run out, no git to run, a broken
     // repository), this throws, and the session halts rather than let an
-    // untraced edit, commit or PR through.
+    // untraced edit, commit or PR through. ls-tree, unlike `cat-file -e
+    // <rev>:<path>`, does not say "no such path" of a revision whose commit is gone.
     traced(root) {
       if (existsSync(join(root, MARKER))) return true
       const def = this.defaultBranch(root)
-      return ['HEAD', ...(def ? [`origin/${def}`, def] : [])].some(rev => git(root, ['cat-file', '-e', `${rev}:${MARKER}`]) !== null)
+      return ['HEAD', ...(def ? [`origin/${def}`, def] : [])].some(rev => Boolean(git(root, ['ls-tree', '--name-only', rev, '--', MARKER])))
     },
     // While a rebase stops, HEAD is detached; the branch is the one being rebased.
     branch(root) {
