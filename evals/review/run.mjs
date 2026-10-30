@@ -294,7 +294,7 @@ async function runCase(c, ctx) {
       counts: d.counts, tests: { before, after },
       model_usage: Object.fromEntries(Object.entries(mu).map(([k, v]) => [k, apiUsage(v)])),
       turns: res.num_turns, budget_hit: /max_budget/.test(res.subtype ?? '') ? 1 : 0,
-      meta: { replay: name, served_main: d.servedMain, cli_cost_usd: res.total_cost_usd, tests: { before, after } },
+      meta: { replay: name, served_main: d.servedMain, segments: res.segments, cli_cost_usd: res.total_cost_usd, tests: { before, after } },
     };
   } finally {
     if (!ctx.keep) {

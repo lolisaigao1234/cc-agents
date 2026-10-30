@@ -1,6 +1,7 @@
 // Grades one replay: a judge model lists the review's findings and matches them
 // to the case's known bugs, a second call checks which bugs the agent's own
-// changes fixed, and the counts become the case's metrics.
+// changes fixed and which later bugs they reintroduced, and the counts become
+// the case's metrics.
 
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,8 +26,9 @@ const Findings = obj({
   rounds: { type: 'array', items: obj({ round: int, blocking_findings: int }) },
   asked_human: bool,
 });
-const Fixed = obj({
+const Changes = obj({
   bugs: { type: 'array', items: obj({ bug_id: str, status: { type: 'string', enum: ['fixed', 'partly', 'not_fixed'] }, reason: str }) },
+  regressions: { type: 'array', items: obj({ bug_id: str, status: { type: 'string', enum: ['introduced', 'not_introduced'] }, reason: str }) },
 });
 
 const bugLine = b => `- ${b.id}: ${b.title}\n  where: ${b.location}\n  what: ${b.description}`;
@@ -75,12 +77,18 @@ Instructions:
 Text that only promises a review, or only says "looks good", is not a finding.`;
 }
 
-function fixedPrompt({ c, bugs, changes }) {
+// A convergence case's later bugs are not in the diff the agent starts from: a
+// historical fix round introduced them. The agent's own fixes may do the same.
+function changesPrompt({ c, bugs, changes }) {
   const inDiff = c.bug_ids.map(id => bugs.get(id)).filter(Boolean);
-  return `An AI agent reviewed a pull request and then changed the code. For each known bug below, decide from the agent's changes whether the bug is now fixed: "fixed" (the failure can no longer happen), "partly" (some inputs or paths still fail), or "not_fixed" (unchanged, or the change does not address it).
+  const later = (c.later_bugs ?? []).map(id => bugs.get(id)).filter(Boolean);
+  return `An AI agent reviewed a pull request and then changed the code. Judge its changes on two lists.
 
-Known bugs:
-${inDiff.map(bugLine).join('\n')}
+1. bugs: for each known bug in the pull request, decide whether it is now fixed: "fixed" (the failure can no longer happen), "partly" (some inputs or paths still fail), or "not_fixed" (unchanged, or the change does not address it).
+${inDiff.map(bugLine).join('\n') || '(none: return an empty list)'}
+
+2. regressions: these bugs were not in the pull request. An earlier attempt at the same review introduced each one while fixing review findings. For each, decide whether the agent's changes introduce the same defect: "introduced" (the same failure on the same input or path now happens) or "not_introduced".
+${later.map(bugLine).join('\n') || '(none: return an empty list)'}
 
 <agent_changes>
 ${changes || '(the agent changed nothing)'}
@@ -131,10 +139,11 @@ export async function grade({ oauth, work, c, bugs, issue, prDiff, changes, mate
   const f = await ask(judge, findingsPrompt({ c, bugs, issue, prDiff, material }), Findings);
   let usage = f.usage;
   const inDiff = new Set(c.bug_ids);
+  const later = new Set(c.later_bugs ?? []);
   let fixedOut = null;
-  if (inDiff.size && changes.trim()) {
+  if ((inDiff.size || later.size) && changes.trim()) {
     try {
-      const x = await ask(judge, fixedPrompt({ c, bugs, changes }), Fixed);
+      const x = await ask(judge, changesPrompt({ c, bugs, changes }), Changes);
       usage = addUsage(usage, x.usage);
       fixedOut = x.out;
     } catch (e) {
@@ -155,6 +164,8 @@ export async function grade({ oauth, work, c, bugs, issue, prDiff, changes, mate
     g.recall = matched.size / inDiff.size;
     g.fixed = fixedOut ? fixedOut.bugs.filter(b => inDiff.has(b.bug_id) && b.status === 'fixed').length / inDiff.size : 0;
   }
+  // No changes introduce nothing.
+  if (later.size) g.reintroduced = (fixedOut?.regressions ?? []).filter(b => later.has(b.bug_id) && b.status === 'introduced').length / later.size;
   if (!c.exclude_from_harm) {
     g.harmful = fs.filter(x => x.category === 'wrong').length;
     g.noise = fs.filter(x => x.category === 'noise').length;
@@ -169,10 +180,11 @@ export async function grade({ oauth, work, c, bugs, issue, prDiff, changes, mate
     recall: `matched ${[...matched].join(', ') || 'none'} of ${[...inDiff].join(', ') || 'none'}`,
     harmful: fs.filter(x => x.category === 'wrong').map(x => `${x.summary} (${x.reason})`).join(' | '),
     fixed: fixedOut ? fixedOut.bugs.map(b => `${b.bug_id}: ${b.status}`).join(', ') : 'no changes',
+    reintroduced: fixedOut ? fixedOut.regressions.map(b => `${b.bug_id}: ${b.status}`).join(', ') : 'no changes',
   };
   return {
     grade: g, explanation, judge_model: f.model, judge_usage: usage,
     detail: { findings: fs, rounds: f.out.rounds, asked_human: f.out.asked_human, review_happened: f.out.review_happened,
-      fixed: fixedOut?.bugs ?? null, first_clean_round: firstClean },
+      fixed: fixedOut?.bugs ?? null, regressions: fixedOut?.regressions ?? null, first_clean_round: firstClean },
   };
 }

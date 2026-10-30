@@ -21,7 +21,8 @@ export function digest(events, leak) {
   const counts = { tool_calls: 0, hook_denials: 0, refusals: 0, max_tokens_hits: 0, bug_reviews: 0, std_reviews: 0 };
   const leaks = [];
   const toolNames = new Map();
-  let result = null, init = null;
+  const results = [];
+  let init = null;
 
   for (const ev of events) {
     const sub = ev.parent_tool_use_id != null;
@@ -69,11 +70,26 @@ export function digest(events, leak) {
         turns.push({ role: 'tool_result', content: clip(body) });
       }
     } else if (ev.type === 'result') {
-      result = ev;
+      results.push(ev);
       if (ev.result) turns.push({ role: 'assistant', content: `[final] ${ev.result}` });
     }
   }
-  return { turns, material, servedMain: [...servedMain], counts, leaks, result, init };
+  return { turns, material, servedMain: [...servedMain], counts, leaks, result: merge(results), init };
+}
+
+// A background task finishing re-enters the session, and each segment ends in
+// its own result. Usage and cost in a result are the session's running totals,
+// but num_turns counts only its segment, and an earlier segment may have errored.
+function merge(results) {
+  const last = results.at(-1);
+  if (!last) return null;
+  const errored = results.find(r => r.is_error);
+  return {
+    ...last,
+    ...(errored && { is_error: true, subtype: errored.subtype, api_error_status: errored.api_error_status, result: errored.result }),
+    num_turns: results.reduce((a, r) => a + (r.num_turns ?? 0), 0),
+    segments: results.length,
+  };
 }
 
 export { clip };
