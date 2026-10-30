@@ -1,6 +1,6 @@
 ---
 name: trace
-description: The trace, the pipeline every change in a traced repository follows (Read → Track → Branch → Implement → Review → Update → Close). Use when starting, resuming or finishing a change, or when a trace hook denies an action.
+description: The trace, the pipeline every change in a traced repository follows (Read → Track → Branch → Implement → Review → Update → Close). Use when starting, resuming or finishing a change, or when a trace hook denies an action or halts the session.
 ---
 
 # The trace
@@ -23,4 +23,6 @@ The issue is the source of truth across compaction, resumes and subagents: when 
 
 Merging is the human's step. Your work is done when the PR is ready for review.
 
-Only the human can switch the trace off, by launching Claude Code with `TRACE_BYPASS=1`. When GitHub cannot be reached, say so and ask.
+Only the human can switch the trace off, by launching Claude Code with `TRACE_BYPASS=1`.
+
+When git or GitHub cannot answer, a hook halts the session: every call stops until the halt is lifted (ADR 0006). Tell the human what failed, in the halt's own words, and what to restore (`git status`, `gh auth status`, the network), then wait: while the halt stands, every call halts. Do not work around it; do not retry it in a subagent or suggest the bypass. When the halt names a form of the command that asks git nothing, use that form once the human replies, if git is still not back.

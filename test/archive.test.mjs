@@ -1,12 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { archiveBlock } from '../plugins/trace/scripts/lib/archive.mjs'
+import { Unanswered } from '../plugins/trace/scripts/lib/halt.mjs'
+import { worldFor } from '../plugins/trace/scripts/lib/trace.mjs'
+import { noReads } from './helpers.mjs'
 
 const HOOK = fileURLToPath(new URL('../plugins/trace/scripts/hook.mjs', import.meta.url))
 
@@ -417,4 +420,144 @@ test('the hook denies a Read of the archive, and lets other reads through', () =
   assert.equal(run({ tool_name: 'Read', tool_input: { file_path: at('docs/a.md') }, cwd: repo }).stdout, '')
   const cat = JSON.parse(run({ tool_name: 'Bash', tool_input: { command: 'cat archive/old.md' }, cwd: repo }).stdout)
   assert.equal(cat.hookSpecificOutput.permissionDecision, 'deny')
+})
+
+test('the hook denies what the archive block fails to check, whatever the failure', () => {
+  // A cwd that is not a path makes the archive block throw.
+  for (const input of [{ tool_name: 'Read', tool_input: { file_path: 'archive/old.md' }, cwd: 5 }, { tool_name: 'Bash', tool_input: { command: 'cat archive/old.md' }, cwd: 5 }]) {
+    const r = spawnSync(process.execPath, [HOOK, 'pre-tool-use'], { input: JSON.stringify(input), encoding: 'utf8' })
+    const out = r.stdout ? JSON.parse(r.stdout).hookSpecificOutput : null
+    assert.equal(out?.permissionDecision, 'deny', input.tool_name)
+    assert.match(out.permissionDecisionReason, /^archive block: the archive could not be checked \(.+\)\./)
+  }
+})
+
+test('a history command halts the session when the hook call has run out of time to ask git', () => {
+  const ranOut = () => {
+    throw new Unanswered('git and GitHub', 'the hook call ran out of time asking them')
+  }
+  // `git log -p -1` prints only docs/, so with time to ask git it is allowed.
+  assert.equal(bash('git log -p -1'), null)
+  assert.throws(() => archiveBlock('Bash', { command: 'git log -p -1' }, repo, ranOut), Unanswered)
+  // A command that needs no answer from git is judged as before.
+  assert.equal(archiveBlock('Bash', { command: 'cat docs/a.md' }, repo, ranOut), null)
+  assert.match(String(archiveBlock('Bash', { command: 'cat archive/old.md' }, repo, ranOut)), /archive\/old\.md, in the archive/)
+})
+
+test("the archive block draws on the hook call's deadline, which the gates' git and GitHub calls share", t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
+  const world = worldFor(noReads())
+  assert.equal(archiveBlock('Bash', { command: 'git log -p -1' }, repo, world.timeLeft), null)
+  t.mock.timers.tick(20_000)
+  assert.throws(() => archiveBlock('Bash', { command: 'git log -p -1' }, repo, world.timeLeft), /git and GitHub did not answer: the hook call ran out of time/)
+  assert.throws(() => world.git.message(repo, 'HEAD'), /git and GitHub did not answer: the hook call ran out of time/)
+})
+
+test('a history command halts the session when git cannot run, rather than being denied as printing the archive', () => {
+  const r = spawnSync(process.execPath, [HOOK, 'pre-tool-use'], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git log -p -1' }, cwd: repo }), encoding: 'utf8', env: { ...process.env, PATH: '/nonexistent' } })
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.continue, false)
+  assert.match(out.stopReason, /^trace halted the session: git did not answer: git is not on PATH\./)
+  assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
+  assert.doesNotMatch(out.stopReason, /would print changes/)
+})
+
+test("a history command's halt names the command-side fix, which asks git nothing", () => {
+  const run = (/** @type {string} */ command) =>
+    spawnSync(process.execPath, [HOOK, 'pre-tool-use'], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command }, cwd: repo }), encoding: 'utf8', env: { ...process.env, PATH: '/nonexistent' } })
+  assert.match(JSON.parse(run('git log -p -1').stdout).stopReason, /, or add `-- ':!archive'` to the history commands, which then ask git nothing, then reply to continue\.$/)
+  assert.equal(run("git log -p -1 -- ':!archive'").stdout, '', 'and the fix works without git')
+})
+
+test("a history command git refuses is denied in git's words; one git cannot answer for a broken repository halts", () => {
+  for (const [command, words] of [
+    ['git log -p --bogus', 'fatal: unrecognized argument: --bogus'],
+    ['git show deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', 'fatal: bad object deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'],
+  ]) {
+    const why = String(bash(command))
+    assert.ok(why.startsWith(`archive block: \`${command.split(' ').slice(0, 2).join(' ')}\` fails here (${words}), so what it prints cannot be checked. Add \`-- ':!archive'\` or name the paths you need.`), why)
+  }
+  const bin = mkdtempSync(join(tmpdir(), 'brokengit-'))
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim()
+  writeFileSync(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" --name-only "*) echo "$BROKEN" >&2; exit 128;; esac\nexec "${realGit}" "$@"\n`, { mode: 0o755 })
+  const path = process.env.PATH
+  process.env.PATH = `${bin}:${path}`
+  try {
+    for (const words of ['fatal: bad object HEAD', 'fatal: index file corrupt', 'fatal: loose object 1234 (stored in .git/objects/12/34) is corrupt']) {
+      process.env.BROKEN = words
+      assert.throws(() => bash('git log -p'), (/** @type {Error} */ err) => err.message === `git did not answer: ${words}`, words)
+    }
+  } finally {
+    delete process.env.BROKEN
+    process.env.PATH = path
+  }
+})
+
+test("a name the agent chose, or a file its option names, is the command's own mistake, even in words git uses for a broken repository", () => {
+  const orderfile = join(realpathSync(mkdtempSync(join(tmpdir(), 'orderfile-'))), 'order')
+  writeFileSync(orderfile, 'docs/*\n', { mode: 0o000 })
+  for (const [command, words] of [
+    ['git show fix-corrupt-index', "fatal: ambiguous argument 'fix-corrupt-index': unknown revision or path not in the working tree."],
+    ['git diff corrupted-cache', "fatal: ambiguous argument 'corrupted-cache': unknown revision or path not in the working tree."],
+    [`git show -O${orderfile} HEAD`, `fatal: failed to read orderfile '${orderfile}': Permission denied`],
+  ]) {
+    const why = String(bash(command))
+    assert.ok(why.startsWith(`archive block: \`${command.split(' ').slice(0, 2).join(' ')}\` fails here (${words}), so what it prints cannot be checked.`), why)
+  }
+})
+
+test("a history command's output and exit-code options are judged by the paths it prints, as without them", () => {
+  // HEAD~1..HEAD changes only docs/; the empty tree to HEAD takes in the archive.
+  const all = '4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD'
+  for (const opts of ['--exit-code', '--name-status', '--check', '--stat --no-patch', '-s', '-z']) {
+    assert.equal(bash(`git diff ${opts} HEAD~1`), null, opts)
+    assert.match(String(bash(`git diff ${opts} ${all}`)), /^archive block: `git diff` would print changes in the archive\./, opts)
+  }
+  assert.equal(bash('git log -p --exit-code -1'), null)
+  // --quiet prints no changes at all.
+  for (const command of ['git diff --quiet', 'git diff --quiet HEAD~1', `git diff --quiet ${all}`, 'git show --quiet HEAD~1', 'git log -p --quiet']) {
+    assert.equal(bash(command), null, command)
+  }
+  // With -z, git ends each path with NUL, not a newline: a path before the archive's does not hide it.
+  const r = fixture()
+  writeFileSync(join(r, '0.md'), 'x\n')
+  execFileSync('git', ['add', '0.md'], { cwd: r })
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'third'], { cwd: r, stdio: 'ignore' })
+  assert.match(String(bash(`git diff -z ${all}`, r)), /would print changes in the archive/)
+})
+
+test('the archive block does not run a history command that writes a file to check what it prints', () => {
+  for (const command of [`git log -p --output=${at('archive/new.md')}`, `git diff HEAD~1 --output ${at('out.txt')}`]) {
+    assert.match(String(bash(command)), /^archive block: `git (?:log|diff) --output` writes a file, so the archive block does not run it to check what it prints\. Add `-- ':!archive'` or name the paths you need\./, command)
+  }
+  assert.deepEqual([at('archive/new.md'), at('out.txt')].filter(f => existsSync(f)), [])
+})
+
+test('a history command in a repository the line has yet to make is denied as not checkable yet, without asking git', () => {
+  const outside = realpathSync(mkdtempSync(join(tmpdir(), 'no-repo-')))
+  for (const command of [`git clone ${repo} ${fresh}-c && cd ${fresh}-c && git show`, `git worktree add ${fresh}-w && git -C ${fresh}-w log -p`]) {
+    for (const cwd of [repo, outside]) {
+      const why = /^archive block: `git (?:show|log)` runs in .*, which an earlier command on the line makes, so what it prints cannot be checked yet\. Run it as a command of its own, or add `-- ':!archive'`\./
+      assert.match(String(bash(command, cwd)), why, `${command} in ${cwd}`)
+    }
+  }
+})
+
+test("a history command in a directory that does not exist yet is checked from its repository's root", () => {
+  assert.equal(bash(`mkdir -p ${repo}/later && cd ${repo}/later && git log -p -1`), null)
+  assert.match(String(bash(`mkdir -p ${repo}/later && cd ${repo}/later && git log -p`)), /would print changes in the archive/)
+})
+
+test('a history command git takes over 5s to list is denied as not checkable, naming the fix, and halts nothing', () => {
+  const bin = mkdtempSync(join(tmpdir(), 'slowgit-'))
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim()
+  writeFileSync(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" --name-only "*) exec sleep 10;; esac\nexec "${realGit}" "$@"\n`, { mode: 0o755 })
+  const path = process.env.PATH
+  process.env.PATH = `${bin}:${path}`
+  try {
+    const why = /^archive block: the archive could not be checked: git took over 5s to list what `git log` prints\. Add `-- ':!archive'` or name the paths you need\./
+    assert.match(String(bash('git log -p')), why)
+  } finally {
+    process.env.PATH = path
+  }
 })

@@ -11,6 +11,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
+import { GIT_ENV, Unanswered, answered } from './halt.mjs'
 import { CASE_INSENSITIVE_FS, real, untilde } from './paths.mjs'
 import { INTERPRETERS, cdTarget, gitParts, operandIndexes, parseCommands, shortFlags, withCwds } from './shell.mjs'
 
@@ -18,6 +19,9 @@ import { INTERPRETERS, cdTarget, gitParts, operandIndexes, parseCommands, shortF
 
 const DENY_SUFFIX = ' The archive is managed by the human alone; agents may only move files into it (ADR 0008).'
 const EXCLUDE_HINT = "rg -g '!archive', grep --exclude-dir=archive, git … -- ':!archive', find … -name archive -prune"
+// The pathspec that leaves the archive out of what a git command prints, and the advice that names it.
+const EXCLUDE_ARCHIVE = "`-- ':!archive'`"
+const HISTORY_FIX = `Add ${EXCLUDE_ARCHIVE} or name the paths you need.`
 
 // --- where the archive is ----------------------------------------------------
 
@@ -29,6 +33,18 @@ const isBareRepo = (/** @type {string} */ dir) => ['HEAD', 'objects', 'refs'].ev
 // (a clone, a worktree). Reset for every tool call.
 /** @type {Set<string>} */
 const fresh = new Set()
+
+// A hook that times out lets the command through, so the git calls of one
+// tool call draw from the hook call's deadline, which the gates' git and
+// GitHub calls share. Set for every tool call.
+/** @type {{ timeLeft: import('./trace.mjs').TimeLeft }} */
+const call = { timeLeft: () => Infinity }
+
+// The longest one history command's list of paths may take git, of the hook call's deadline.
+const HISTORY_CAP = 5000
+
+/** @returns {number} the timeout for one git call: HISTORY_CAP, or what the hook call has left; throws Unanswered once it has none */
+const gitTimeout = () => Math.min(HISTORY_CAP, call.timeLeft())
 
 /** @param {string} dir @returns {string | null} the repository root at or above `dir` */
 function repoRoot(dir) {
@@ -691,23 +707,40 @@ const specNamesArchive = p => (p.icase ? p.rel.toLowerCase() : p.rel).split('/')
 const specExcludesArchive = p => p.exclude && /^archive(?:\/(?:\*{1,2})?)?$/.test(p.rel)
 
 /**
- * Whether the history a git command prints touches the archive: asks git
- * for every path it would show. (A pathspec would change which commits
- * options like `-1` pick, so the paths are filtered here instead.)
+ * Why the history a git command prints touches the archive, or cannot be
+ * told to: asks git for every path it would show. (A pathspec would change
+ * which commits options like `-1` pick, so the paths are filtered here
+ * instead.) Throws Unanswered when git does not answer.
  *
  * @param {string} sub
  * @param {string[]} opts the arguments before `--`
  * @param {string} cwd
- * @returns {boolean}
+ * @returns {string | null}
  */
 function historyTouches(sub, opts, cwd) {
   const diff = /^diff/.test(sub)
-  const r = spawnSync('git', ['-C', cwd, sub === 'difftool' ? 'diff' : sub, ...opts, '--name-only', '--no-renames', '--no-ext-diff',
+  // The hook runs before any permission prompt, so it never runs what writes.
+  if (opts.some(a => /^--output(?:=|$)/.test(a))) return `\`git ${sub} --output\` writes a file, so the archive block does not run it to check what it prints. ${HISTORY_FIX}`
+  const timeout = gitTimeout()
+  // Options that change how git prints the paths, or what it exits with, are
+  // left out: the paths it lists are the same without them.
+  const listed = opts.filter(a => !/^(?:--exit-code|--check|--name-status|-s|--no-patch|-z)$/.test(a))
+  const r = spawnSync('git', ['-C', cwd, sub === 'difftool' ? 'diff' : sub, ...listed, '--name-only', '--no-renames', '--no-ext-diff',
     ...(sub === 'diff' || sub === 'difftool' ? ['--no-relative'] : []), ...(diff ? [] : ['--format='])],
-  { encoding: 'utf8', timeout: 5000, maxBuffer: 64 * 1024 * 1024 })
-  // When git cannot say, assume the worst.
-  if (r.status !== 0) return true
-  return r.stdout.split('\n').some(l => l === 'archive' || l.startsWith('archive/'))
+  { encoding: 'utf8', env: GIT_ENV(), timeout, maxBuffer: 64 * 1024 * 1024 })
+  // A long history takes git long, or overflows the hook's buffer, to list:
+  // that is the command's size, not git failing to answer.
+  const code = /** @type {NodeJS.ErrnoException | undefined} */ (r.error)?.code
+  if (code === 'ENOBUFS' || (code === 'ETIMEDOUT' && timeout === HISTORY_CAP)) {
+    return `the archive could not be checked: git took ${code === 'ENOBUFS' ? 'more room than the hook has' : `over ${HISTORY_CAP / 1000}s`} to list what \`git ${sub}\` prints. ${HISTORY_FIX}`
+  }
+  // The command is the agent's: a failure git has no words for in halt.mjs,
+  // as for a bad revision or option, may be its own mistake, so it is denied
+  // in git's words rather than halting the session.
+  answered('git', r)
+  if (r.status !== 0) return `\`git ${sub}\` fails here (${String(r.stderr).trim().split('\n')[0] || `exit ${r.status}`}), so what it prints cannot be checked. ${HISTORY_FIX}`
+  if (r.stdout.split('\n').some(l => l === 'archive' || l.startsWith('archive/'))) return `\`git ${sub}\` would print changes in the archive. ${HISTORY_FIX}`
+  return null
 }
 
 // Options that make log, reflog or show print what changed, not only messages.
@@ -877,7 +910,7 @@ function gitTouches(gitArgs, cwds) {
     }
     if (included.length || excluded) continue
     // No pathspec: the whole tree (from here), or the history.
-    if (spec.kind === 'dump') return `\`git ${sub}\` would write out the archive. Add \`-- ':!archive'\` or name the paths you need.`
+    if (spec.kind === 'dump') return `\`git ${sub}\` would write out the archive. ${HISTORY_FIX}`
     const walksTree = spec.kind === 'tree' && !blobs.length && (sub !== 'ls-tree' || has(before, 'r'))
     if (walksTree && specReaches(pathspec('.', cwd, root))) return walkMessage(`git ${sub}`)
     if (spec.kind !== 'history') continue
@@ -886,10 +919,21 @@ function gitTouches(gitArgs, cwds) {
     const changes = before.filter(a => SHOWS_CHANGES.test(a))
     if (/^(?:log|reflog)$/.test(sub) && !changes.length) continue
     if (sub === 'show' && before.some(a => a === '-s' || a === '--no-patch') && !changes.some(a => a !== '-s')) continue
+    // --quiet prints no changes, whatever other options say.
+    if (before.includes('--quiet')) continue
     // A -L range shows only the file it names.
     if (changes.length && changes.every(a => a.startsWith('-L'))) continue
-    if (historyTouches(sub, before.filter(a => !blobs.includes(a)), cwd)) {
-      return `\`git ${sub}\` would print changes in the archive. Add \`-- ':!archive'\` or name the paths you need.`
+    // A repository an earlier command on the line makes is not there yet to ask.
+    if (!isRepoRoot(root) && !isBareRepo(root)) {
+      return `\`git ${sub}\` runs in ${root}, which an earlier command on the line makes, so what it prints cannot be checked yet. Run it as a command of its own, or add ${EXCLUDE_ARCHIVE}.`
+    }
+    try {
+      // The paths history prints are the repository's, wherever in it git runs.
+      const why = historyTouches(sub, before.filter(a => !blobs.includes(a)), existsSync(cwd) ? cwd : root)
+      if (why) return why
+    } catch (err) {
+      if (err instanceof Unanswered) err.hint = `add ${EXCLUDE_ARCHIVE} to the history commands, which then ask git nothing`
+      throw err
     }
   }
   return null
@@ -961,25 +1005,40 @@ function searchToolTouches(toolName, toolInput, root, cwd) {
  * @param {string} toolName
  * @param {Record<string, unknown>} toolInput
  * @param {string} cwd the agent's working directory
+ * @param {import('./trace.mjs').TimeLeft} [timeLeft] the hook call's deadline; without it, each git call is
+ *   bounded only by its own timeout
  * @returns {string | null}
  */
-export function archiveBlock(toolName, toolInput, cwd) {
+export function archiveBlock(toolName, toolInput, cwd, timeLeft = () => Infinity) {
   fresh.clear()
-  const str = (/** @type {string} */ k) => (typeof toolInput[k] === 'string' ? /** @type {string} */ (toolInput[k]) : undefined)
+  call.timeLeft = timeLeft
   /** @type {string | null} */
-  let why = null
-  if (toolName === 'Bash') why = bashTouches(str('command') ?? '', cwd)
-  else {
-    for (const k of ['file_path', 'notebook_path']) {
-      const p = str(k)
-      if (p !== undefined && pathKind(p, [cwd])) why = `${p} is in the archive.`
-    }
-    const path = str('path')
-    if (!why && (toolName === 'Grep' || toolName === 'Glob' || toolName === 'LS')) {
-      const root = resolve(cwd, untilde(path ?? '.', cwd))
-      if (inArchive(root)) why = `${path} is in the archive.`
-      else if (toolName !== 'LS') why = searchToolTouches(toolName, toolInput, root, cwd)
-    }
+  let why
+  try {
+    why = toolTouches(toolName, toolInput, cwd)
+  } catch (err) {
+    // git not answering halts the session (hook.mjs). Failing open on
+    // anything else would let the command reach the archive.
+    if (err instanceof Unanswered) throw err
+    why = `the archive could not be checked (${/** @type {Error} */ (err).message}).`
   }
   return why && `archive block: ${why}${DENY_SUFFIX}`
+}
+
+/**
+ * @param {string} toolName @param {Record<string, unknown>} toolInput @param {string} cwd
+ * @returns {string | null} why a tool call touches the archive, or null if it does not
+ */
+function toolTouches(toolName, toolInput, cwd) {
+  const str = (/** @type {string} */ k) => (typeof toolInput[k] === 'string' ? /** @type {string} */ (toolInput[k]) : undefined)
+  if (toolName === 'Bash') return bashTouches(str('command') ?? '', cwd)
+  for (const k of ['file_path', 'notebook_path']) {
+    const p = str(k)
+    if (p !== undefined && pathKind(p, [cwd])) return `${p} is in the archive.`
+  }
+  const path = str('path')
+  if (toolName !== 'Grep' && toolName !== 'Glob' && toolName !== 'LS') return null
+  const root = resolve(cwd, untilde(path ?? '.', cwd))
+  if (inArchive(root)) return `${path} is in the archive.`
+  return toolName === 'LS' ? null : searchToolTouches(toolName, toolInput, root, cwd)
 }

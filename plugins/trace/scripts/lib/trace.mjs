@@ -10,6 +10,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 import { decode, docsVerdict, fileRecord, isDocName, once, outputRecords, writeRecord } from './docs.mjs'
+import { GIT_ENV, GIT_NO, NO_ANSWERS, Unanswered, answered } from './halt.mjs'
 
 import { fold, real, toolPath, untilde } from './paths.mjs'
 import { GIT_COMMIT_OPTIONS, computed, gitParts, literal, parseCommands, readOptions, unliteral, withCwds } from './shell.mjs'
@@ -57,8 +58,12 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
 
 /**
  * What the trace needs from GitHub: an issue's state, and its text, or null
- * when GitHub cannot be asked. A pull request is 'MISSING': it is not an issue.
- * `pr` is the latest PR from a branch, 'NONE', or null when GitHub cannot say.
+ * when there is no answer to read (origin is not on GitHub, or gh printed
+ * what the trace cannot parse). A pull request is 'MISSING': it is not an
+ * issue. `pr` is the latest PR from a branch, 'NONE', or null likewise. When
+ * GitHub does not answer, gh failing in any way but "not found" or "no pull
+ * requests found", each throws Unanswered (halt.mjs); so does `alias`, for
+ * any failure but "no aliases".
  *
  * @typedef {{
  *   issueState(root: string, n: number): 'OPEN' | 'CLOSED' | 'MISSING' | null,
@@ -69,9 +74,17 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
  */
 
 /**
- * `once(key)` is true the first time it is asked about `key`.
+ * The hook call's deadline: the milliseconds it has left to ask git and
+ * GitHub. It throws Unanswered once there are none.
  *
- * @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined>, reads: import('./docs.mjs').Reads, once(key: string): boolean }} World
+ * @typedef {() => number} TimeLeft
+ */
+
+/**
+ * `once(key)` is true the first time it is asked about `key`. A real world
+ * has its hook call's `timeLeft`, which the archive block shares.
+ *
+ * @typedef {{ git: Git, github: GitHub, env: Record<string, string | undefined>, reads: import('./docs.mjs').Reads, once(key: string): boolean, timeLeft?: TimeLeft }} World
  */
 
 // --- the edit gate ---------------------------------------------------------------
@@ -123,26 +136,47 @@ function preview(out) {
  * them, counting only the preview when the output was too long to show
  * whole; or a doc the agent wrote or edited knowing all of it.
  *
+ * Recording never halts the session: when git or GitHub cannot say whether
+ * what was read is the linked issue's or HEAD's, it is not recorded, and the
+ * gate that needs it asks for it again.
+ *
  * @param {{ tool_name?: string, tool_input?: Record<string, unknown>, tool_response?: unknown, cwd?: string }} input
  * @param {World} [world]
  * @returns {import('./docs.mjs').ReadRecord[]}
  */
 export function readRecord(input, world = realWorld()) {
+  // Under the bypass no gate reads them, so nothing asks git.
+  if (world.env[BYPASS] === '1') return []
+  try {
+    return askedRecords(input, world)
+  } catch (err) {
+    if (!(err instanceof Unanswered)) throw err
+    // A Read's own lines need no answer from anyone.
+    const file = input.tool_name === 'Read' ? fileRecord(/** @type {Record<string, unknown> | null} */ (input.tool_response)) : null
+    return file ? [file] : []
+  }
+}
+
+/** @param {Parameters<typeof readRecord>[0]} input @param {World} world @returns {import('./docs.mjs').ReadRecord[]} */
+function askedRecords(input, world) {
   const cwd = input.cwd ?? process.cwd()
   const linked = () => {
     const root = tracedRoot(real(cwd), world.git)
     const n = root && branchIssue(world.git.branch(root))
     return root && n ? { root, n } : null
   }
+  /** @param {string} path @param {string | null} root */
+  const within = (path, root) => root !== null && (path === fold(root) || path.startsWith(`${fold(root)}/`))
   const response = /** @type {Record<string, unknown> | null} */ (input.tool_response)
   if (input.tool_name === 'Read') {
     const file = fileRecord(response)
     const read = /** @type {{ filePath?: unknown, content?: unknown } | undefined} */ (response?.file)
-    const at = typeof read?.filePath === 'string' && typeof read.content === 'string' ? linked() : null
-    if (!at || !read || typeof read.content !== 'string') return file ? [file] : []
-    const path = fold(real(String(read.filePath)))
-    const inside = path === fold(at.root) || path.startsWith(`${fold(at.root)}/`)
-    return [...(file ? [file] : []), ...(inside ? [] : outputRecords(read.content, at.root, at.n, world.github.issue(at.root, at.n), world.git.headDocs(at.root)))]
+    if (typeof read?.filePath !== 'string' || typeof read.content !== 'string') return file ? [file] : []
+    const path = fold(real(read.filePath))
+    // A file inside the repository is a file, not a saved output: git need not be asked whose it is.
+    const at = within(path, world.git.root(real(cwd))) ? null : linked()
+    if (!at || within(path, at.root)) return file ? [file] : []
+    return [...(file ? [file] : []), ...outputRecords(read.content, at.root, at.n, world.github.issue(at.root, at.n), world.git.headDocs(at.root))]
   }
   if (input.tool_name === 'Write' || input.tool_name === 'Edit' || input.tool_name === 'MultiEdit') {
     const raw = input.tool_input?.file_path
@@ -199,6 +233,12 @@ export function tracedRoot(path, git) {
 }
 
 /**
+ * @param {string} command the gh command that shows what gh printed
+ * @returns {string} why GitHub's answer could not be read: the two causes of a null from GitHub
+ */
+export const unreadable = command => `origin is not a GitHub repository (\`git remote get-url origin\`), or gh printed what the trace cannot read (\`${command}\` shows it)`
+
+/**
  * The linked issue of `branch` in a traced repository, or why it has none.
  *
  * @param {string} root @param {string | null} branch @param {World} world
@@ -215,7 +255,7 @@ export function linkedIssue(root, branch, { git, github }) {
   const state = github.issueState(root, n)
   if (state === 'OPEN') return { n }
   if (state === null) {
-    return { why: `GitHub could not say whether issue #${n} is open; check \`gh auth status\`, the network, and that origin is on GitHub. Track step: the work waits for an open issue; ${BYPASS_HINT}.` }
+    return { why: `the trace cannot read whether issue #${n} is open: ${unreadable(`gh issue view ${n}`)}. Track step: the work waits for an open issue; ${BYPASS_HINT}.` }
   }
   return { why: `#${n} is ${state === 'CLOSED' ? 'a closed issue' : 'not an open issue'}. Track step: open an issue for this change (${TRACK_HINT}) and work on its branch.` }
 }
@@ -274,6 +314,29 @@ function where(dirs, moved, git) {
   const roots = [...new Set(dirs.map(d => tracedRoot(/** @type {string} */ (d), git)).filter(r => r !== null))]
   if (roots.length > 1) return null
   return { root: roots[0] ?? null, dir: new Set(dirs).size === 1 ? /** @type {string} */ (dirs[0]) : null }
+}
+
+/** @template T @param {() => T} f @returns {() => T} `f`, called at most once */
+function lazy(f) {
+  let called = false
+  /** @type {T | undefined} */
+  let value
+  return () => {
+    if (!called) [value, called] = [f(), true]
+    return /** @type {T} */ (value)
+  }
+}
+
+/** @param {string} dir @returns {string} `dir`, or its nearest ancestor that can be told to be a directory */
+const existing = dir => (isDirectory(dir) || dirname(dir) === dir ? dir : existing(dirname(dir)))
+
+/** @param {string} path @returns {boolean} */
+function isDirectory(path) {
+  try {
+    return statSync(path).isDirectory()
+  } catch {
+    return false
+  }
 }
 
 /** @param {string} dir @param {string} to @returns {string | null} */
@@ -407,8 +470,8 @@ function makerVerdict(root, world) {
 function commitVerdict(run, world) {
   let parts = gitParts(run.c.args)
   const dirs = run.at.map(d => parts.dirs.reduce((/** @type {string | null} */ x, y) => x && resolveIn(x, y), d))
-  const place = where(dirs, run.moved || parts.relocated, world.git)
-  const lookIn = place && (place.root ?? place.dir)
+  // Asked only of a command the gate judges, so one it does not still runs when git cannot answer.
+  const placed = lazy(() => where(dirs, run.moved || parts.relocated, world.git))
   let config = parts.config
   // Follow aliases, which may name other aliases; one defined earlier on the line is not known yet.
   const defines = run.earlier.some(definesGitAlias)
@@ -417,6 +480,9 @@ function commitVerdict(run, world) {
     const name = parts.sub
     // git refuses an alias loop; refusing here too says why.
     const loops = seen.has(name.toLowerCase())
+    const place = placed()
+    // A directory an earlier command on the line makes is not there yet to ask: its nearest one that is says what git knows.
+    const lookIn = place && (place.root ?? (place.dir && existing(place.dir)))
     const alias = defines || loops ? null : setting(config, `alias.${name}`, lookIn, world.git)
     if (alias === null && !defines && !loops && lookIn) return null
     if (alias === null || alias.startsWith('!') || computed(alias)) return opaqueVerdict(`what \`git ${name}\` runs`, place, world, fix, 'Implement')
@@ -425,8 +491,12 @@ function commitVerdict(run, world) {
     config = [...config, ...expanded.config]
     parts = { ...expanded, rest: [...expanded.rest, ...parts.rest] }
   }
-  if (parts.sub && COMMIT_MAKERS.has(parts.sub)) return place?.root && !(parts.rest.length === 1 && MAKES_NOTHING.test(parts.rest[0] ?? '')) ? makerVerdict(place.root, world) : null
+  if (parts.sub && COMMIT_MAKERS.has(parts.sub)) {
+    const root = parts.rest.length === 1 && MAKES_NOTHING.test(parts.rest[0] ?? '') ? null : placed()?.root
+    return root ? makerVerdict(root, world) : null
+  }
   if (parts.sub !== 'commit') return null
+  const place = placed()
   if (!place) return cannotTell('which repository this commit lands in', 'run `git commit` from the repository, or with `git -C <dir>`', 'Implement')
   if (!place.root) return null
   const linked = linkedIssue(place.root, world.git.branch(place.root), world)
@@ -540,19 +610,30 @@ const isOn = v => v === undefined || /^(?:1|t|true)$/i.test(v)
 /** @param {Run} run @param {World} world */
 function prVerdict(run, world) {
   let args = run.c.args
-  const place = where(run.at, run.moved, world.git)
+  // Asked only of a command the gate judges, so one it does not still runs when git cannot answer.
+  const placed = lazy(() => where(run.at, run.moved, world.git))
   const read = (/** @type {string[]} */ a) => readOptions(a, a.includes('edit') ? GH_PR_EDIT : GH_PR_CREATE, { pflag: true })
   let { opts, operands, unknown: unknownOption } = read(args)
   const fix = (/** @type {number} */ n) => `run \`gh pr create\` directly, with "Closes #${n}" in its body`
-  if (operands.slice(0, 2).some(o => /[$`*?[]/.test(o))) return opaqueVerdict('which gh command this is', place, world, fix, 'Review')
+  if (operands.slice(0, 2).some(o => /[$`*?[]/.test(o))) return opaqueVerdict('which gh command this is', placed(), world, fix, 'Review')
   const first = operands[0]
+  /** @param {string} name @returns {string | null} */
+  const aliasOf = name => {
+    try {
+      return world.github.alias(name)
+    } catch (err) {
+      // An alias gh cannot list matters only where a PR could be opened in a traced repository.
+      if (err instanceof Unanswered && placed()?.root === null) return null
+      throw err
+    }
+  }
   // gh aliases may be two words, even after one of gh's own; one set earlier on the line is not known yet.
   const two = operands.length > 1 ? `${first} ${operands[1]}` : null
-  const name = two !== null && world.github.alias(two) !== null ? two : first !== undefined && !GH_COMMANDS.has(first) ? first : null
+  const name = two !== null && aliasOf(two) !== null ? two : first !== undefined && !GH_COMMANDS.has(first) ? first : null
   if (name !== null) {
-    const alias = world.github.alias(name)
+    const alias = aliasOf(name)
     if (alias === null && !run.earlier.some(e => e.name === 'gh' && e.args[0] === 'alias' && (e.args[1] === 'set' || e.args[1] === 'import'))) return null
-    if (alias === null || alias.startsWith('!') || alias.includes('$')) return opaqueVerdict(`what \`gh ${name}\` runs`, place, world, fix, 'Review')
+    if (alias === null || alias.startsWith('!') || alias.includes('$')) return opaqueVerdict(`what \`gh ${name}\` runs`, placed(), world, fix, 'Review')
     const at = args.indexOf(first)
     args = [...args.slice(0, at), ...(parseCommands(`gh ${alias}`)[0]?.args ?? []), ...args.slice(at + name.split(' ').length)]
     ;({ opts, operands, unknown: unknownOption } = read(args))
@@ -568,6 +649,7 @@ function prVerdict(run, world) {
   if ('help' in last && isOn(last.help)) return null
   const edits = sub === 'edit'
   if (edits && !unknownOption && !('body' in last) && !('body-file' in last)) return null
+  const place = placed()
   if (!place) return cannotTell('which repository this PR is in', 'run gh from the repository', 'Review')
   if (!place.root) return null
   if (!edits && 'dry-run' in last && isOn(last['dry-run'])) return null
@@ -749,24 +831,28 @@ const slugOf = url => /(?:^|[@/])github\.com(?::\d+)?[:/]([^/]+\/[^/]+?)(?:\.git
 
 /** @typedef {{ state?: string, pull_request?: unknown, title?: string, body?: string | null, comments?: number }} IssueJson */
 
-// A hook that times out lets the edit through, so the git and GitHub calls of
-// one hook call share one deadline well inside the hook's timeout, and running
-// out throws. Each call makes its own world, and with it its own deadline and
-// its own answers from git and GitHub: none outlives the call.
+// A hook killed at its own timeout cannot halt, and lets the edit through, so
+// the git and GitHub calls of one hook call share one deadline well inside the
+// hook's timeout, and running out halts the session. Each call makes its own
+// world, and with it its own deadline and its own answers from git and GitHub:
+// none outlives the call.
 
 /** @returns {World} a fresh real world, its deadline starting now */
 function realWorld() {
-  const deadline = Date.now() + 20_000
+  const endsAt = Date.now() + 20_000
+  /** @type {TimeLeft} */
   const timeLeft = () => {
-    const ms = deadline - Date.now()
-    if (ms <= 0) throw new Error('out of time asking git and GitHub')
+    const ms = endsAt - Date.now()
+    if (ms <= 0) throw new Unanswered('git and GitHub', 'the hook call ran out of time asking them')
     return ms
   }
 
-  /** @param {string} root @param {string[]} args @returns {string | null} stdout, or null when git says no */
-  const git = (root, args) => {
-    const r = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: Math.min(3000, timeLeft()) })
-    if (r.error) throw r.error
+  /**
+   * @param {string} root @param {string[]} args @param {RegExp} [answers] git's words for a no, in place of GIT_NO
+   * @returns {string | null} stdout, or null when git says no; throws Unanswered when it does not answer
+   */
+  const git = (root, args, answers = GIT_NO) => {
+    const r = answered('git', spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', env: GIT_ENV(), timeout: Math.min(3000, timeLeft()) }), answers)
     return r.status === 0 ? r.stdout.trim() : null
   }
 
@@ -800,7 +886,9 @@ function realWorld() {
       const rank = (/** @type {string} */ name) => ['upstream', 'github', 'origin'].indexOf(name) >>> 0
       return [...remotes].filter(([, r]) => r.slug).sort(([a], [b]) => rank(a) - rank(b))[0]?.[1].slug ?? null
     },
-    message: (root, rev) => git(root, ['log', '-1', '--format=%B', rev, '--']),
+    // The revision may be the agent's: a full hash of no commit is "bad object",
+    // and one that looks like an option names no commit, so git is not given it.
+    message: (root, rev) => (rev.startsWith('-') ? null : git(root, ['log', '-1', '--format=%B', rev, '--'], new RegExp(`${GIT_NO.source}|bad object`, 'i'))),
     committed(root, n) {
       const def = this.defaultBranch(root)
       const base = def ? ['--ignore-missing', '--not', `refs/heads/${def}`, `refs/remotes/origin/${def}`] : []
@@ -825,8 +913,8 @@ function realWorld() {
       const names = git(root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', 'GLOSSARY.md', 'docs/adr'])
       if (names === null) return null
       const list = names.split('\0').filter(isDocName)
-      const r = spawnSync('git', ['-C', root, 'cat-file', '--batch'], { input: list.map(p => `HEAD:${p}\n`).join(''), timeout: Math.min(3000, timeLeft()), maxBuffer: 64 << 20 })
-      if (r.error) throw r.error
+      // A name it has no object for, it answers on stdout: any failure is git's own.
+      const r = answered('git', spawnSync('git', ['-C', root, 'cat-file', '--batch'], { input: list.map(p => `HEAD:${p}\n`).join(''), env: GIT_ENV(), timeout: Math.min(3000, timeLeft()), maxBuffer: 64 << 20 }), NO_ANSWERS)
       if (r.status !== 0) return null
       /** @type {Record<string, string>} */
       const docs = {}
@@ -849,15 +937,15 @@ function realWorld() {
     },
     // Deleting the marker from the working tree, or committing its deletion on a
     // branch, does not opt out: it also counts while HEAD or the default branch has it.
-    // When git fails, only the marker in the working tree counts.
+    // Only git saying no makes a repository untraced: when git does not answer
+    // (a timeout, the hook call's deadline run out, no git to run, a broken
+    // repository), this throws, and the session halts rather than let an
+    // untraced edit, commit or PR through. ls-tree, unlike `cat-file -e
+    // <rev>:<path>`, does not say "no such path" of a revision whose commit is gone.
     traced(root) {
       if (existsSync(join(root, MARKER))) return true
-      try {
-        const def = this.defaultBranch(root)
-        return ['HEAD', ...(def ? [`origin/${def}`, def] : [])].some(rev => git(root, ['cat-file', '-e', `${rev}:${MARKER}`]) !== null)
-      } catch {
-        return false
-      }
+      const def = this.defaultBranch(root)
+      return ['HEAD', ...(def ? [`origin/${def}`, def] : [])].some(rev => Boolean(git(root, ['ls-tree', '--name-only', rev, '--', MARKER])))
     },
     // While a rebase stops, HEAD is detached; the branch is the one being rebased.
     branch(root) {
@@ -889,11 +977,8 @@ function realWorld() {
   const realGitHub = {
     alias(name) {
       if (ghAliases === undefined) {
-        const r = spawnSync('gh', ['alias', 'list'], { encoding: 'utf8', timeout: Math.min(5000, timeLeft()) })
-        // An alias that cannot be looked up may be anything.
-        if (r.error) throw r.error
-        if (r.status !== 0 && !/no aliases/i.test(r.stderr ?? '')) throw new Error(`gh alias list failed: ${(r.stderr ?? '').trim()}`)
-        ghAliases = r.stdout ?? ''
+        // An alias that cannot be looked up may be anything: only "no aliases" is an answer.
+        ghAliases = gh(undefined, ['alias', 'list'], /no aliases/i).stdout ?? ''
       }
       const line = ghAliases.split('\n').find(l => l.startsWith(`${name}:`))
       return line ? line.slice(name.length + 1).trim().replace(/^'(.*)'$/s, '$1') : null
@@ -907,7 +992,7 @@ function realWorld() {
     issue(root, n) {
       const issue = issueJson(root, n)
       if (issue === 'MISSING' || issue === null) return null
-      const r = issue.comments === 0 ? null : gh(root, ['api', '--paginate', `repos/${realGit.origin(root)}/issues/${n}/comments`, '--jq', '.[] | {id: (.id | tostring), author: .user.login, body, at: .created_at}'])
+      const r = issue.comments === 0 ? null : gh(root, ['api', '--paginate', `repos/${realGit.origin(root)}/issues/${n}/comments`, '--jq', '.[] | {id: (.id | tostring), author: .user.login, body, at: .created_at}'], GH_GONE)
       if (r && r.status !== 0) return null
       const comments = r ? r.stdout : ''
       try {
@@ -920,8 +1005,8 @@ function realWorld() {
     pr(root, branch) {
       const slug = realGit.origin(root)
       if (!slug) return null
-      const r = gh(root, ['pr', 'view', branch, '-R', slug, '--json', 'number,url,state,statusCheckRollup'])
-      if (r.status !== 0) return /no pull requests found/i.test(r.stderr ?? '') ? 'NONE' : null
+      const r = gh(root, ['pr', 'view', branch, '-R', slug, '--json', 'number,url,state,statusCheckRollup'], /no pull requests found/i)
+      if (r.status !== 0) return 'NONE'
       try {
         const pr = JSON.parse(r.stdout)
         if (!Number.isInteger(pr.number) || typeof pr.url !== 'string') return null
@@ -944,15 +1029,21 @@ function realWorld() {
     },
   }
 
-  /** @param {string} root @param {string[]} args */
-  const gh = (root, args) => spawnSync('gh', args, { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()), maxBuffer: 64 << 20 })
+  /**
+   * @param {string | undefined} root where gh runs, or the hook's own directory
+   * @param {string[]} args @param {RegExp} answers gh's words for a no; any other failure is GitHub not answering
+   */
+  const gh = (root, args, answers) => answered('GitHub', spawnSync('gh', args, { cwd: root, encoding: 'utf8', timeout: Math.min(10_000, timeLeft()), maxBuffer: 64 << 20 }), answers)
+
+  // gh's words for an issue that is not there, or was deleted.
+  const GH_GONE = /HTTP (?:404|410)/
 
   /** @type {Map<string, IssueJson | 'MISSING' | null>} */
   const issues = new Map()
 
   /**
    * An issue as GitHub's API gives it, asked once per hook run: 'MISSING', or
-   * null when GitHub cannot be asked. It asks about origin's repository by name:
+   * null when its answer cannot be read. It asks about origin's repository by name:
    * gh's own choice prefers a remote called upstream, which on a fork is
    * someone else's issues.
    *
@@ -963,10 +1054,10 @@ function realWorld() {
     const key = `${root}#${n}`
     if (!issues.has(key)) {
       const slug = realGit.origin(root)
-      const r = slug ? gh(root, ['api', `repos/${slug}/issues/${n}`]) : null
+      const r = slug ? gh(root, ['api', `repos/${slug}/issues/${n}`], GH_GONE) : null
       /** @type {IssueJson | 'MISSING' | null} */
       let issue = null
-      if (r && r.status !== 0) issue = /HTTP (404|410)/.test(r.stderr ?? '') ? 'MISSING' : null
+      if (r && r.status !== 0) issue = 'MISSING'
       else if (r) {
         try {
           issue = JSON.parse(r.stdout)
@@ -977,5 +1068,5 @@ function realWorld() {
     return issues.get(key) ?? null
   }
 
-  return { git: realGit, github: realGitHub, env: process.env, reads: { records: () => null, add() {}, clear() {} }, once }
+  return { git: realGit, github: realGitHub, env: process.env, reads: { records: () => null, add() {}, clear() {} }, once, timeLeft }
 }

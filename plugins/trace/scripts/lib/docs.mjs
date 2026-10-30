@@ -28,7 +28,7 @@ import { fold, real } from './paths.mjs'
 
 /**
  * The glossary and the ADRs as HEAD has them, by path relative to the root;
- * null when git cannot say.
+ * null when git has no HEAD to read them from, as before the first commit.
  *
  * @typedef {Record<string, string> | null} HeadDocs
  */
@@ -321,7 +321,7 @@ export function outputRecords(shown, root, n, issue, head) {
  * @returns {string | null}
  */
 export function docsVerdict(root, n, paths, { issue, slug, head, records: recorded, unknownAgent }) {
-  if (!issue) return `GitHub could not say what #${n}, the linked issue, says, so the trace cannot tell whether it has been read. Read step: the change waits for GitHub; check \`gh auth status\` and the network.`
+  if (!issue) return `the trace cannot read what #${n}, the linked issue, says, so it cannot tell whether it has been read. Read step: the change waits until GitHub's answer can be read; \`gh issue view ${n}\` shows what gh prints.`
   const docs = relatedDocs(root, paths, issue, head)
   const parts = issueParts(issue)
   if (!docs.length && !parts.length) return null
@@ -379,7 +379,7 @@ const range = (a, b) => Array.from({ length: Math.max(0, b - a + 1) }, (_, i) =>
 
 // --- the record store -----------------------------------------------------------
 
-/** Where the hook keeps each agent's reads; only the hook writes there. */
+/** Where the hook keeps each agent's reads and each session's halt; only the hook writes there. */
 const STORE = () => join(real(tmpdir()), 'trace-reads')
 
 /** @returns {Buffer} the key every record is signed with, made on first use */
@@ -396,6 +396,17 @@ function storeKey() {
   }
 }
 
+/** @param {unknown} id @returns {id is string} whether a session or agent id can name a directory of the store */
+const isId = id => typeof id === 'string' && /^[\w-]{1,128}$/.test(id)
+
+/**
+ * The store's directory for a session, which holds its agents' reads and its
+ * halt (halt.mjs); null for an id that cannot name one.
+ *
+ * @param {unknown} session @returns {string | null}
+ */
+export const sessionDir = session => (isId(session) ? join(STORE(), session) : null)
+
 /**
  * The reads of the agent a hook input comes from: the main session's, or a
  * subagent's by its `agent_id`. Each record is signed for that agent, so a
@@ -406,12 +417,10 @@ function storeKey() {
  * @returns {Reads}
  */
 export function readsOf(input) {
-  const id = /^[\w-]{1,128}$/
   const { session_id: session, agent_id: agent = 'main' } = input
-  if (typeof session !== 'string' || !id.test(session) || typeof agent !== 'string' || !id.test(agent)) {
-    return { records: () => null, add() {}, clear() {} }
-  }
-  const dir = join(STORE(), session, agent)
+  const sessions = sessionDir(session)
+  if (!sessions || !isId(agent)) return { records: () => null, add() {}, clear() {} }
+  const dir = join(sessions, agent)
   const mac = (/** @type {string} */ json) => createHmac('sha256', storeKey()).update(`${session}\0${agent}\0${json}`).digest('hex')
   return {
     records() {
@@ -471,5 +480,5 @@ export function storeVerdict(subject) {
     'path' in subject
       ? fold(subject.path) === store || fold(subject.path).startsWith(`${store}/`)
       : /\/trace-reads(?=$|[/\s'"`;|&)])|(?:^|[^\w.-])trace-reads\//i.test(subject.command)
-  return touches ? "these are the trace's records of what each agent has read, and only its hook writes them. Read step: read the docs instead." : null
+  return touches ? "these are the trace's records of what each agent has read, and of a halt, and only its hook writes them. Read step: read the docs instead." : null
 }

@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import type { TraceStatus } from '../types'
+import type { TraceState, TraceStatus } from '../types'
 
 const BAND = {
   plugin: 'trace',
@@ -39,16 +39,17 @@ const AT_UPDATE: TraceStatus = {
  * prints `status` (nothing for null; a throw is a failed run), and what each
  * run was asked.
  */
-function engine(on: On, status: () => TraceStatus | null) {
+function engine(on: On, status: () => TraceState) {
   const runs: { argv: readonly string[]; stdin?: string }[] = []
   on('command.run', () => ({ text: 'the trace skill' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('classic.SessionStart', () => ({}))
+  on('classic.UserPromptSubmit', () => ({}))
   on('session.cwd', () => ({ value: '/repo' }))
   on('session.id', () => ({ value: 's-1' }))
   on('process.run', (_, e) => {
     runs.push({ argv: e.argv, stdin: e.init?.stdin })
-    let s: TraceStatus | null
+    let s: TraceState
     try {
       s = status()
     } catch {
@@ -198,6 +199,30 @@ test('a failed status run keeps the band as it was, and /trace says it could not
   expect((await ui.find(text(/▸ update/)))?.text).toBeDefined()
   await ui.unmount()
   expect((await $.command.run(TRACE)).text).toBe('Trace: the status could not be read (trace status exited 1).')
+})
+
+test('a halt replaces what the band showed with its reason, and /trace prints it', async ($, on) => {
+  const clock = mock.clock(on)
+  const halt = 'trace halted the session: git did not answer: git is not on PATH. Restore git, then reply to continue.'
+  let s: TraceState = AT_UPDATE
+  engine(on, () => s)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await clock.advance(0)
+  s = { halt }
+  await $.tool.call({ tool: 'Bash', command: 'git push' })
+  await clock.advance(5_000)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await ui.find(text(/git did not answer: git is not on PATH\. Restore git, then reply to continue\./)))?.text).toBeDefined()
+  expect(await ui.find(text(/▸ update/))).toBeUndefined()
+  await ui.unmount()
+  expect((await $.command.run(TRACE)).text).toBe(halt)
+  // The human's reply lifts the halt: the band reads the trace again, before any tool call.
+  s = AT_UPDATE
+  await $.classic.UserPromptSubmit({ prompt: 'git is back' })
+  await clock.advance(5_000)
+  const after = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await after.find(text(/▸ update/)))?.text).toBeDefined()
+  await after.unmount()
 })
 
 test('/trace prints the unread docs, the last comment, the latest progress comment and the PR checks', async ($, on) => {

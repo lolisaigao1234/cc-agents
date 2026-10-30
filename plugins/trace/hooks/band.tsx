@@ -5,11 +5,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { TraceComment, TraceOutcome, TraceStatus, TraceStep } from '../types'
+import type { TraceComment, TraceHalt, TraceOutcome, TraceState, TraceStatus, TraceStep } from '../types'
 
 const STEPS: TraceStep[] = ['read', 'track', 'branch', 'implement', 'review', 'update', 'close']
-// Change the tag when TraceStatus changes: a reload keeps what was stored.
-const status = atom({ plugin: 'trace', key: 'status' } as const, null, { shape: 'status-2' })
+// Change the tag when TraceState changes: a reload keeps what was stored.
+const status = atom({ plugin: 'trace', key: 'status' } as const, null, { shape: 'status-3' })
 // Tool calls after which a step may have completed: a read, a commit, a push, a PR.
 const MOVERS = new Set(['Read', 'Bash', 'Edit', 'Write', 'MultiEdit'])
 // A status run asks git and GitHub, so while work goes on it runs at most once per GAP.
@@ -20,14 +20,14 @@ const UNTRACED = 'Trace: this repository has not opted in (no .claude/trace.json
 const MARK: Record<TraceOutcome, string> = { passing: '✓', failing: '✗', pending: '…' }
 
 /** What the hook script says the trace is, for this session's main agent. */
-async function traceStatus($: EngineInterface): Promise<TraceStatus | null> {
+async function traceStatus($: EngineInterface): Promise<TraceState> {
   const [cwd, session] = await Promise.all([$.session.cwd(), $.session.id()])
   const { exitCode, stdout } = await $.process.run(['node', `${$.plugin.root}/scripts/hook.mjs`, 'status'], {
     stdin: JSON.stringify({ cwd, session_id: session }),
     timeoutMs: 30_000,
   })
   if (exitCode !== 0) throw new Error(`trace status exited ${exitCode}`)
-  return stdout.trim() ? (JSON.parse(stdout) as TraceStatus) : null
+  return stdout.trim() ? (JSON.parse(stdout) as TraceStatus | TraceHalt) : null
 }
 
 /** `✓ read · ✓ track · ▸ branch · implement …`: each step, done, current or ahead. */
@@ -88,8 +88,8 @@ function soon($: EngineInterface) {
 }
 
 /** While CI is pending, asks again in a while: nothing else moves the band while the session is idle. */
-function recheck($: EngineInterface, s: TraceStatus | null) {
-  if (rechecking || s?.pr?.state !== 'OPEN' || s.pr.ci !== 'pending') return
+function recheck($: EngineInterface, s: TraceState) {
+  if (rechecking || !s || 'halt' in s || s.pr?.state !== 'OPEN' || s.pr.ci !== 'pending') return
   rechecking = true
   $.clock.after(RECHECK, () => {
     rechecking = false
@@ -117,6 +117,13 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // A prompt may lift a halt (the hooks' UserPromptSubmit), so the band reads again once those hooks ran.
+  on('classic.UserPromptSubmit', async ($, e, next) => {
+    const ran = await next(e)
+    soon($)
+    return ran
+  })
+
   on('turn.complete', ($, e, next) => {
     soon($)
     return next(e)
@@ -133,7 +140,7 @@ export const register: Register = on => {
   // arguments, or run by the model, the SDK or a plugin, it is the skill.
   on('command.run', { command: 'trace:trace' }, async ($, e, next) => {
     if ((e.origin.kind !== 'composer' && e.origin.kind !== 'bridge') || e.args.trim()) return next(e)
-    let s: TraceStatus | null
+    let s: TraceState
     try {
       s = await traceStatus($)
     } catch (err) {
@@ -141,6 +148,7 @@ export const register: Register = on => {
     }
     await update($, status, () => s)
     if (!s) return { text: UNTRACED }
+    if ('halt' in s) return { text: s.halt }
     const lines = [
       s.issue ? `Trace: #${s.issue.n} "${s.issue.title}"${s.issue.url ? ` ${s.issue.url}` : ''}` : 'Trace: no linked issue',
       `Step: ${s.step} (${pipeline(s)})`,
@@ -157,6 +165,16 @@ export const register: Register = on => {
     const s = await read($, status)
     if (e.props.hasSurvey || !s) return next(e)
     const { Box, Text } = $.ui.resolve(e)
+    // A halt shows whole, in place of the trace it stopped.
+    if ('halt' in s) {
+      return (
+        <Box>
+          <Text wrap="wrap">
+            <Text bold>trace</Text> <Text color="error">{oneLine(s.halt.replace(/^trace:? /, ''))}</Text>
+          </Text>
+        </Box>
+      )
+    }
     if (!s.issue) {
       return (
         <Box>

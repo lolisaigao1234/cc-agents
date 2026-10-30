@@ -151,12 +151,13 @@ test("the PR's CI is failing on any failed check, pending on any unfinished one,
   assert.equal(ci([]), 'none')
 })
 
-test('when GitHub cannot say, the status says so instead of guessing', () => {
+test("when GitHub's answer cannot be read, the status says so instead of guessing", () => {
   const root = docsRepo()
   const s = traceStatus(root, world(root, { issue: null }))
   assert.equal(s?.step, 'track')
-  assert.match(String(s?.why), /GitHub could not say whether issue #10 is open/)
+  // Either cause may be why: an origin not on GitHub, or an answer gh printed that the trace cannot parse.
+  assert.match(String(s?.why), /the trace cannot read whether issue #10 is open: origin is not a GitHub repository \(`git remote get-url origin`\), or gh printed what the trace cannot read \(`gh issue view 10` shows it\)/)
   const pr = traceStatus(root, world(root, { committed: true, pr: null, records: readEverything(root) }))
   assert.deepEqual([pr?.step, pr?.pr], ['review', null])
-  assert.match(String(pr?.why), /GitHub could not say whether 10-trace-band has a PR/)
+  assert.match(String(pr?.why), /the trace cannot read whether 10-trace-band has a PR: origin is not a GitHub repository \(`git remote get-url origin`\), or gh printed what the trace cannot read \(`gh pr view 10-trace-band` shows it\)/)
 })

@@ -320,7 +320,7 @@ test('when the agent cannot be told apart, or GitHub cannot say what the issue s
   const root = docsRepo()
   assert.match(edit(root, { reads: null }), /^the trace cannot tell which agent this is, so not what it has read\. Read step: .*TRACE_BYPASS=1/)
   assert.match(String(commandVerdict('git commit -m "x (#8)"', root, world(root, { reads: null }))), /^the trace cannot tell which agent/)
-  assert.match(edit(root, { issue: null, reads: readAll(root) }), /GitHub could not say what #8, the linked issue, says.*Read step:/)
+  assert.match(edit(root, { issue: null, reads: readAll(root) }), /the trace cannot read what #8, the linked issue, says.*Read step:/)
 })
 
 test('a repository with no related docs and an empty issue needs no reads', () => {
