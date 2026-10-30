@@ -1,0 +1,161 @@
+{
+  "flow": "review-opus",
+  "model": "claude-opus-5-5",
+  "metrics": [
+    {
+      "id": "recall",
+      "label": "recall",
+      "kind": "float",
+      "scale": 1
+    },
+    {
+      "id": "harmful",
+      "label": "harmful",
+      "kind": "float",
+      "scale": 10,
+      "better": "lower"
+    },
+    {
+      "id": "fixed",
+      "label": "fixed",
+      "kind": "float",
+      "scale": 1
+    },
+    {
+      "id": "precision",
+      "label": "precision",
+      "kind": "float",
+      "scale": 1
+    },
+    {
+      "id": "passed",
+      "label": "passed",
+      "kind": "binary"
+    },
+    {
+      "id": "reviews",
+      "label": "reviews",
+      "kind": "float",
+      "scale": 10,
+      "better": "lower"
+    },
+    {
+      "id": "five_plus",
+      "label": "5+ reviews",
+      "kind": "binary",
+      "better": "lower"
+    },
+    {
+      "id": "noise",
+      "label": "noise",
+      "kind": "float",
+      "scale": 10,
+      "better": "lower"
+    },
+    {
+      "id": "broke_tests",
+      "label": "broke tests",
+      "kind": "binary",
+      "better": "lower"
+    }
+  ],
+  "perf_fields": [
+    {
+      "id": "cost_usd",
+      "label": "cost",
+      "unit": "$"
+    },
+    {
+      "id": "agent_cost_usd",
+      "label": "agent",
+      "unit": "$"
+    },
+    {
+      "id": "judge_cost_usd",
+      "label": "judge",
+      "unit": "$"
+    },
+    {
+      "id": "latency_s",
+      "label": "latency",
+      "unit": "s"
+    },
+    {
+      "id": "rounds",
+      "label": "rounds"
+    },
+    {
+      "id": "findings",
+      "label": "findings"
+    },
+    {
+      "id": "reviews_to_pass",
+      "label": "to pass"
+    },
+    {
+      "id": "asked_human",
+      "label": "asked human"
+    },
+    {
+      "id": "hook_denials",
+      "label": "denials"
+    },
+    {
+      "id": "refusals",
+      "label": "refusals"
+    },
+    {
+      "id": "max_tokens_hits",
+      "label": "max_tokens"
+    },
+    {
+      "id": "budget_hit",
+      "label": "budget hit"
+    },
+    {
+      "id": "tool_calls",
+      "label": "tool calls"
+    },
+    {
+      "id": "turns",
+      "label": "turns"
+    },
+    {
+      "id": "in_tokens",
+      "label": "in tok"
+    },
+    {
+      "id": "out_tokens",
+      "label": "out tok"
+    }
+  ],
+  "prices": {
+    "claude-opus-5-5": {
+      "in": 4,
+      "out": 20
+    },
+    "claude-sonnet-5-5": {
+      "in": 2,
+      "out": 10
+    },
+    "claude-fable-5-1": {
+      "in": 10,
+      "out": 50
+    },
+    "claude-haiku-5-5": {
+      "in": 0.1,
+      "out": 0.5
+    }
+  },
+  "harness_paths": [
+    "evals/review/lib/agent.mjs",
+    "evals/review/lib/cli.mjs",
+    "evals/review/lib/github.mjs",
+    "evals/review/lib/grade.mjs",
+    "evals/review/lib/prices.mjs",
+    "evals/review/lib/replay.mjs",
+    "evals/review/lib/transcript.mjs",
+    "evals/review/data/cases.json",
+    "evals/review/data/bugs.json"
+  ]
+}

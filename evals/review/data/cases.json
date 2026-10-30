@@ -1,0 +1,1259 @@
+[
+  {
+    "id": "pr14-r0",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "ef95e2e",
+    "head": "c659ccb",
+    "title": "Delete the review engine and rename the plugin",
+    "issue": 4,
+    "bug_ids": [
+      "guard-commit-Sn-false-refusal",
+      "guard-long-abbrev-preexisting",
+      "s4-brace-expansion-uncapped",
+      "guard-test-cwd-dependence"
+    ],
+    "pre_existing_bugs": [
+      "esc-guard-coverage-gaps-and-bash-switch-route"
+    ],
+    "diff_size": "+709/-16027, 82 files (mostly deletions)",
+    "notes": "Salvage of the quality-loop guard; the bugs were carried in from 2ed8fbd/bc70d1c as a new file, so they are in the diff. All escaped. guard-test-cwd-dependence is latent here (no failure until #30). Round-1 fix 2d022ec."
+  },
+  {
+    "id": "pr15-r0",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "23fb2fe",
+    "head": "2147193",
+    "title": "Archive block for archive/",
+    "issue": 5,
+    "bug_ids": [
+      "s4-archive-cwd-tracking",
+      "s4-archive-nested-runners",
+      "s4-archive-quoting-glob-glued-forms",
+      "s4-archive-exclusion-syntax-misread",
+      "s4-archive-ignore-exemption-too-broad",
+      "s4-archive-git-history-routes",
+      "s4-archive-move-in-overwrites",
+      "s4-archive-unknown-copiers",
+      "s4-archive-false-refusals-on-mentions",
+      "esc-archive-errors-fail-open"
+    ],
+    "pre_existing_bugs": [
+      "s4-brace-expansion-uncapped",
+      "guard-commit-Sn-false-refusal",
+      "guard-long-abbrev-preexisting",
+      "guard-test-cwd-dependence"
+    ],
+    "diff_size": "+626/-30, 9 files",
+    "notes": "Rounds 1-2 were squashed into 48e7d77 (pre-rebase f461146), so round-1 vs round-2 attribution cannot be told apart from history. esc-archive-errors-fail-open escaped to PR #38 (6883b89)."
+  },
+  {
+    "id": "pr15-r1",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "2147193",
+    "head": "48e7d77",
+    "title": "Archive block: globs, cds, ignore rules and git history",
+    "issue": 5,
+    "bug_ids": [
+      "esc-archive-history-timeout-uncapped",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny"
+    ],
+    "pre_existing_bugs": [
+      "esc-archive-errors-fail-open",
+      "guard-commit-Sn-false-refusal",
+      "guard-long-abbrev-preexisting",
+      "guard-test-cwd-dependence"
+    ],
+    "diff_size": "+1331/-362, 7 files",
+    "notes": "A diff-only case for the review-round redesign. All three bugs escaped until PR #38. Strip 48e7d77's message: it names every fixed route."
+  },
+  {
+    "id": "pr16-r0",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "19e3970",
+    "head": "4dc6c54",
+    "title": "Edit gate: no edit without an open issue's branch",
+    "issue": 6,
+    "bug_ids": [
+      "edit-gate-dotgit-exempt",
+      "edit-gate-git-dir-open-on-issue-branch",
+      "edit-gate-nested-repo-opt-out",
+      "edit-gate-symlink-tilde",
+      "edit-gate-settings-switches-unguarded",
+      "edit-gate-issue-check-pr-numbers-upstream",
+      "edit-gate-per-call-timeouts-exceed-hook",
+      "esc-skills-model-cannot-invoke",
+      "s4-detached-head-during-rebase",
+      "traced-missing-head-object-untraced"
+    ],
+    "pre_existing_bugs": [
+      "esc-archive-errors-fail-open",
+      "esc-archive-history-timeout-uncapped",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny",
+      "guard-commit-Sn-false-refusal",
+      "guard-long-abbrev-preexisting",
+      "guard-test-cwd-dependence",
+      "esc-guard-coverage-gaps-and-bash-switch-route"
+    ],
+    "diff_size": "+289/-3, 7 files",
+    "notes": "Six bugs were fixed in round 1 (8b2a99f) and the other four escaped. edit-gate-settings-switches-unguarded is an omission (in_diff false). Of esc-skills-model-cannot-invoke, only the 4dc6c54 half is here."
+  },
+  {
+    "id": "pr16-r1",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "4dc6c54",
+    "head": "8b2a99f",
+    "title": "Edit gate: review-round changes",
+    "issue": 6,
+    "bug_ids": [
+      "settings-switch-only-trace-bypass-env",
+      "settings-located-by-dir-basename",
+      "settings-edit-prediction-unreadable-or-unpredictable",
+      "hook-tilde-user-expansion-mismatch",
+      "origin-slug-regex-wrong-hosts-and-forms",
+      "git-throw-refuses-untraced-repos",
+      "edit-gate-git-dir-open-on-issue-branch",
+      "esc-deadline-at-module-load"
+    ],
+    "pre_existing_bugs": [
+      "esc-skills-model-cannot-invoke",
+      "s4-detached-head-during-rebase",
+      "traced-missing-head-object-untraced",
+      "esc-archive-history-timeout-uncapped",
+      "esc-archive-errors-fail-open",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny",
+      "esc-guard-coverage-gaps-and-bash-switch-route"
+    ],
+    "diff_size": "+255/-77, 9 files",
+    "notes": "Six of the bugs were introduced by this fix round. The git-dir bug was only partly fixed here. esc-deadline-at-module-load escaped to #32, and it is the sibling-miss case: the archive's 5s calls were left outside the deadline. The README in this diff discloses the Bash switch route as open (#13), so a finding on it counts as correct."
+  },
+  {
+    "id": "pr16-r2",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "8b2a99f",
+    "head": "865f1be",
+    "title": "Edit gate: re-review changes",
+    "issue": 6,
+    "bug_ids": [
+      "esc-traced-fails-open"
+    ],
+    "pre_existing_bugs": [
+      "esc-deadline-at-module-load",
+      "esc-skills-model-cannot-invoke",
+      "s4-detached-head-during-rebase",
+      "traced-missing-head-object-untraced",
+      "esc-archive-history-timeout-uncapped",
+      "esc-archive-errors-fail-open",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny"
+    ],
+    "diff_size": "+121/-25, 6 files",
+    "notes": "The fail-open was a deliberate over-correction of git-throw-refuses-untraced-repos and was reversed later (#34/#36). Grade it as policy-contested: a finding counts only if it names the fail-open when git fails where the marker is in HEAD but not in the working tree."
+  },
+  {
+    "id": "pr17-r0",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "03ceec2",
+    "head": "da7ef1f",
+    "title": "Commit and PR gates: issue references in commits and PRs",
+    "issue": 7,
+    "bug_ids": [
+      "commit-gate-fixup-squash-reedit-as-reuse",
+      "commit-gate-ignores-cleanup-strip",
+      "commit-gate-abbrev-and-unknown-options",
+      "gate-computed-command-words",
+      "gate-reads-file-before-line-writes-it",
+      "pr-gate-gh-arg-misparse",
+      "pr-gate-closes-inside-code-or-comment",
+      "gate-reference-before-expansion-check",
+      "heredoc-stdin-ignores-fd-and-later-redirect",
+      "gate-false-refusals-trailer-qualified-refs-dryrun",
+      "pr-gate-repository-not-origin",
+      "git-alias-chain-not-followed",
+      "gh-pr-edit-ungated",
+      "alias-defined-on-same-line",
+      "gate-env-movers",
+      "shell-reader-wrappers-and-scripts",
+      "cd-tracking-cdpath-and-two-arg-cd",
+      "gh-alias-list-failure-fails-open",
+      "gh-pflag-forms-false-refusal",
+      "commit-gate-rev-option-injection"
+    ],
+    "pre_existing_bugs": [
+      "guard-commit-Sn-false-refusal",
+      "esc-traced-fails-open",
+      "esc-deadline-at-module-load",
+      "traced-missing-head-object-untraced",
+      "esc-skills-model-cannot-invoke",
+      "s4-detached-head-during-rebase",
+      "esc-archive-history-timeout-uncapped",
+      "esc-archive-errors-fail-open",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny"
+    ],
+    "diff_size": "+423/-31, 5 files",
+    "notes": "20 bugs, the best case for severity sorting and finding volume. commit-gate-rev-option-injection survived three review rounds and escaped to PR #38. shell-reader-wrappers-and-scripts lives in pre-existing shell.mjs (in_diff false)."
+  },
+  {
+    "id": "pr17-r1",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "da7ef1f",
+    "head": "010916e",
+    "title": "Commit and PR gates: review-round changes",
+    "issue": 7,
+    "bug_ids": [
+      "pr-gate-body-file-precedence-regression",
+      "pr-gate-dry-run-false-exemption",
+      "commit-gate-scissors-as-cut",
+      "file-text-trusts-conditional-heredoc-writer",
+      "gate-eval-cd-regression",
+      "gate-reads-file-before-line-writes-it",
+      "gate-reference-before-expansion-check",
+      "heredoc-stdin-ignores-fd-and-later-redirect",
+      "pr-gate-repository-not-origin",
+      "git-alias-chain-not-followed"
+    ],
+    "pre_existing_bugs": [
+      "gh-pr-edit-ungated",
+      "alias-defined-on-same-line",
+      "gate-env-movers",
+      "shell-reader-wrappers-and-scripts",
+      "cd-tracking-cdpath-and-two-arg-cd",
+      "gh-alias-list-failure-fails-open",
+      "gh-pflag-forms-false-refusal",
+      "commit-gate-rev-option-injection",
+      "guard-commit-Sn-false-refusal",
+      "esc-traced-fails-open"
+    ],
+    "diff_size": "+585/-206, 6 files",
+    "notes": "bug_ids holds five regressions from this fix round plus five incomplete fixes of round-0 bugs this diff touched. The pre-existing list holds round-0 bugs outside this diff that round 2 found anyway. Those are the discriminator for a diff-only re-review."
+  },
+  {
+    "id": "pr17-r2",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "010916e",
+    "head": "ee85dd4",
+    "title": "Commit and PR gates: re-review changes",
+    "issue": 7,
+    "bug_ids": [
+      "ee85dd4-leftover-dollar-refused",
+      "ee85dd4-heredoc-in-command-substitution-refused",
+      "ee85dd4-loose-gh-pr-subcommand-match",
+      "ee85dd4-alias-define-overbroad",
+      "ee85dd4-cdtarget-pushd-q",
+      "ee85dd4-body-file-name-substring",
+      "shell-herestring-script-when-shell-runs-file",
+      "gh-alias-list-failure-denies-everywhere"
+    ],
+    "pre_existing_bugs": [
+      "commit-gate-rev-option-injection",
+      "esc-traced-fails-open",
+      "esc-deadline-at-module-load",
+      "traced-missing-head-object-untraced"
+    ],
+    "diff_size": "+437/-205, 6 files",
+    "notes": "Every bug here is an over-correction (false refusal) by this fix round. The first six were found in round 3. The last two escaped to PR #21 and PR #38."
+  },
+  {
+    "id": "pr18-r0",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "a477e4e",
+    "head": "6d12021",
+    "title": "Doc authority: forced, per-agent reads of related docs",
+    "issue": 8,
+    "bug_ids": [
+      "s4-read-records-forgeable",
+      "s4-docs-dropped-by-working-tree-edit",
+      "s4-commit-scope-from-status",
+      "s4-commit-makers-ungated",
+      "s4-cut-output-counted-whole",
+      "s4-adr-discovery-and-applies-to-misparse",
+      "s4-symlink-utf16-lone-cr-never-read",
+      "s4-unreadable-issue-links-refuse-forever",
+      "s4-posted-comment-unread",
+      "s4-own-edit-makes-doc-stale",
+      "s4-unicode-escaped-json-counted",
+      "s4-unreadable-linked-notebook-or-large-file"
+    ],
+    "pre_existing_bugs": [
+      "s4-detached-head-during-rebase",
+      "esc-traced-fails-open",
+      "esc-deadline-at-module-load",
+      "traced-missing-head-object-untraced",
+      "commit-gate-rev-option-injection",
+      "gh-alias-list-failure-denies-everywhere",
+      "shell-herestring-script-when-shell-runs-file",
+      "esc-skills-model-cannot-invoke",
+      "esc-archive-history-timeout-uncapped",
+      "esc-archive-errors-fail-open"
+    ],
+    "diff_size": "+665/-28, 7 files",
+    "notes": "Rounds 2 and 3 found s4-own-edit-makes-doc-stale and s4-unicode-escaped-json-counted, so a single round-1 review should miss them. Only the notebook half of s4-unreadable-linked-notebook-or-large-file is here."
+  },
+  {
+    "id": "pr18-r1",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "6d12021",
+    "head": "d06b92c",
+    "title": "Doc authority: review-round changes",
+    "issue": 8,
+    "bug_ids": [
+      "s4-long-parts-unreadable-after-preview-rule",
+      "s4-renamed-doc-unread",
+      "s4-escaped-body-comment-unread",
+      "s4-unreadable-linked-notebook-or-large-file",
+      "s4-merge-recovery-needs-reads",
+      "s4-headdocs-fetches-whole-adr-dir",
+      "s4-preview-model-wrong",
+      "s4-detached-head-during-rebase"
+    ],
+    "pre_existing_bugs": [
+      "s4-own-edit-makes-doc-stale",
+      "s4-unicode-escaped-json-counted",
+      "esc-traced-fails-open",
+      "commit-gate-rev-option-injection"
+    ],
+    "diff_size": "+457/-233, 7 files",
+    "notes": "This fix round introduced all eight bugs. d06b92c's commit-maker gate added the half of s4-detached-head-during-rebase where makers go ungated."
+  },
+  {
+    "id": "pr18-r2",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "d06b92c",
+    "head": "d6b3825",
+    "title": "Doc authority: second review-round changes",
+    "issue": 8,
+    "bug_ids": [
+      "s4-edit-record-trusts-disk",
+      "merge-exemption-overbroad"
+    ],
+    "pre_existing_bugs": [
+      "s4-preview-model-wrong",
+      "s4-unicode-escaped-json-counted",
+      "esc-traced-fails-open",
+      "commit-gate-rev-option-injection"
+    ],
+    "diff_size": "+246/-50, 8 files",
+    "notes": "Round 3, a bypass hunt, found both bugs. d6b3825 is the pre-rebase 18eee37 (same tree)."
+  },
+  {
+    "id": "pr19-r0",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "7d98468",
+    "head": "16d6b05",
+    "title": "Keep the issue in context at start and compaction, with a progress-comment nudge",
+    "issue": 9,
+    "bug_ids": [
+      "ctx-nudge-wrong-remote-ref",
+      "ctx-nudge-fresh-branch",
+      "ctx-nudge-commit-time-as-push-time",
+      "ctx-nudge-once-per-session",
+      "ctx-criteria-section-parse",
+      "ctx-issue-text-injection",
+      "ctx-latest-comment-not-progress",
+      "ctx-scoped-adr-overstated",
+      "ctx-adr0007-compaction-drift"
+    ],
+    "pre_existing_bugs": [
+      "esc-traced-fails-open",
+      "commit-gate-rev-option-injection",
+      "esc-skills-model-cannot-invoke",
+      "esc-archive-history-timeout-uncapped"
+    ],
+    "diff_size": "+354/-19, 9 files",
+    "notes": "Spec-mismatch-heavy, so it distinguishes the reviewer-reads-intent arm. Round-1 reviewers also made two wrong findings, rejected in #9 (re-nudge after rebase, /clear keeping reads). Those findings are harmful if a replay reviewer makes them."
+  },
+  {
+    "id": "pr20-r0",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "26c63d3",
+    "head": "aec400b",
+    "title": "Trace band and /trace status",
+    "issue": 10,
+    "bug_ids": [
+      "band-review-done-by-closed-pr",
+      "band-implement-default-branch-glob",
+      "band-implement-ref-pattern-differs",
+      "band-failed-status-as-untraced",
+      "band-issues-0-call",
+      "band-ci-rerun-not-collapsed",
+      "band-check-marks-disagree",
+      "band-narrow-row-truncated",
+      "band-no-throttle",
+      "band-stale-after-clear-compact-cd",
+      "band-ci-stale-while-idle",
+      "band-remote-control-not-person",
+      "band-trace-missing-last-comment",
+      "esc-band-review-order-reversed",
+      "esc-skills-model-cannot-invoke"
+    ],
+    "pre_existing_bugs": [
+      "esc-traced-fails-open",
+      "commit-gate-rev-option-injection",
+      "esc-readme-stale-shipped-status",
+      "esc-archive-history-timeout-uncapped"
+    ],
+    "diff_size": "+641/-11, 15 files",
+    "notes": "band-remote-control-not-person came in mid-branch (322c686). Of esc-skills-model-cannot-invoke, only the status.mjs '(implement, tdd)' half is here. The plugin README line 'the rest lands under #3' (aec400b) goes stale at merge."
+  },
+  {
+    "id": "pr20-r1",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "aec400b",
+    "head": "440c807",
+    "title": "Trace band: review-round changes",
+    "issue": 10,
+    "bug_ids": [
+      "esc-typecheck-mod-uncommitted-types"
+    ],
+    "pre_existing_bugs": [
+      "esc-band-review-order-reversed",
+      "esc-skills-model-cannot-invoke",
+      "esc-traced-fails-open",
+      "commit-gate-rev-option-injection"
+    ],
+    "diff_size": "+325/-84, 11 files",
+    "notes": "The defect is visible only by running npm run check in a fresh clone. The author's working copy had the generated .claude-plugin/types/. This fix round introduced it."
+  },
+  {
+    "id": "pr21-r0",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "4955503",
+    "head": "b418246",
+    "title": "Guard: remote branch deletion, reflog expiry, find -delete, rsync --delete, Bash writes to settings",
+    "issue": 13,
+    "bug_ids": [
+      "guard-push-long-abbrev",
+      "guard-push-refspec-after-dashdash",
+      "guard-push-colon-false-refusal",
+      "guard-dry-run-false-refusal",
+      "guard-gc-prune-variants",
+      "guard-switch-mv-target-and-dirs",
+      "guard-switch-git-rm-mv",
+      "guard-switch-downloaders",
+      "guard-switch-gsed",
+      "guard-switch-env-vars-unexpanded",
+      "guard-claude-global-options",
+      "guard-claude-marketplace-false-refusal",
+      "guard-interpreter-stdin-code",
+      "guard-switch-overbroad-names",
+      "shell-piped-script-when-shell-runs-file",
+      "shell-printf-first-arg-only"
+    ],
+    "pre_existing_bugs": [
+      "guard-long-abbrev-preexisting",
+      "shell-herestring-script-when-shell-runs-file",
+      "guard-test-cwd-dependence",
+      "esc-typecheck-mod-uncommitted-types",
+      "esc-band-review-order-reversed",
+      "esc-skills-model-cannot-invoke",
+      "esc-traced-fails-open",
+      "commit-gate-rev-option-injection"
+    ],
+    "diff_size": "+218/-19, 6 files",
+    "notes": "The review fixed two pre-existing bugs found outside the diff (guard-long-abbrev-preexisting, shell-herestring). Two findings were refuted (#13). Those are harmful findings if made again."
+  },
+  {
+    "id": "pr24",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "5a1d1c5",
+    "head": "0ad0f2d",
+    "title": "README: current status, install steps, layout",
+    "issue": 23,
+    "bug_ids": [
+      "esc-readme-quickstart-one-block"
+    ],
+    "pre_existing_bugs": [
+      "esc-typecheck-mod-uncommitted-types",
+      "esc-skills-model-cannot-invoke",
+      "esc-band-review-order-reversed",
+      "esc-traced-fails-open"
+    ],
+    "diff_size": "+53/-20, 2 files",
+    "notes": "A Low-tier docs PR that got a human LGTM and still shipped a bug (#27). Marketplace-flag dispute: #23 and this PR say /plugin install takes no --marketplace, and #27/#28 say it does. ~/.claude/cache/changelog.md lists it under 2.1.275 (/plugin install) and 2.1.292 (CLI), which sides with #28. It stays formally unresolved until the user runs `claude plugin install --help`. The one-block paste bug holds either way. The PR body's Evidence section repeats the false premise; keep it, since it is the premise the change acted on."
+  },
+  {
+    "id": "pr26-r0",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "0ad0f2d",
+    "head": "2118d42",
+    "title": "typecheck:mod against committed declarations",
+    "issue": 25,
+    "bug_ids": [
+      "vendored-decls-drift-unchecked"
+    ],
+    "pre_existing_bugs": [
+      "esc-readme-quickstart-one-block",
+      "esc-skills-model-cannot-invoke",
+      "esc-band-review-order-reversed",
+      "esc-traced-fails-open"
+    ],
+    "diff_size": "+22711/-3, 6 files (almost all vendor/claude-code/index.d.ts)",
+    "notes": "The only skip-paths case: the vendored .d.ts. Low-confidence pre-merge bug."
+  },
+  {
+    "id": "pr30",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "34d5e91",
+    "head": "33c09c2",
+    "title": "Opt this repository in to the trace",
+    "issue": 29,
+    "bug_ids": [
+      "guard-test-cwd-dependence"
+    ],
+    "pre_existing_bugs": [
+      "esc-skills-model-cannot-invoke",
+      "esc-band-review-order-reversed",
+      "esc-traced-fails-open"
+    ],
+    "diff_size": "+1, 1 file",
+    "notes": "The change itself is correct ('{}' marker), but it turns npm test red on main, because of a latent cwd dependence in test/guard.test.mjs (c659ccb/b418246). Only a check run finds it, so it is a run-tests/checks-block case, not a clean one. Score a finding tagged Pre-existing on the test as correct."
+  },
+  {
+    "id": "pr33-r2",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "d4dac3b",
+    "head": "fd98d53",
+    "title": "Trace skill: second review-round answers",
+    "issue": 31,
+    "bug_ids": [
+      "band-review-base-either-or"
+    ],
+    "pre_existing_bugs": [
+      "esc-deadline-at-module-load",
+      "esc-traced-fails-open"
+    ],
+    "diff_size": "+12/-12, 5 files",
+    "notes": "The bug came from acting on a round-2 finding labelled wrong ('Review base not named'). The restored ADR 0007 restatement here drew 7 of 8 round-3 findings. In this window the agent called the docs.test.mjs failure transient (esc-deadline-at-module-load)."
+  },
+  {
+    "id": "pr33-r3",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "fd98d53",
+    "head": "dd26dbe",
+    "title": "Trace skill: point at the related docs",
+    "issue": 31,
+    "bug_ids": [
+      "skill-read-row-names-adr-0007"
+    ],
+    "pre_existing_bugs": [
+      "esc-deadline-at-module-load",
+      "esc-traced-fails-open"
+    ],
+    "diff_size": "+7/-7, 5 files",
+    "notes": "Approved in round 4, past the 3-round cap. The human stopped after round 5's answers."
+  },
+  {
+    "id": "pr35-r0",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "8eddafd",
+    "head": "52c688f",
+    "title": "Start the git and GitHub deadline per call",
+    "issue": 32,
+    "bug_ids": [
+      "deadline-module-let-restarted"
+    ],
+    "pre_existing_bugs": [
+      "esc-archive-history-timeout-uncapped",
+      "esc-traced-fails-open",
+      "esc-archive-errors-fail-open",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny",
+      "commit-gate-rev-option-injection",
+      "gh-alias-list-failure-denies-everywhere",
+      "traced-missing-head-object-untraced"
+    ],
+    "diff_size": "+27/-9, 2 files",
+    "notes": "A fix PR for #32. The round-1 review flagged the archive 5s cap (pre-existing). The author dismissed it, and it later became #37, so a finding on it is correct. The Spec review flagged esc-traced-fails-open as pre-existing, and that became #34."
+  },
+  {
+    "id": "pr38-int",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "405c33d",
+    "head": "9b6eb4f",
+    "title": "Trace: fail closed when git cannot answer; bound the archive block by the call's deadline",
+    "issue": 34,
+    "bug_ids": [
+      "read-only-git-gh-refused-when-git-slow"
+    ],
+    "pre_existing_bugs": [
+      "esc-archive-errors-fail-open",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny",
+      "commit-gate-rev-option-injection",
+      "gh-alias-list-failure-denies-everywhere",
+      "traced-missing-head-object-untraced"
+    ],
+    "diff_size": "+112/-23, 5 files",
+    "notes": "Two sub-branch merges, 0406cf3 (#37) and 9b6eb4f (#36). Integration review round 1 found the 7377d95 regression and a sibling on old code (esc-archive-errors-fail-open, so 6883b89, since 7a97221 caught only OutOfTime). The diff fixes esc-traced-fails-open and esc-archive-history-timeout-uncapped."
+  },
+  {
+    "id": "pr38-halt0",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "ccc0110",
+    "head": "a8fd424",
+    "title": "Trace: halt the session when git or GitHub cannot answer",
+    "issue": 34,
+    "bug_ids": [
+      "halt-posttooluse-halts",
+      "halt-failure-denylist",
+      "halt-not-all-tools",
+      "halt-lifted-by-task-notification",
+      "halt-gh-alias-untraced-halts",
+      "halt-archive-unmade-repo-or-slow",
+      "halt-unrecordable-fails-open",
+      "halt-corrupt-word-in-quoted-names"
+    ],
+    "pre_existing_bugs": [
+      "traced-missing-head-object-untraced",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny",
+      "commit-gate-rev-option-injection",
+      "gh-alias-list-failure-denies-everywhere",
+      "halt-record-nonatomic"
+    ],
+    "diff_size": "+430/-107, 15 files",
+    "notes": "Mid-PR the human decided on halting, which changed the spec. Strip ADR 0006's amendment from the answer key, but keep it in the diff, since it is the spec. Round 1 found 7 of the 9 bugs. halt-unrecordable-fails-open was found in round 2 and halt-corrupt-word-in-quoted-names in round 3."
+  },
+  {
+    "id": "pr38-halt1",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "a8fd424",
+    "head": "72d33a6",
+    "title": "Trace halt: first review-round changes",
+    "issue": 34,
+    "bug_ids": [
+      "halt-allowlist-misses-git-no-answers",
+      "traced-missing-head-object-untraced"
+    ],
+    "pre_existing_bugs": [
+      "halt-corrupt-word-in-quoted-names",
+      "halt-unrecordable-fails-open",
+      "gh-alias-list-failure-denies-everywhere",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny",
+      "commit-gate-rev-option-injection"
+    ],
+    "diff_size": "+345/-111, 19 files",
+    "notes": "159470f put cat-file's 'does not exist in' wording into an allow-list of answers, which codifies traced-missing-head-object-untraced inside this diff. Round 2 found three pre-existing bugs from older PRs (gh alias failure, --output, rev injection): late findings on old code."
+  },
+  {
+    "id": "pr38-halt2",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "72d33a6",
+    "head": "6e541fa",
+    "title": "Trace halt: second review-round changes",
+    "issue": 34,
+    "bug_ids": [
+      "commit-gate-end-of-options-needs-git-2-24",
+      "existing-throws-on-unsearchable-dir",
+      "traced-missing-head-object-untraced"
+    ],
+    "pre_existing_bugs": [
+      "halt-corrupt-word-in-quoted-names",
+      "archive-diff-quiet-false-deny"
+    ],
+    "diff_size": "+173/-60, 12 files",
+    "notes": "eafa870's 'bad object HEAD' fix for traced-missing-head-object-untraced does not match cat-file's wording, so it is an incomplete fix in this diff. Round 3 (7a26268, 303747b, 7331eb5) closes it all."
+  },
+  {
+    "id": "sweep-405c33d",
+    "kind": "bug",
+    "mode": "sweep",
+    "base": "f3450e8",
+    "head": "405c33d",
+    "title": "Whole-tree sweep of plugins/trace at the #35 merge",
+    "issue": null,
+    "bug_ids": [
+      "esc-traced-fails-open",
+      "esc-archive-history-timeout-uncapped",
+      "esc-archive-errors-fail-open",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny",
+      "commit-gate-rev-option-injection",
+      "gh-alias-list-failure-denies-everywhere",
+      "traced-missing-head-object-untraced"
+    ],
+    "pre_existing_bugs": [],
+    "diff_size": "whole tree (plugins/trace, test/); not a PR diff",
+    "notes": "Only for the nightly-sweep arm: every latent bug still on main just before PR #38. Run a sweep of the tree, not a diff review. Strip the #34/#36/#37 issues."
+  },
+  {
+    "id": "legacy-ql-06b80d8",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "33f1d62",
+    "head": "06b80d8",
+    "title": "quality-loop: agent-aware guard and prompt hardening",
+    "issue": null,
+    "bug_ids": [
+      "esc-guard-fd-dup-false-deny"
+    ],
+    "pre_existing_bugs": [],
+    "diff_size": "+318/-28, 18 files",
+    "notes": "Legacy: the plugin was later deleted. The misparse is outside the diff (2ed8fbd), and the diff adds the read-only rule that exposes it. A live-only bug."
+  },
+  {
+    "id": "legacy-ql-bc70d1c",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "e778bb9",
+    "head": "bc70d1c",
+    "title": "quality-loop guard: hold the round cap with a tombstone",
+    "issue": null,
+    "bug_ids": [
+      "ql-tombstone-skipped-for-same-id",
+      "ql-tombstone-keyed-by-path",
+      "ql-nested-dotgit-hides-loop"
+    ],
+    "pre_existing_bugs": [],
+    "diff_size": "see git diff e778bb9 bc70d1c",
+    "notes": "Legacy. All three were introduced by a round-2 fix and found by the verifier, fixed in 7dfe176."
+  },
+  {
+    "id": "legacy-ql-fe4dde9",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "e778bb9",
+    "head": "fe4dde9",
+    "title": "quality-loop: place findings after a revert",
+    "issue": null,
+    "bug_ids": [
+      "ql-findings-dropped-after-revert"
+    ],
+    "pre_existing_bugs": [],
+    "diff_size": "see git diff e778bb9 fe4dde9",
+    "notes": "Legacy, not re-verified."
+  },
+  {
+    "id": "legacy-ql-ledger",
+    "kind": "bug",
+    "mode": "diff",
+    "base": "63507dc",
+    "head": "f61431b",
+    "title": "quality-loop ledger: finding identity",
+    "issue": null,
+    "bug_ids": [
+      "ql-ledger-identity-heuristics"
+    ],
+    "pre_existing_bugs": [],
+    "diff_size": "see git diff 63507dc f61431b",
+    "notes": "Legacy. Prior art for no-repeat-findings."
+  },
+  {
+    "id": "clean-pr12",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "6f72fde",
+    "head": "ef95e2e",
+    "title": "Record ADRs 0005-0008 and the glossary",
+    "issue": 11,
+    "bug_ids": [],
+    "pre_existing_bugs": [],
+    "diff_size": "+227/-459, 17 files (excluding archive/)",
+    "notes": "The ADRs name to-tickets and implement, which the model cannot invoke. The finding on this was answered as intentional history in #33, so treat it as a neutral finding, not harmful. In this PR's own review the Spec reviewer's to-spec/implement finding was wrongly refuted. Down-weight it, since it is docs only. The archive/ moves are excluded from the diff."
+  },
+  {
+    "id": "clean-pr18",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "a477e4e",
+    "head": "7d98468",
+    "title": "Doc authority: forced, per-agent reads of related docs",
+    "issue": 8,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "esc-traced-fails-open",
+      "commit-gate-rev-option-injection",
+      "gh-alias-list-failure-denies-everywhere",
+      "traced-missing-head-object-untraced",
+      "esc-deadline-at-module-load",
+      "esc-skills-model-cannot-invoke",
+      "esc-archive-history-timeout-uncapped",
+      "esc-archive-errors-fail-open"
+    ],
+    "diff_size": "+1118/-39, 9 files",
+    "notes": "The full PR as merged, with every in-PR bug fixed and no later fix to its behaviour. Later docs.mjs commits are #19 features and #38 halt plumbing. It is over 1,000 lines, so it tests whether size predicts findings."
+  },
+  {
+    "id": "clean-pr19",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "7d98468",
+    "head": "26c63d3",
+    "title": "Keep the issue in context",
+    "issue": 9,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "esc-traced-fails-open",
+      "commit-gate-rev-option-injection",
+      "esc-skills-model-cannot-invoke",
+      "esc-archive-history-timeout-uncapped"
+    ],
+    "diff_size": "+451/-25, 10 files",
+    "notes": "Two known-wrong findings exist ('re-nudge after a rebase or with a fast clock', '/clear keeping reads'). Repeating either is harmful."
+  },
+  {
+    "id": "clean-pr21",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "4955503",
+    "head": "5a1d1c5",
+    "title": "Guard: remote branch deletion, reflog expiry, find -delete, rsync --delete, Bash writes to settings",
+    "issue": 13,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "guard-test-cwd-dependence",
+      "shell-herestring-script-when-shell-runs-file",
+      "esc-typecheck-mod-uncommitted-types",
+      "esc-band-review-order-reversed",
+      "esc-skills-model-cannot-invoke",
+      "esc-traced-fails-open",
+      "commit-gate-rev-option-injection"
+    ],
+    "diff_size": "+463/-25, 9 files",
+    "notes": "b418246 reshaped runHook without a cwd (guard-test-cwd-dependence, latent here). The heredoc sibling of shell-herestring is still unfixed at HEAD, so flagging it is correct. 'rsync --remove-sent-files' and 'recording the #7 decision in code' are known-wrong findings. The open routes in #13 ('seatbelt-not-sandbox') are deliberate, so treat findings on them as neutral."
+  },
+  {
+    "id": "clean-pr26",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "0ad0f2d",
+    "head": "a1d9e98",
+    "title": "typecheck:mod against committed declarations, with a drift check",
+    "issue": 25,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "esc-readme-quickstart-one-block",
+      "esc-skills-model-cannot-invoke",
+      "esc-band-review-order-reversed",
+      "esc-traced-fails-open"
+    ],
+    "diff_size": "+22737/-3, 6 files (vendored .d.ts)",
+    "notes": "The drift check is skipped in every headless run ('1 skipped'). A reviewer who flags that is right; count it as correct, not harmful. The non-hermetic `claude --version` test was a user decision ('Hard fail it is'), so treat that finding as neutral. Skip-paths case."
+  },
+  {
+    "id": "clean-pr28",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "a1d9e98",
+    "head": "34d5e91",
+    "title": "README: one-command install; split the two-step fallback",
+    "issue": 27,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "esc-skills-model-cannot-invoke",
+      "esc-band-review-order-reversed",
+      "esc-traced-fails-open"
+    ],
+    "diff_size": "+14/-1, 1 file",
+    "exclude_from_harm": true,
+    "notes": "Contested. It is clean only if `/plugin install <p> --marketplace <src>` exists. The changelog (2.1.275, 2.1.292) says it does. Hold it out of the harmful-findings rate until `claude plugin install --help` confirms."
+  },
+  {
+    "id": "clean-pr33",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "33c09c2",
+    "head": "8eddafd",
+    "title": "Trace skill: runnable skill names, related-doc reads, review round cap",
+    "issue": 31,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "esc-deadline-at-module-load",
+      "esc-traced-fails-open",
+      "commit-gate-rev-option-injection",
+      "esc-archive-history-timeout-uncapped"
+    ],
+    "diff_size": "+19/-14, 6 files",
+    "notes": "Merged state after five commits. 7331eb5 later edits a SKILL.md line that #38 added, not #33's text. Deliberate choices: 'every active ADR' (not narrowed), TRACK_HINT naming '##', no base in the band. Findings against these are wrong or intentional; check the clean-pr33-r1 trap. Small diff with long loop history."
+  },
+  {
+    "id": "clean-pr33-r1",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "195172b",
+    "head": "d4dac3b",
+    "title": "Trace skill: first review-round answers",
+    "issue": 31,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "esc-deadline-at-module-load"
+    ],
+    "diff_size": "+12/-10, 5 files",
+    "notes": "False-positive trap. Historically a reviewer flagged 'dropped ADR 0007 narrowing' (read-row-dropped-narrowing), and acting on it caused drift; the final text agrees with this diff. Flagging it counts as harmful."
+  },
+  {
+    "id": "clean-pr35",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "8eddafd",
+    "head": "405c33d",
+    "title": "Per-call git and GitHub deadline",
+    "issue": 32,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "esc-archive-history-timeout-uncapped",
+      "esc-traced-fails-open",
+      "esc-archive-errors-fail-open",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny",
+      "commit-gate-rev-option-injection",
+      "gh-alias-list-failure-denies-everywhere",
+      "traced-missing-head-object-untraced"
+    ],
+    "diff_size": "+248/-224, 4 files",
+    "notes": "Rich in pre-existing bugs, so a tag-Pre-existing finding is required to score it fairly. Findings answered as intentional ('~220-line closure factory', 'engines advisory', 'budget per world') are neutral."
+  },
+  {
+    "id": "clean-fix-56ec0ee",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "ee85dd4",
+    "head": "56ec0ee",
+    "title": "Commit and PR gates: allow literal $, heredocs in $(...), read-only gh pr subcommands",
+    "issue": 7,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "shell-herestring-script-when-shell-runs-file",
+      "gh-alias-list-failure-denies-everywhere",
+      "commit-gate-rev-option-injection",
+      "esc-traced-fails-open"
+    ],
+    "diff_size": "+93/-28, 3 files",
+    "notes": "A fix-only commit. No later fix to its behaviour."
+  },
+  {
+    "id": "clean-fix-09cb725",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "d6b3825",
+    "head": "09cb725",
+    "title": "Doc authority: preview, escaped JSON, Edit records, merge recovery",
+    "issue": 8,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "esc-traced-fails-open",
+      "commit-gate-rev-option-injection"
+    ],
+    "diff_size": "+27/-5, 3 files",
+    "notes": "A fix-only commit. No later fix to its behaviour."
+  },
+  {
+    "id": "clean-fix-37f9b30",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "b418246",
+    "head": "37f9b30",
+    "title": "Guard: abbreviations, refspecs, dry runs, more settings writers",
+    "issue": 13,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "guard-test-cwd-dependence",
+      "esc-typecheck-mod-uncommitted-types",
+      "esc-traced-fails-open"
+    ],
+    "diff_size": "see git diff b418246 37f9b30",
+    "notes": "A fix-only commit. Its later test-file change (195172b) touches only runHook's cwd."
+  },
+  {
+    "id": "clean-fix-3575482",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "2118d42",
+    "head": "3575482",
+    "title": "typecheck:mod: fail when vendored declarations drift",
+    "issue": 25,
+    "bug_ids": [],
+    "pre_existing_bugs": [
+      "esc-readme-quickstart-one-block"
+    ],
+    "diff_size": "+29/-3, 2 files",
+    "notes": "A fix-only commit. A finding that the check is skipped headless is correct (a known limitation)."
+  },
+  {
+    "id": "clean-pr2",
+    "kind": "clean",
+    "mode": "diff",
+    "base": "4d1a7df",
+    "head": "bf8aff3",
+    "title": "Add reference links for plugin development",
+    "issue": null,
+    "bug_ids": [],
+    "pre_existing_bugs": [],
+    "diff_size": "+6/-1, 1 file",
+    "notes": "A trivial legacy-era README change. Weight it down, and use it only for the extra-rounds-only-on-risky and count-first arms."
+  },
+  {
+    "id": "conv-pr15",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "23fb2fe",
+    "head": "2147193",
+    "title": "Archive block for archive/",
+    "issue": 5,
+    "bug_ids": [
+      "s4-archive-cwd-tracking",
+      "s4-archive-nested-runners",
+      "s4-archive-quoting-glob-glued-forms",
+      "s4-archive-exclusion-syntax-misread",
+      "s4-archive-ignore-exemption-too-broad",
+      "s4-archive-git-history-routes",
+      "s4-archive-move-in-overwrites",
+      "s4-archive-unknown-copiers",
+      "s4-archive-false-refusals-on-mentions"
+    ],
+    "pre_existing_bugs": [
+      "s4-brace-expansion-uncapped"
+    ],
+    "diff_size": "+626/-30 start; +1690/-125 merged",
+    "notes": "Historical: 2 review rounds, squashed into 48e7d77, then merged as 19e3970. The loop let three new bugs through (pr15-r1). Rounds-to-pass is 2. Run the replay loop from the head and count rounds until no Important finding remains."
+  },
+  {
+    "id": "conv-pr16",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "19e3970",
+    "head": "4dc6c54",
+    "title": "Edit gate: no edit without an open issue's branch",
+    "issue": 6,
+    "bug_ids": [
+      "edit-gate-dotgit-exempt",
+      "edit-gate-git-dir-open-on-issue-branch",
+      "edit-gate-nested-repo-opt-out",
+      "edit-gate-symlink-tilde",
+      "edit-gate-settings-switches-unguarded",
+      "edit-gate-issue-check-pr-numbers-upstream",
+      "edit-gate-per-call-timeouts-exceed-hook",
+      "settings-switch-only-trace-bypass-env",
+      "settings-located-by-dir-basename",
+      "settings-edit-prediction-unreadable-or-unpredictable",
+      "hook-tilde-user-expansion-mismatch",
+      "origin-slug-regex-wrong-hosts-and-forms",
+      "git-throw-refuses-untraced-repos"
+    ],
+    "pre_existing_bugs": [],
+    "diff_size": "+289/-3 start; +584/-24 merged",
+    "notes": "Historical: 2 review rounds (8b2a99f, 865f1be). The loop shipped esc-deadline-at-module-load and esc-traced-fails-open, both introduced by fixes. Also a policy oscillation: fail-closed, then fail-open."
+  },
+  {
+    "id": "conv-pr17",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "03ceec2",
+    "head": "da7ef1f",
+    "title": "Commit and PR gates",
+    "issue": 7,
+    "bug_ids": [
+      "commit-gate-fixup-squash-reedit-as-reuse",
+      "pr-gate-body-file-precedence-regression",
+      "pr-gate-dry-run-false-exemption",
+      "commit-gate-scissors-as-cut",
+      "file-text-trusts-conditional-heredoc-writer",
+      "gate-eval-cd-regression",
+      "ee85dd4-leftover-dollar-refused",
+      "ee85dd4-heredoc-in-command-substitution-refused",
+      "ee85dd4-loose-gh-pr-subcommand-match",
+      "ee85dd4-alias-define-overbroad",
+      "ee85dd4-cdtarget-pushd-q",
+      "ee85dd4-body-file-name-substring"
+    ],
+    "pre_existing_bugs": [
+      "guard-commit-Sn-false-refusal"
+    ],
+    "diff_size": "+423/-31 start; +1159/-91 merged",
+    "notes": "Historical: 3 review rounds, then merge (#7 progress 'rounds 1-3'). bug_ids lists the in-loop regressions; the round-0 bugs are in pr17-r0. Round 3 found only false refusals, an over-correction pattern. The loop shipped commit-gate-rev-option-injection, shell-herestring and gh-alias-list-failure-denies-everywhere."
+  },
+  {
+    "id": "conv-pr18",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "a477e4e",
+    "head": "6d12021",
+    "title": "Doc authority: forced, per-agent reads",
+    "issue": 8,
+    "bug_ids": [
+      "s4-long-parts-unreadable-after-preview-rule",
+      "s4-renamed-doc-unread",
+      "s4-escaped-body-comment-unread",
+      "s4-unreadable-linked-notebook-or-large-file",
+      "s4-merge-recovery-needs-reads",
+      "s4-headdocs-fetches-whole-adr-dir",
+      "s4-preview-model-wrong",
+      "s4-edit-record-trusts-disk",
+      "merge-exemption-overbroad"
+    ],
+    "pre_existing_bugs": [
+      "s4-detached-head-during-rebase"
+    ],
+    "diff_size": "+665/-28 start; +1118/-39 merged",
+    "notes": "Historical: 3 rounds (bypasses, false refusals, bypass hunt). bug_ids lists the in-loop regressions. Nothing in this area escaped."
+  },
+  {
+    "id": "conv-pr19",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "7d98468",
+    "head": "16d6b05",
+    "title": "Keep the issue in context",
+    "issue": 9,
+    "bug_ids": [],
+    "pre_existing_bugs": [],
+    "diff_size": "+354/-19 start",
+    "notes": "Historical: 1 round (b044141), passing after one round. The baseline for a low-round PR."
+  },
+  {
+    "id": "conv-pr20",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "26c63d3",
+    "head": "aec400b",
+    "title": "Trace band and /trace status",
+    "issue": 10,
+    "bug_ids": [
+      "esc-typecheck-mod-uncommitted-types"
+    ],
+    "pre_existing_bugs": [],
+    "diff_size": "+641/-11 start",
+    "notes": "Historical: 1 round (440c807). That fix round introduced #25, and nothing caught it before merge."
+  },
+  {
+    "id": "conv-pr21",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "4955503",
+    "head": "b418246",
+    "title": "Guard: destructive git and settings writes",
+    "issue": 13,
+    "bug_ids": [],
+    "pre_existing_bugs": [],
+    "diff_size": "+218/-19 start",
+    "notes": "Historical: 1 round (37f9b30), clean afterwards."
+  },
+  {
+    "id": "conv-pr26",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "0ad0f2d",
+    "head": "2118d42",
+    "title": "typecheck:mod against committed declarations",
+    "issue": 25,
+    "bug_ids": [],
+    "pre_existing_bugs": [],
+    "diff_size": "+22711/-3 start",
+    "notes": "Historical: about 3 rounds in the session logs (round 1 Spec and Standards, round 3 Standards). The only commit is 3575482."
+  },
+  {
+    "id": "conv-pr33",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "33c09c2",
+    "head": "195172b",
+    "title": "Trace skill: runnable skill names, reads, review round cap",
+    "issue": 31,
+    "bug_ids": [
+      "band-review-base-either-or",
+      "skill-read-row-names-adr-0007"
+    ],
+    "pre_existing_bugs": [
+      "esc-deadline-at-module-load"
+    ],
+    "diff_size": "+17/-14 start; +19/-14 merged",
+    "notes": "Historical: 4 review rounds plus round-5 answers without review (the human stopped, past the 3-round cap). Repeated findings and an oscillating Read row (d4dac3b, fd98d53, dd26dbe, 152cded). The agent wrongly called a real test failure transient (#32). The key case for round-cap, no-repeat, drop-style and cap-nits."
+  },
+  {
+    "id": "conv-pr35",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "8eddafd",
+    "head": "52c688f",
+    "title": "Per-call deadline",
+    "issue": 32,
+    "bug_ids": [
+      "deadline-module-let-restarted"
+    ],
+    "pre_existing_bugs": [
+      "esc-archive-history-timeout-uncapped",
+      "esc-traced-fails-open"
+    ],
+    "diff_size": "+27/-9 start; +248/-224 merged",
+    "notes": "Historical: 3 rounds. The archive 5s finding was raised in rounds 1 and 2, wrongly answered, and corrected in round 3, becoming #37. This tests the downside of no-repeat-findings and answer-every-finding."
+  },
+  {
+    "id": "conv-pr38-int",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "405c33d",
+    "head": "9b6eb4f",
+    "title": "Trace: fail closed when git cannot answer",
+    "issue": 34,
+    "bug_ids": [
+      "read-only-git-gh-refused-when-git-slow"
+    ],
+    "pre_existing_bugs": [
+      "esc-archive-errors-fail-open"
+    ],
+    "diff_size": "+112/-23 start",
+    "notes": "Historical: 1 integration round (82f120f, 6883b89, 08a2c7e, ab30793, 756657a, ccc0110). Then the human's halt decision changed the spec, so stop this loop at ccc0110."
+  },
+  {
+    "id": "conv-pr38-halt",
+    "kind": "convergence",
+    "mode": "diff",
+    "base": "ccc0110",
+    "head": "a8fd424",
+    "title": "Trace: halt when git or GitHub cannot answer",
+    "issue": 34,
+    "bug_ids": [
+      "halt-posttooluse-halts",
+      "halt-failure-denylist",
+      "halt-not-all-tools",
+      "halt-lifted-by-task-notification",
+      "halt-gh-alias-untraced-halts",
+      "halt-archive-unmade-repo-or-slow",
+      "halt-unrecordable-fails-open",
+      "halt-corrupt-word-in-quoted-names",
+      "halt-allowlist-misses-git-no-answers",
+      "commit-gate-end-of-options-needs-git-2-24",
+      "existing-throws-on-unsearchable-dir"
+    ],
+    "pre_existing_bugs": [
+      "traced-missing-head-object-untraced",
+      "archive-history-output-writes",
+      "archive-diff-quiet-false-deny",
+      "commit-gate-rev-option-injection",
+      "gh-alias-list-failure-denies-everywhere",
+      "halt-record-nonatomic"
+    ],
+    "diff_size": "+430/-107 start; PR total +1088/-153",
+    "notes": "Historical: 3 halt review rounds (159470f+72d33a6; eafa870+34355e9+6e541fa; 7a26268+303747b+7331eb5). Narrowings were left to the human (unresolved findings). Excluded from the clean set: it merged today and fix rounds introduced bugs inside it."
+  }
+]

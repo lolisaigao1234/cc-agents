@@ -1,0 +1,1924 @@
+{
+  "ideas": [
+    {
+      "id": "run-tests-build-lint-before-review",
+      "idea": "Before review, the agent runs the full local check suite (tests, typecheck, build/validate) and fixes it to green.",
+      "quote": "Claude runs the tests, build and linter",
+      "role": "arm",
+      "family": "A-verify-before-review",
+      "in_skill_now": "partly",
+      "switch": "Skill text: Review row starts with \"run `npm run check` on a clean checkout and fix until green, then /code-review\". Off: current (tdd in Implement runs only the tests it writes; nothing names `npm run check`).",
+      "metric": "escaped test-detectable bugs; bugs fixed before review round 1; rounds-to-pass",
+      "needs_cases": "bugs a full check run exposes: #25 (440c807, typecheck:mod extends an uncommitted folder; replay must use a fresh clone), #32 flaky under the full suite; clean PRs to confirm no cost",
+      "why_not": "",
+      "coverage": {
+        "arm": "run-tests-build-lint-before-review",
+        "cases": [
+          "pr20-r1",
+          "pr30",
+          "pr16-r1",
+          "pr33-r2",
+          "clean-pr18",
+          "clean-pr21",
+          "clean-pr33",
+          "clean-pr35"
+        ],
+        "enough": false,
+        "gap": "Only 3 bugs are test-detectable: #25 (fresh clone needed), the guard test going red at #30, and the #32 flake (visible only under the full suite at the pr33 head, not at the introducing pr16-r1). Clean cases measure cost, not recall."
+      }
+    },
+    {
+      "id": "show-output-not-claim",
+      "idea": "The agent must paste each verification command and its actual output instead of saying the work is done.",
+      "quote": "show the output instead of saying it's done",
+      "role": "arm",
+      "family": "A-verify-before-review",
+      "in_skill_now": "partly",
+      "switch": "Skill text: progress comment must hold each command and its output before Review; a grader compares claims with the harness log of commands actually run. Off: Update row \"verification\" with no format.",
+      "metric": "unverified \"done\" claims per case; escaped bugs",
+      "needs_cases": "cases where a claimed check was not run or failed (from replay logs); any bug case whose test the agent could have run",
+      "why_not": "",
+      "coverage": {
+        "arm": "show-output-not-claim",
+        "cases": [
+          "conv-pr33",
+          "pr33-r2",
+          "pr30",
+          "pr20-r1"
+        ],
+        "enough": false,
+        "gap": "One historical instance: #31 rounds 2-3 called a real failure transient. The rest must come from replay logs."
+      }
+    },
+    {
+      "id": "domain-specific-e2e-check",
+      "idea": "Verification fitted to this repo: drive the real hook with real hook-input JSON (or a live headless session) for the commands the change gates, not only unit tests. Also covers the blog's pre-PR skill that checks behavior end to end.",
+      "quote": "Verification looks different for each domain.",
+      "role": "arm",
+      "family": "A-verify-before-review",
+      "in_skill_now": "no",
+      "switch": "Skill text or the `run` skill in the Review row: replay hook.mjs on crafted inputs (git timeout, broken repo, archive paths, `2>&1`) and show the decisions. Off: unit tests only.",
+      "metric": "recall on bugs unit tests missed (wiring, real git behaviour); escaped bugs",
+      "needs_cases": "live-only bugs: 4d1a7df (`npm test 2>&1` denied for every read-only agent), traced() fail-open on git timeout (865f1be -> #34/#36), archive 5s per segment (48e7d77 -> #37)",
+      "why_not": "",
+      "coverage": {
+        "arm": "domain-specific-e2e-check",
+        "cases": [
+          "legacy-ql-06b80d8",
+          "pr16-r2",
+          "pr15-r1",
+          "pr24"
+        ],
+        "enough": false,
+        "gap": "Four live-only bugs, one of them legacy. Detecting pr16-r2 and pr15-r1 needs a fault-injecting harness (git timeout, slow history)."
+      }
+    },
+    {
+      "id": "simplify-before-review",
+      "idea": "Run a diff-simplifying skill before the bug review.",
+      "quote": "one simplifies the diff",
+      "role": "arm",
+      "family": "A-verify-before-review",
+      "in_skill_now": "no",
+      "switch": "Review row: add `/simplify` before `/code-review`. Off: current.",
+      "metric": "diff size; later-round findings; regressions /simplify introduces on clean cases",
+      "needs_cases": "large or reworked diffs (#15, #17, #18, #38) and clean PRs to catch harmful simplifications",
+      "why_not": "",
+      "coverage": {
+        "arm": "simplify-before-review",
+        "cases": [
+          "pr15-r0",
+          "pr15-r1",
+          "pr17-r0",
+          "pr17-r1",
+          "pr17-r2",
+          "pr18-r0",
+          "pr18-r1",
+          "conv-pr38-halt",
+          "clean-pr18",
+          "clean-pr21",
+          "clean-pr35",
+          "clean-fix-56ec0ee"
+        ],
+        "enough": false,
+        "gap": "Recall data is plenty. No historical harmful simplification exists, so that harm is measured only on the clean set (about 12 cases, thin)."
+      }
+    },
+    {
+      "id": "format-lint-hooks",
+      "idea": "Hooks run formatters, linters and type checks on every edit so those errors never reach review.",
+      "quote": "plus hooks that run formatters and linters",
+      "role": "arm",
+      "family": "A-verify-before-review",
+      "in_skill_now": "no",
+      "switch": "Hook: PostToolUse on Edit/Write runs `npm run typecheck` and `npm run typecheck:mod` and returns errors to the agent (repo has no linter/formatter config, so tsc is the only content). Off: none.",
+      "metric": "type-class findings reaching review; escaped type bugs; rounds",
+      "needs_cases": "type/config breaks: #25 (typecheck:mod), any fix-round commit that broke types",
+      "why_not": "",
+      "coverage": {
+        "arm": "format-lint-hooks",
+        "cases": [
+          "pr20-r1",
+          "legacy-ql-06b80d8"
+        ],
+        "enough": false,
+        "gap": "Only #25 is a type or config break. No fix round broke types."
+      }
+    },
+    {
+      "id": "claude-md-lists-checks",
+      "idea": "List the runnable checks in a short CLAUDE.md that every agent and reviewer loads.",
+      "quote": "listed in a short CLAUDE.md",
+      "role": "arm",
+      "family": "A-verify-before-review",
+      "in_skill_now": "no",
+      "switch": "CLAUDE.md in the replay repo gains \"Checks: npm run check (typecheck, tests, mod tests, validate)\". Off: current 13-line CLAUDE.md with no checks.",
+      "metric": "share of cases where the agent runs the full suite unprompted; escaped test-detectable bugs",
+      "needs_cases": "same as run-tests-build-lint-before-review; this arm differs in where the instruction lives (CLAUDE.md vs skill)",
+      "why_not": "",
+      "coverage": {
+        "arm": "claude-md-lists-checks",
+        "cases": [
+          "pr20-r1",
+          "pr30",
+          "pr16-r1",
+          "clean-pr18",
+          "clean-pr33"
+        ],
+        "enough": false,
+        "gap": "Same thin set as run-tests. It differs only in where the instruction lives."
+      }
+    },
+    {
+      "id": "checks-block-pr",
+      "idea": "Required checks block: a red check run stops the PR, enforced by a gate rather than prose.",
+      "quote": "Red blocks the merge",
+      "role": "arm",
+      "family": "A-verify-before-review",
+      "in_skill_now": "no",
+      "switch": "Hook: PreToolUse refuses `gh pr create` / `gh pr ready` unless `npm run check` passed at the current HEAD SHA (recorded by a PostToolUse hook). Off: the PR gate checks only `Closes #n`.",
+      "metric": "escaped test-detectable bugs at PR-ready; refusals per case",
+      "needs_cases": "#25, #32 and fix-round commits that broke tests after the last check run",
+      "why_not": "",
+      "coverage": {
+        "arm": "checks-block-pr",
+        "cases": [
+          "pr20-r1",
+          "pr30",
+          "conv-pr33"
+        ],
+        "enough": false,
+        "gap": "There is no CI. Only #25 and the #30 red test would have been blocked; nothing records whether checks ran after the last review round."
+      }
+    },
+    {
+      "id": "cross-platform-ci",
+      "idea": "CI runs lint, types, tests on every platform, build and packaging on each PR.",
+      "quote": "tests on every platform",
+      "role": "not-testable",
+      "family": "X-release-and-ops",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "No CI here (.github is absent) and replays run on one macOS machine; history has no platform-specific bug. The local half is checks-block-pr."
+    },
+    {
+      "id": "claude-md-goals-nongoals",
+      "idea": "CLAUDE.md states the stack, conventions, goals and non-goals, stays short, and points to other docs; every review loads it.",
+      "quote": "the goals and the non-goals",
+      "role": "arm",
+      "family": "B-reviewer-context",
+      "in_skill_now": "partly",
+      "switch": "CLAUDE.md in the replay repo gains stack, goals and non-goals (e.g. \"fail closed when git cannot answer\", \"the human merges\") with pointers to ADRs. Off: current CLAUDE.md (tracker/labels/domain pointers only).",
+      "metric": "recall on ADR/convention-violation cases; findings on clean PRs that contradict a stated non-goal",
+      "needs_cases": "ADR-violation bugs (#33 dropped ADR 0007 narrowing; skill naming uninvokable skills, 4dc6c54) and clean PRs that made deliberate choices (#33 final 152cded)",
+      "why_not": "",
+      "coverage": {
+        "arm": "claude-md-goals-nongoals",
+        "cases": [
+          "pr16-r0",
+          "pr20-r0",
+          "pr19-r0",
+          "clean-pr33",
+          "clean-pr33-r1",
+          "clean-pr12"
+        ],
+        "enough": false,
+        "gap": "Five or six cases: ADR or convention breaks (skills the model cannot invoke, band order, ADR 0007 scoping) plus deliberate-choice traps."
+      }
+    },
+    {
+      "id": "flag-convention-breaks",
+      "idea": "The reviewer flags code that breaks a convention in the project docs.",
+      "quote": "flags code that breaks a convention",
+      "role": "arm",
+      "family": "B-reviewer-context",
+      "in_skill_now": "yes",
+      "switch": "Ablation: drop GLOSSARY.md and the ADRs from mattpocock code-review's standards. On: current Review row.",
+      "metric": "recall on convention/ADR cases; noise on clean PRs",
+      "needs_cases": "convention or ADR breaks (skill names uninvokable skills; band Review reason order reversed, c4808b5)",
+      "why_not": "",
+      "coverage": {
+        "arm": "flag-convention-breaks",
+        "cases": [
+          "pr16-r0",
+          "pr20-r0",
+          "pr19-r0",
+          "pr33-r2",
+          "pr33-r3"
+        ],
+        "enough": false,
+        "gap": "Five instances, two of them inside one PR loop."
+      }
+    },
+    {
+      "id": "flag-stale-doc-lines",
+      "idea": "The reviewer flags changes that make a line in the docs out of date (doc drift).",
+      "quote": "make a line in it out of date",
+      "role": "arm",
+      "family": "B-reviewer-context",
+      "in_skill_now": "no",
+      "switch": "Review prompt line: \"flag any line in CLAUDE.md, README, SKILL.md, GLOSSARY or an ADR that this diff makes untrue\". Off: current (conventions checked, staleness not asked).",
+      "metric": "recall on doc-drift cases",
+      "needs_cases": "doc-drift bugs: #23 stale README, #27 (46490e1), #33 restatement drift (dd26dbe \"ADR 0007\"), band reason vs SKILL.md order",
+      "why_not": "",
+      "coverage": {
+        "arm": "flag-stale-doc-lines",
+        "cases": [
+          "pr24",
+          "pr19-r0",
+          "pr20-r0",
+          "pr33-r2",
+          "pr33-r3",
+          "pr16-r1"
+        ],
+        "enough": false,
+        "gap": "Six cases. The stale root README (esc-readme-stale-shipped-status) is an omission with no PR to replay. Score it as a pre-existing finding on pr16..pr21."
+      }
+    },
+    {
+      "id": "review-md-owner-guidance",
+      "idea": "A short REVIEW.md, written by code owners, tells the reviewer what matters in each part of the code. Base arm that the REVIEW.md line arms (define-failure, cap-nits, skip-paths, file-line-evidence, count-first-summary) are toggled on top of.",
+      "quote": "tells the reviewer what matters in their part of the code",
+      "role": "arm",
+      "family": "B-reviewer-context",
+      "in_skill_now": "no",
+      "switch": "Commit a short REVIEW.md (per-area priorities for hooks, guard, halt, archive block, docs) to the replay repo and name it among /code-review's and mattpocock code-review's standards. Off: none (repo state today). Optional length sub-arm: short vs long REVIEW.md.",
+      "metric": "recall; harmful/noisy findings on clean PRs; rounds-to-pass",
+      "needs_cases": "gate-logic bugs (fail-open, false refusal) plus clean PRs; the REVIEW.md text must be written from a train split only",
+      "why_not": "",
+      "coverage": {
+        "arm": "review-md-owner-guidance",
+        "cases": [
+          "pr14-r0",
+          "pr15-r0",
+          "pr15-r1",
+          "pr16-r0",
+          "pr16-r1",
+          "pr17-r0",
+          "pr17-r1",
+          "pr17-r2",
+          "pr18-r0",
+          "pr18-r1",
+          "pr19-r0",
+          "pr20-r0",
+          "pr21-r0",
+          "pr35-r0",
+          "pr38-int",
+          "pr38-halt0",
+          "clean-pr19",
+          "clean-pr21",
+          "clean-pr33",
+          "clean-pr35"
+        ],
+        "enough": true,
+        "gap": "Write REVIEW.md from a time-ordered train split only (pr14..pr18) and test on pr19..pr38. The test side then holds about 8 bug cases."
+      }
+    },
+    {
+      "id": "define-failure",
+      "idea": "REVIEW.md says what failure looks like in this repo, per area.",
+      "quote": "They say what failure looks like in that repo",
+      "role": "arm",
+      "family": "B-reviewer-context",
+      "in_skill_now": "no",
+      "switch": "REVIEW.md line, e.g. \"failure is a hook that lets through what it should deny, denies what it should allow, or fails open when git cannot answer; for docs, it lies\". Off: REVIEW.md without it.",
+      "metric": "recall on fail-open and doc-lies cases",
+      "needs_cases": "fail-open bugs (traced() 865f1be, archive error reaching the fail-open catch 2147193, 5s cap 48e7d77) and false refusals (-Sn, `git diff --quiet`)",
+      "why_not": "",
+      "coverage": {
+        "arm": "define-failure",
+        "cases": [
+          "pr16-r0",
+          "pr16-r2",
+          "pr15-r0",
+          "pr15-r1",
+          "pr17-r0",
+          "pr17-r2",
+          "pr14-r0",
+          "pr18-r0",
+          "pr18-r1",
+          "pr21-r0",
+          "pr38-halt0",
+          "pr38-int",
+          "sweep-405c33d"
+        ],
+        "enough": true,
+        "gap": "Plenty of fail-open and false-refusal bugs. pr16-r2 is policy-contested, so score it both ways."
+      }
+    },
+    {
+      "id": "reviewer-reads-intent",
+      "idea": "The bug reviewer reads the diff against the whole repo and the PR's stated intent: does it solve its problem, fit the system, or break something else?",
+      "quote": "the PR's stated intent",
+      "role": "arm",
+      "family": "B-reviewer-context",
+      "in_skill_now": "partly",
+      "switch": "Pass the issue body and acceptance criteria to /code-review (today only mattpocock code-review's spec axis gets the issue). Off: diff only. Strip answer-leaking text first (5f17b05).",
+      "metric": "recall on spec-miss and cross-file breakage cases",
+      "needs_cases": "spec misses and \"breaks something else\" cases: read-only commands refused after 7377d95, band Implement check on the default branch (c4808b5)",
+      "why_not": "",
+      "coverage": {
+        "arm": "reviewer-reads-intent",
+        "cases": [
+          "pr19-r0",
+          "pr20-r0",
+          "pr38-int",
+          "pr16-r2",
+          "clean-pr19"
+        ],
+        "enough": false,
+        "gap": "About 4 bug cases with spec or knock-on misses (ctx spec mismatches, band state, read-only refusals after 7377d95). Borderline."
+      }
+    },
+    {
+      "id": "agent-explainer-before-review",
+      "idea": "Before reviewing, an agent writes an explainer of exactly the slice of code the diff touches, and the reviewer reviews with it (agent-side reading of the blog's explainer practice).",
+      "quote": "write an explainer for exactly that slice",
+      "role": "arm",
+      "family": "B-reviewer-context",
+      "in_skill_now": "no",
+      "switch": "Review row: generate an explainer of the touched modules (e.g. how halt.mjs classifies git failures) and pass it to both reviewers. Off: diff plus repo.",
+      "metric": "recall on cross-module cases; tokens",
+      "needs_cases": "bugs that span modules: deadline in trace.mjs but not archive.mjs (#37), hook.mjs fail-open catch around archiveBlock (2147193)",
+      "why_not": "The blog uses explainers for human learning; that half is explainer-for-humans (not testable).",
+      "coverage": {
+        "arm": "agent-explainer-before-review",
+        "cases": [
+          "pr16-r1",
+          "pr15-r0",
+          "pr17-r2",
+          "pr38-int"
+        ],
+        "enough": false,
+        "gap": "Four cross-module bugs: deadline vs archive.mjs, the hook.mjs fail-open catch, shell.mjs feeding the guard, the eager where()."
+      }
+    },
+    {
+      "id": "fresh-context-subagent-review",
+      "idea": "A second agent with fresh context reviews the diff, not the agent that wrote it.",
+      "quote": "a subagent reviews the diff with fresh context",
+      "role": "arm",
+      "family": "C-finders",
+      "in_skill_now": "yes",
+      "switch": "Ablation: the authoring session reviews its own diff inline (no forked /code-review, no subagents). On: current.",
+      "metric": "recall; harmful findings on clean PRs",
+      "needs_cases": "all bug cases, especially review-round fixes the author believed correct (8b2a99f, 865f1be, d6b3825)",
+      "why_not": "",
+      "coverage": {
+        "arm": "fresh-context-subagent-review",
+        "cases": [
+          "pr16-r1",
+          "pr16-r2",
+          "pr17-r1",
+          "pr17-r2",
+          "pr18-r1",
+          "pr18-r2",
+          "pr20-r1",
+          "pr33-r2",
+          "pr33-r3",
+          "pr35-r0",
+          "pr38-halt1",
+          "pr38-halt2",
+          "pr17-r0",
+          "pr15-r0",
+          "clean-pr18",
+          "clean-pr35"
+        ],
+        "enough": true,
+        "gap": "Enough. The author-context variant needs the fix-round author's session as context, and that only exists in logs."
+      }
+    },
+    {
+      "id": "parallel-bug-finders",
+      "idea": "Several agents hunt for bugs at the same time and their findings are unioned.",
+      "quote": "Several agents look for bugs at the same time.",
+      "role": "arm",
+      "family": "C-finders",
+      "in_skill_now": "partly",
+      "switch": "Workflow script: N independent /code-review finders (1 vs 3 vs 5) unioned before any filter. Off: one run.",
+      "metric": "recall; raw finding volume; tokens",
+      "needs_cases": "hard bugs single runs miss (late #38 findings on old code: 303747b, 6883b89) and clean PRs for volume",
+      "why_not": "",
+      "coverage": {
+        "arm": "parallel-bug-finders",
+        "cases": [
+          "pr17-r0",
+          "pr15-r0",
+          "pr18-r0",
+          "pr21-r0",
+          "pr20-r0",
+          "pr38-int",
+          "pr38-halt0",
+          "pr38-halt2",
+          "clean-pr18",
+          "clean-pr21",
+          "clean-pr35",
+          "clean-pr33"
+        ],
+        "enough": true,
+        "gap": "Measure the variance of single runs with at least 3 seeds per case."
+      }
+    },
+    {
+      "id": "review-effort-level",
+      "idea": "Set a fixed review depth (Quick, Standard, Deep); Deep where one missed bug costs more than the extra review time.",
+      "quote": "Quick, Standard, or Deep",
+      "role": "arm",
+      "family": "C-finders",
+      "in_skill_now": "no",
+      "switch": "Review row pins `/code-review low|medium|high|xhigh` (ultra as the hosted-like deep variant). Off: no level named, so it reuses the last typed level.",
+      "metric": "recall vs tokens and wall time; noise on clean PRs",
+      "needs_cases": "full bug set plus clean PRs; deep-only finds (option injection da7ef1f, --output 48e7d77)",
+      "why_not": "",
+      "coverage": {
+        "arm": "review-effort-level",
+        "cases": [
+          "pr17-r0",
+          "pr15-r1",
+          "pr18-r0",
+          "pr16-r1",
+          "pr38-halt0",
+          "clean-pr18",
+          "clean-pr21",
+          "clean-pr33",
+          "clean-pr35",
+          "clean-fix-56ec0ee"
+        ],
+        "enough": true,
+        "gap": "Deep-only targets are commit-gate-rev-option-injection (pr17-r0) and archive-history-output-writes (pr15-r1)."
+      }
+    },
+    {
+      "id": "separate-security-review",
+      "idea": "A separate automated security review runs alongside the bug review.",
+      "quote": "Security gets its own automated review too.",
+      "role": "arm",
+      "family": "C-finders",
+      "in_skill_now": "no",
+      "switch": "Review row: add `/security-review`. Off: /code-review plus mattpocock code-review.",
+      "metric": "recall on bypass/fail-open/injection cases; noise on clean PRs",
+      "needs_cases": "bypass bullets in review-fix commits (865f1be, 010916e, ee85dd4, 56ec0ee, d6b3825, 09cb725, 48e7d77), --fixup option injection (da7ef1f), --output write (48e7d77)",
+      "why_not": "",
+      "coverage": {
+        "arm": "separate-security-review",
+        "cases": [
+          "pr15-r0",
+          "pr15-r1",
+          "pr16-r0",
+          "pr16-r1",
+          "pr17-r0",
+          "pr17-r1",
+          "pr18-r0",
+          "pr18-r1",
+          "pr19-r0",
+          "pr21-r0",
+          "pr38-halt0",
+          "clean-pr18",
+          "clean-pr21"
+        ],
+        "enough": true,
+        "gap": "More than 60 bypass bugs. Option injection (2 cases) and prompt injection (1) are thin subclasses."
+      }
+    },
+    {
+      "id": "root-cause-on-bug-fix",
+      "idea": "On a bug-fix PR the reviewer checks that the fix removes the root cause, not the symptom.",
+      "quote": "it looks for the root cause",
+      "role": "arm",
+      "family": "C-finders",
+      "in_skill_now": "no",
+      "switch": "Review prompt line for fix issues: \"state the root cause and check the diff removes it\". Off: none (diagnosing-bugs runs only in Implement).",
+      "metric": "recall on incomplete-fix cases; follow-up fixes needed",
+      "needs_cases": "fix PRs that needed follow-ups: 52c688f (#32 round 1, module-level deadline restarted), 8b2a99f (fixed per-call timeouts but set DEADLINE at load -> #32), 7377d95 (#36 fix refused read-only commands)",
+      "why_not": "",
+      "coverage": {
+        "arm": "root-cause-on-bug-fix",
+        "cases": [
+          "pr35-r0",
+          "pr16-r1",
+          "pr16-r2",
+          "pr38-int",
+          "pr24",
+          "clean-pr28",
+          "clean-fix-09cb725"
+        ],
+        "enough": false,
+        "gap": "About five fix changes that needed follow-ups (52c688f, 8b2a99f, 865f1be, 7377d95, 46490e1), against about two that held."
+      }
+    },
+    {
+      "id": "reviewer-flags-bug-class",
+      "idea": "The reviewer names the class of bug and lists every instance, so the author fixes all of them.",
+      "quote": "Flag the class of bug",
+      "role": "arm",
+      "family": "C-finders",
+      "in_skill_now": "partly",
+      "switch": "Reviewer prompt must name the class and list all instances repo-wide. Off: author-side rule only (\"Fix the finding's whole class\").",
+      "metric": "same-class instances left after the loop; follow-up fix PRs",
+      "needs_cases": "sibling-instance cases: 8b2a99f put trace git calls under a deadline but not archive.mjs (#37); 6883b89 caught only the timeout; git failure read as an answer at several call sites (#34/#36)",
+      "why_not": "",
+      "coverage": {
+        "arm": "reviewer-flags-bug-class",
+        "cases": [
+          "pr16-r1",
+          "pr38-int",
+          "pr16-r2",
+          "pr17-r1",
+          "pr21-r0",
+          "pr38-halt2",
+          "pr15-r1"
+        ],
+        "enough": true,
+        "gap": "Sibling misses: deadline vs archive (#37), 6883b89 vs OutOfTime, push abbreviations vs reset --har, five incomplete fixes in pr17-r1, ls-tree vs cat-file."
+      }
+    },
+    {
+      "id": "what-could-go-wrong-premortem",
+      "idea": "Replace \"did someone read it?\" with \"what could go wrong, and which check (automated or human) should catch it?\" before review.",
+      "quote": "which check—automated or human—is the right one to catch it?",
+      "role": "arm",
+      "family": "C-finders",
+      "in_skill_now": "no",
+      "switch": "Skill text: before Review the agent lists the change's failure modes and the check covering each (test, /code-review, /security-review, e2e, human) and runs those checks. Off: current Review row.",
+      "metric": "recall; share of cases whose real bug matches a listed failure mode; failure modes left with no check",
+      "needs_cases": "all bug cases with a known failure-mode label",
+      "why_not": "",
+      "coverage": {
+        "arm": "what-could-go-wrong-premortem",
+        "cases": [
+          "pr14-r0",
+          "pr15-r0",
+          "pr15-r1",
+          "pr16-r0",
+          "pr16-r1",
+          "pr16-r2",
+          "pr17-r0",
+          "pr17-r1",
+          "pr17-r2",
+          "pr18-r0",
+          "pr18-r1",
+          "pr18-r2",
+          "pr19-r0",
+          "pr20-r0",
+          "pr20-r1",
+          "pr21-r0",
+          "pr24",
+          "pr35-r0",
+          "pr38-int",
+          "pr38-halt0",
+          "pr38-halt1",
+          "pr38-halt2"
+        ],
+        "enough": true,
+        "gap": "Every bug carries a bug_class label."
+      }
+    },
+    {
+      "id": "layer-ablation",
+      "idea": "Several layers each catch some problems; measure each layer's marginal value by removing it (tests, the bug-hunting /code-review, mattpocock standards, mattpocock spec), and by adding security review.",
+      "quote": "Each layer catches some problems and misses others.",
+      "role": "arm",
+      "family": "C-finders",
+      "in_skill_now": "partly",
+      "switch": "Harness: run with one layer removed at a time, and with security added. Off: all current layers.",
+      "metric": "marginal recall per layer; overlap; cost per layer",
+      "needs_cases": "bug cases labelled with the layer that should catch them (see which-layer-should-have-caught)",
+      "why_not": "",
+      "coverage": {
+        "arm": "layer-ablation",
+        "cases": [
+          "pr20-r1",
+          "pr30",
+          "pr24",
+          "legacy-ql-06b80d8",
+          "pr16-r2",
+          "pr15-r1",
+          "pr17-r0",
+          "pr38-int",
+          "sweep-405c33d"
+        ],
+        "enough": false,
+        "gap": "Bugs are tagged by layer. The review layer has plenty of cases, but the check, live and sweep layers have 2-4 each."
+      }
+    },
+    {
+      "id": "verifier-vote",
+      "idea": "A separate group of agents votes on each finding; it reaches the author only if enough agree it is real.",
+      "quote": "a separate group votes on each finding",
+      "role": "arm",
+      "family": "D-finding-filters",
+      "in_skill_now": "partly",
+      "switch": "Workflow script: k-of-n verifier vote (e.g. 2 of 3) on the union of both reviews' findings (ADR 0005 reserves voting for a workflows/ script). Off: /code-review's own verify pass, mattpocock findings unfiltered.",
+      "metric": "harmful/noisy findings on clean PRs; recall loss (must stay flat); rounds",
+      "needs_cases": "clean PRs with plausible-looking non-bugs plus bug cases to check no recall loss; the 45 non-fixed findings after re-adjudication",
+      "why_not": "",
+      "coverage": {
+        "arm": "verifier-vote",
+        "cases": [
+          "clean-pr19",
+          "clean-pr21",
+          "clean-pr33-r1",
+          "clean-pr33",
+          "clean-pr35",
+          "clean-pr26",
+          "pr17-r0",
+          "pr18-r0",
+          "pr21-r0",
+          "pr19-r0"
+        ],
+        "enough": true,
+        "gap": "Known-wrong findings are few (about 10 of the 45 non-fixed). Plausible false positives come mostly from replay output."
+      }
+    },
+    {
+      "id": "drop-style-findings",
+      "idea": "Findings that are only about style, diagnostics or cleanup are dropped before the author sees them.",
+      "quote": "only about style, diagnostics, or cleanup get dropped",
+      "role": "arm",
+      "family": "D-finding-filters",
+      "in_skill_now": "no",
+      "switch": "Post-filter dropping style/cleanup-only findings, or remove mattpocock code-review's smell baseline. Off: current (smell baseline on, every finding answered).",
+      "metric": "rounds-to-pass; commits per PR; recall (must hold)",
+      "needs_cases": "loops with many standards findings (#33: 4 rounds on +19/-14; #18) and clean PRs",
+      "why_not": "",
+      "coverage": {
+        "arm": "drop-style-findings",
+        "cases": [
+          "conv-pr33",
+          "conv-pr18",
+          "conv-pr35",
+          "clean-pr33",
+          "clean-pr35"
+        ],
+        "enough": false,
+        "gap": "Only two style-heavy loops (#33, #35). Most findings in the history are substantive."
+      }
+    },
+    {
+      "id": "cap-nits",
+      "idea": "Cap the number of nits a review may report.",
+      "quote": "cap the nits",
+      "role": "arm",
+      "family": "D-finding-filters",
+      "in_skill_now": "no",
+      "switch": "REVIEW.md \"at most 2 Nits\", or `/code-review --max-findings N`. Off: uncapped.",
+      "metric": "nit count; rounds-to-pass; diff churn",
+      "needs_cases": "nit-heavy loops (#33, #38) and clean PRs",
+      "why_not": "",
+      "coverage": {
+        "arm": "cap-nits",
+        "cases": [
+          "conv-pr33",
+          "conv-pr38-halt",
+          "conv-pr35",
+          "clean-pr33"
+        ],
+        "enough": false,
+        "gap": "Three loops with nits."
+      }
+    },
+    {
+      "id": "skip-paths",
+      "idea": "List paths the reviewer skips (vendored, generated, lockfiles).",
+      "quote": "list paths to skip",
+      "role": "arm",
+      "family": "D-finding-filters",
+      "in_skill_now": "partly",
+      "switch": "REVIEW.md skip list: vendor/, package-lock.json, generated types. Off: none (archive/ is already unreachable via its hook).",
+      "metric": "findings and tokens on skipped paths",
+      "needs_cases": "only #26 (+22,737, vendored vendor/claude-code/index.d.ts); thin, one case",
+      "why_not": "",
+      "coverage": {
+        "arm": "skip-paths",
+        "cases": [
+          "pr26-r0",
+          "clean-pr26"
+        ],
+        "enough": false,
+        "gap": "One PR (vendored .d.ts)."
+      }
+    },
+    {
+      "id": "file-line-evidence",
+      "idea": "Each finding must cite a file and line as evidence, not a guess from a name; others are dropped.",
+      "quote": "ask for a file and line as evidence",
+      "role": "arm",
+      "family": "D-finding-filters",
+      "in_skill_now": "partly",
+      "switch": "REVIEW.md line, or a post-filter dropping findings without file:line and a concrete failure scenario (mattpocock axes only quote hunks). Off: pass all.",
+      "metric": "wrong-finding rate on clean PRs; harmful-fix rate; recall",
+      "needs_cases": "non-fixed findings labelled \"wrong\" (10 of 45) and clean PRs",
+      "why_not": "",
+      "coverage": {
+        "arm": "file-line-evidence",
+        "cases": [
+          "clean-pr19",
+          "clean-pr21",
+          "clean-pr33-r1",
+          "clean-pr12",
+          "clean-pr35"
+        ],
+        "enough": false,
+        "gap": "About 10 historical wrong findings, about 5 of which can be replayed."
+      }
+    },
+    {
+      "id": "count-first-summary",
+      "idea": "The review summary opens with a count and says plainly when there is nothing to fix.",
+      "quote": "a summary that starts with a count",
+      "role": "arm",
+      "family": "D-finding-filters",
+      "in_skill_now": "partly",
+      "switch": "REVIEW.md/prompt: first line \"N findings\" or \"Nothing to fix\". Off: free form (mattpocock ends with per-axis totals).",
+      "metric": "edits made after a zero-finding review on clean PRs; rounds-to-pass",
+      "needs_cases": "clean PRs (#12, #19, #21, #28, #30; #2 down-weighted)",
+      "why_not": "",
+      "coverage": {
+        "arm": "count-first-summary",
+        "cases": [
+          "clean-pr12",
+          "clean-pr18",
+          "clean-pr19",
+          "clean-pr21",
+          "clean-pr26",
+          "clean-pr33",
+          "clean-pr33-r1",
+          "clean-pr35",
+          "clean-fix-56ec0ee",
+          "clean-fix-09cb725",
+          "clean-fix-37f9b30",
+          "clean-fix-3575482",
+          "clean-pr2",
+          "clean-pr28"
+        ],
+        "enough": true,
+        "gap": "14 clean cases, 12 if #28 (disputed) and #2 (trivial) are set aside. That is borderline for a rate."
+      }
+    },
+    {
+      "id": "severity-sorted-findings",
+      "idea": "Surviving findings are presented sorted by severity.",
+      "quote": "sorted by severity",
+      "role": "arm",
+      "family": "D-finding-filters",
+      "in_skill_now": "partly",
+      "switch": "Merge both reviews into one severity-ranked list that the author handles in order. Off: two separate reports (mattpocock does not rerank).",
+      "metric": "whether the case's bug is fixed first or at all; rounds",
+      "needs_cases": "bug cases where the real bug sat among many findings",
+      "why_not": "The \"inline comments\" half needs PR threads, which this repo does not use (findings live in issue comments).",
+      "coverage": {
+        "arm": "severity-sorted-findings",
+        "cases": [
+          "pr17-r0",
+          "pr15-r0",
+          "pr18-r0",
+          "pr21-r0",
+          "pr20-r0",
+          "pr38-halt0"
+        ],
+        "enough": true,
+        "gap": "Mixed-severity cases with 9-20 bugs each."
+      }
+    },
+    {
+      "id": "tag-important-nit-preexisting",
+      "idea": "Each finding is tagged Important, Nit or Pre-existing so a bug the PR did not introduce is not treated as the author's; only Important must be fixed in the branch, Pre-existing goes to a new issue.",
+      "quote": "tagged Important, Nit, or Pre-existing",
+      "role": "arm",
+      "family": "D-finding-filters",
+      "in_skill_now": "no",
+      "switch": "Reviewer tags each finding; skill text: fix Important, Nit may be declined with a reason, Pre-existing is filed (in replay: written to a file) not fixed in-branch. Off: \"answer every finding, fix the whole class\".",
+      "metric": "rounds-to-pass; lines changed outside the PR's scope; recall on in-PR bugs; correct Pre-existing tags on clean PRs",
+      "needs_cases": "clean PRs holding older real bugs (#35, #21, #18, #19 carry the archive 5s cap and traced() fail-open), #38 late findings on #15/#16 code",
+      "why_not": "",
+      "coverage": {
+        "arm": "tag-important-nit-preexisting",
+        "cases": [
+          "clean-pr35",
+          "clean-pr21",
+          "clean-pr18",
+          "clean-pr19",
+          "clean-pr26",
+          "pr35-r0",
+          "pr38-int",
+          "pr38-halt1",
+          "pr17-r1",
+          "pr30"
+        ],
+        "enough": true,
+        "gap": "This tag is needed to score the clean set fairly."
+      }
+    },
+    {
+      "id": "answer-every-finding",
+      "idea": "Every finding must be answered: fix it, or close it with a short reason (which is how a false positive is cleared).",
+      "quote": "Every finding has to be answered.",
+      "role": "arm",
+      "family": "E-author-response",
+      "in_skill_now": "yes",
+      "switch": "Ablation: the author may ignore findings silently. On: \"Answer every finding with a fix or, in the progress comment, a reason.\"",
+      "metric": "unanswered-finding rate; recall (bugs fixed); harmful-fix rate",
+      "needs_cases": "bug cases where the reviewer found the bug; clean PRs with false positives",
+      "why_not": "",
+      "coverage": {
+        "arm": "answer-every-finding",
+        "cases": [
+          "conv-pr35",
+          "conv-pr33",
+          "conv-pr38-halt",
+          "clean-pr12"
+        ],
+        "enough": false,
+        "gap": "PRs have no threads. Answers live in issue comments, and replay threads are needed."
+      }
+    },
+    {
+      "id": "open-findings-block-pr",
+      "idea": "A PR cannot proceed while any bug- or security-review finding is still open (every thread resolved).",
+      "quote": "A PR can't merge while any finding",
+      "role": "arm",
+      "family": "E-author-response",
+      "in_skill_now": "partly",
+      "switch": "Hook: refuse `gh pr create`/`gh pr ready` until a findings record gives each finding a fix SHA or a reason. Off: prose rule only.",
+      "metric": "unanswered findings at PR-ready; recall",
+      "needs_cases": "loops where a finding was dropped without an answer (from issue progress comments and session logs)",
+      "why_not": "",
+      "coverage": {
+        "arm": "open-findings-block-pr",
+        "cases": [
+          "conv-pr35",
+          "conv-pr33",
+          "conv-pr38-halt"
+        ],
+        "enough": false,
+        "gap": "Three loops with findings dropped or left to the human."
+      }
+    },
+    {
+      "id": "decline-nits-agent-author",
+      "idea": "Because an agent author fixes every nit (another commit, another round), the agent declines nits and style with a one-line reason and fixes only bugs.",
+      "quote": "An agent fixes it",
+      "role": "arm",
+      "family": "E-author-response",
+      "in_skill_now": "partly",
+      "switch": "Skill text: \"decline Nit/style findings with a one-line reason; fix only bugs\". Off: current \"fix the finding's whole class\".",
+      "metric": "commits and rounds caused by non-bug findings; recall (must hold)",
+      "needs_cases": "fix rounds that introduced bugs (8b2a99f, 440c807, d6b3825, eafa870, d4dac3b, 52c688f) and nit-heavy loops (#33)",
+      "why_not": "",
+      "coverage": {
+        "arm": "decline-nits-agent-author",
+        "cases": [
+          "pr16-r1",
+          "pr16-r2",
+          "pr17-r1",
+          "pr17-r2",
+          "pr18-r1",
+          "pr18-r2",
+          "pr20-r1",
+          "pr33-r2",
+          "pr33-r3",
+          "pr35-r0",
+          "pr38-halt1",
+          "pr38-halt2",
+          "conv-pr33"
+        ],
+        "enough": true,
+        "gap": "About 40 bugs came from fix rounds, but only pr33-r2 shows a bug caused by acting on a wrong or nit finding."
+      }
+    },
+    {
+      "id": "pr-template-testing-risk-revert",
+      "idea": "The PR body has Testing, Risk and How to revert sections, which Claude fills in.",
+      "quote": "\"Testing\", \"Risk\" and \"How to revert\"",
+      "role": "arm",
+      "family": "E-author-response",
+      "in_skill_now": "partly",
+      "switch": "Review row: PR body must hold the three sections (mattpocock pr has Evidence and Merge Danger, no How to revert). Off: current pr body. Follow-up sub-arm: feed Risk to the reviewer.",
+      "metric": "whether Risk names the area of the case's real bug; evidence completeness",
+      "needs_cases": "bug cases with a known bug location",
+      "why_not": "",
+      "coverage": {
+        "arm": "pr-template-testing-risk-revert",
+        "cases": [
+          "pr15-r0",
+          "pr16-r0",
+          "pr17-r0",
+          "pr18-r0",
+          "pr19-r0",
+          "pr20-r0",
+          "pr20-r1",
+          "pr21-r0",
+          "pr24",
+          "pr35-r0"
+        ],
+        "enough": true,
+        "gap": "There are no reverts. Read 'revert' as 'the follow-up fix'."
+      }
+    },
+    {
+      "id": "state-what-checks-miss",
+      "idea": "The evidence (commands with outputs, findings with answers) must say what the checks would miss; if it cannot, ask for a real review.",
+      "quote": "If you can't say what the checks would miss",
+      "role": "arm",
+      "family": "E-author-response",
+      "in_skill_now": "partly",
+      "switch": "Skill text: PR body/progress comment ends with \"What these checks would miss\"; a non-empty gap on gate code triggers an extra deep review. Off: current progress comment.",
+      "metric": "share of bug cases whose stated gap contains the real bug; extra reviews triggered",
+      "needs_cases": "bug cases plus clean PRs (to see false alarms)",
+      "why_not": "",
+      "coverage": {
+        "arm": "state-what-checks-miss",
+        "cases": [
+          "pr20-r1",
+          "pr30",
+          "pr24",
+          "pr16-r2",
+          "pr15-r1",
+          "clean-pr18",
+          "clean-pr26",
+          "clean-pr35"
+        ],
+        "enough": true,
+        "gap": "Recall and false-alarm cases are both there."
+      }
+    },
+    {
+      "id": "round-cap",
+      "idea": "Review has to converge: cap review rounds, and after three, step back and reconsider the approach (one blog PR ran over fifty rounds).",
+      "quote": "A round cap. After three rounds",
+      "role": "arm",
+      "family": "F-convergence",
+      "in_skill_now": "yes",
+      "switch": "Cap values: none / 2 / 3 (current, plus \"ask the human before a fourth\", which the blog does not do) / 5. Variant: enforce the cap with a hook (today prose only; #33 ran 5 rounds).",
+      "metric": "rounds-to-pass; share needing 5+ rounds; recall; human asks",
+      "needs_cases": "long loops: #33 (4-5 rounds on +19/-14), #18 (4 rounds), #38, #35; round counts come from issue comments and session logs",
+      "why_not": "",
+      "coverage": {
+        "arm": "round-cap",
+        "cases": [
+          "conv-pr17",
+          "conv-pr18",
+          "conv-pr33",
+          "conv-pr35",
+          "conv-pr38-halt",
+          "conv-pr15",
+          "conv-pr16"
+        ],
+        "enough": false,
+        "gap": "Seven loops, of which only #33 (and #38 halt at 3) reached or passed the cap. The cap lives only in SKILL.md. Replay variance needs at least 3 runs each."
+      }
+    },
+    {
+      "id": "diff-only-rereview-timing",
+      "idea": "After the first few passes, re-review only the new diff. Trace switches after round 1; the blog after the first few.",
+      "quote": "Diff-only re-review after the first few passes.",
+      "role": "arm",
+      "family": "F-convergence",
+      "in_skill_now": "partly",
+      "switch": "Skill text values: full re-review every round / diff-only after round 1 (current) / after round 2 / after round 3.",
+      "metric": "recall on bugs fix rounds introduce; recall on old-code bugs found late; rounds-to-pass",
+      "needs_cases": "fix-round-introduced bugs (8b2a99f, 440c807, d6b3825, eafa870, d4dac3b, 52c688f) vs late findings on code older than round 1 (#38: 303747b, 6883b89, 82f120f)",
+      "why_not": "",
+      "coverage": {
+        "arm": "diff-only-rereview-timing",
+        "cases": [
+          "pr17-r1",
+          "pr16-r1",
+          "pr18-r1",
+          "pr38-int",
+          "pr38-halt1",
+          "pr38-halt2",
+          "pr35-r0"
+        ],
+        "enough": true,
+        "gap": "pr17-r1 is the key discriminator: 7 round-0 bugs outside the fix diff that a full re-review found."
+      }
+    },
+    {
+      "id": "no-repeat-findings",
+      "idea": "Do not repeat findings already posted.",
+      "quote": "No repeats of findings already posted.",
+      "role": "arm",
+      "family": "F-convergence",
+      "in_skill_now": "no",
+      "switch": "Pass earlier rounds' findings and their answers to the reviewer with \"do not repeat answered findings\" (or dedupe after review). Off: each round starts blind.",
+      "metric": "repeat-finding rate; rounds-to-pass; recall lost when a repeat was right",
+      "needs_cases": "repeats: #33 Read row restated in rounds 2-3; #35 archive 5s raised in rounds 2 and 3 and wrongly answered (became #37), which tests the arm's downside",
+      "why_not": "",
+      "coverage": {
+        "arm": "no-repeat-findings",
+        "cases": [
+          "conv-pr33",
+          "conv-pr35",
+          "conv-pr38-halt"
+        ],
+        "enough": false,
+        "gap": "Three loops. conv-pr35 tests the downside: a repeated finding was real (#37)."
+      }
+    },
+    {
+      "id": "finding-auto-clears-when-fixed",
+      "idea": "If a later commit fixes the issue, the finding clears on its own.",
+      "quote": "the finding clears on its own",
+      "role": "arm",
+      "family": "F-convergence",
+      "in_skill_now": "no",
+      "switch": "Each re-review gets the open findings and checks each against the new HEAD, closing resolved ones in the findings record. Off: no tracking.",
+      "metric": "false clears (marked fixed, still present); open findings at PR-ready",
+      "needs_cases": "partial fixes marked done: 52c688f (#32 round 1), 6883b89 (timeout only)",
+      "why_not": "",
+      "coverage": {
+        "arm": "finding-auto-clears-when-fixed",
+        "cases": [
+          "pr35-r0",
+          "pr16-r1",
+          "pr17-r1",
+          "pr38-halt2"
+        ],
+        "enough": false,
+        "gap": "About eight partial fixes across four cases, which need replay threads."
+      }
+    },
+    {
+      "id": "extra-rounds-only-on-risky",
+      "idea": "Do not run several rounds by default; extra rounds are worth it on risky changes only.",
+      "quote": "but not on every PR",
+      "role": "arm",
+      "family": "F-convergence",
+      "in_skill_now": "partly",
+      "switch": "Skill text: one review round by default; re-review after fixes only when the tier is High or an Important finding was fixed. Off: rounds until clean, up to 3.",
+      "metric": "rounds on low-risk and clean PRs; recall on high-risk cases",
+      "needs_cases": "low-risk clean PRs (#2, #28, #30) and high-risk gate bugs",
+      "why_not": "",
+      "coverage": {
+        "arm": "extra-rounds-only-on-risky",
+        "cases": [
+          "clean-pr2",
+          "clean-pr28",
+          "pr30",
+          "pr24",
+          "pr17-r0",
+          "pr16-r0"
+        ],
+        "enough": false,
+        "gap": "Low-risk cases are few. pr24 (Low, with a bug) and pr30 (one line, test red) cut against the arm."
+      }
+    },
+    {
+      "id": "review-bound-to-commit",
+      "idea": "Agent-side analogue of an approval covering one commit: a review result is bound to a SHA and goes stale when new commits land.",
+      "quote": "An approval covers one specific commit.",
+      "role": "arm",
+      "family": "F-convergence",
+      "in_skill_now": "partly",
+      "switch": "Hook records the reviewed HEAD SHA and refuses `gh pr ready` if HEAD moved after the last review. Off: none (forced reads go stale today; reviews do not).",
+      "metric": "bugs in commits made after the last review",
+      "needs_cases": "PRs whose last commits came after the final review round (check per PR from logs)",
+      "why_not": "The human-approval half is dismiss-approvals-on-new-commits (not testable).",
+      "coverage": {
+        "arm": "review-bound-to-commit",
+        "cases": [
+          "conv-pr33",
+          "conv-pr35",
+          "conv-pr38-halt"
+        ],
+        "enough": false,
+        "gap": "Needs the session logs to know which commit each round reviewed. #33 round 5 was answered without review, and 7331eb5 came after the last #38 review."
+      }
+    },
+    {
+      "id": "continuous-review-per-commit",
+      "idea": "Review runs continuously, like spellcheck: each commit is reviewed and fixed before a human looks.",
+      "quote": "more like spellcheck while you write",
+      "role": "arm",
+      "family": "G-change-shape-and-timing",
+      "in_skill_now": "partly",
+      "switch": "Hook: PostToolUse after `git commit` runs /code-review on that commit. Off: one Review step at the end.",
+      "metric": "recall; bugs left at PR-ready; total rounds and tokens",
+      "needs_cases": "multi-commit PRs where a bug entered mid-branch (#16: 4dc6c54 -> 8b2a99f -> 865f1be; #38 with 21 commits)",
+      "why_not": "",
+      "coverage": {
+        "arm": "continuous-review-per-commit",
+        "cases": [
+          "pr16-r0",
+          "pr16-r1",
+          "pr16-r2",
+          "pr20-r0",
+          "pr38-int",
+          "pr38-halt0",
+          "pr17-r0"
+        ],
+        "enough": true,
+        "gap": "Mid-branch bugs: 322c686 in #20, 7377d95 in #38."
+      }
+    },
+    {
+      "id": "small-changes",
+      "idea": "Keep changes small so they are easy to review, debug and revert.",
+      "quote": "Changes are small",
+      "role": "arm",
+      "family": "G-change-shape-and-timing",
+      "in_skill_now": "partly",
+      "switch": "Skill text: split any diff over N lines into stacked PRs before Review. Off: one issue, one PR. Compare split vs whole replay.",
+      "metric": "recall per changed line; rounds-to-pass",
+      "needs_cases": "large cases: #15 (+1690), #17 (+1159), #18 (+1118), #38 (+1088)",
+      "why_not": "",
+      "coverage": {
+        "arm": "small-changes",
+        "cases": [
+          "pr15-r1",
+          "pr17-r1",
+          "clean-pr18",
+          "conv-pr38-halt",
+          "pr33-r3",
+          "clean-pr33"
+        ],
+        "enough": false,
+        "gap": "There is no counterfactual split. It can only correlate size with findings, and #33 (+19/-14, 4 rounds) is a counterexample."
+      }
+    },
+    {
+      "id": "raise-direction-early",
+      "idea": "Raise a different direction early, not as a blocking comment on a finished PR; closing or reshaping cheap work is no loss.",
+      "quote": "raise a different direction in the thread early",
+      "role": "arm",
+      "family": "G-change-shape-and-timing",
+      "in_skill_now": "partly",
+      "switch": "Skill text: review the approach (plan or first commit) against the ADRs before full implementation. Off: review only at the end (grilling in Track and the round-3 step-back cover part).",
+      "metric": "wasted rounds and commits; rounds-to-pass on wrong-approach cases",
+      "needs_cases": "approach reversals: traced() fail-open chosen in 865f1be then reversed in #34/#36; #33 Read row oscillation; quality-loop deleted (#14)",
+      "why_not": "",
+      "coverage": {
+        "arm": "raise-direction-early",
+        "cases": [
+          "pr16-r2",
+          "conv-pr16",
+          "conv-pr33",
+          "pr38-halt0"
+        ],
+        "enough": false,
+        "gap": "Three approach reversals: fail-closed to fail-open to halt, the oscillating Read row, and the deleted quality-loop."
+      }
+    },
+    {
+      "id": "risk-tier-sets-review-depth",
+      "idea": "The change, not the author, sets a risk tier, and the tier sets review effort: a quick pass on routine changes, a deep one where a miss is expensive (blast radius sets the bar).",
+      "quote": "The change sets the tier, not the author.",
+      "role": "arm",
+      "family": "H-risk-scaling",
+      "in_skill_now": "no",
+      "switch": "Skill text: classify the diff with the blog's tier table, then pick the /code-review level, security pass and round budget from it. Off: one fixed level.",
+      "metric": "recall on High cases; tokens and rounds on Low and clean cases",
+      "needs_cases": "tier-labelled cases: Low docs PRs (#2, #24, #28), gate-logic bugs (High)",
+      "why_not": "",
+      "coverage": {
+        "arm": "risk-tier-sets-review-depth",
+        "cases": [
+          "pr24",
+          "clean-pr28",
+          "clean-pr2",
+          "pr30",
+          "pr17-r0",
+          "pr16-r0",
+          "pr15-r0",
+          "clean-pr33"
+        ],
+        "enough": false,
+        "gap": "Tiers must be assigned post hoc. Low-tier cases are three or four."
+      }
+    },
+    {
+      "id": "escalation-classifier",
+      "idea": "A second classifier asks whether this particular change needs more scrutiny even when its tier says it does not.",
+      "quote": "A second classifier asks whether this particular change needs another person",
+      "role": "arm",
+      "family": "H-risk-scaling",
+      "in_skill_now": "partly",
+      "switch": "Second prompt after tiering may escalate (deep review plus security, and a flag to the human in the PR body). Off: tier only. Today the human is asked only after three rounds.",
+      "metric": "escalation precision/recall against bug cases; human asks",
+      "needs_cases": "Low-tier changes that held bugs: PR #24 (README, got a human \"LGTM\", introduced #27)",
+      "why_not": "The \"another person\" half cannot be tested; replays escalate depth instead.",
+      "coverage": {
+        "arm": "escalation-classifier",
+        "cases": [
+          "pr24",
+          "pr30"
+        ],
+        "enough": false,
+        "gap": "Two Low changes that held a defect."
+      }
+    },
+    {
+      "id": "sensitive-paths-always-deep",
+      "idea": "Some paths always get extra scrutiny whatever their tier: anything listed as sensitive and any CI workflow file.",
+      "quote": "Some paths always need a person",
+      "role": "arm",
+      "family": "H-risk-scaling",
+      "in_skill_now": "partly",
+      "switch": "REVIEW.md/skill list (trace.mjs, guard.mjs, halt.mjs, the archive block, hook.mjs, settings) forces High depth and security review. Off: no list.",
+      "metric": "recall on sensitive-path bugs; cost on other paths",
+      "needs_cases": "gate-code bugs vs non-gate changes",
+      "why_not": "The \"needs a person\" half is not testable (one maintainer, the human always merges); the guard and archive hooks are the existing analogue.",
+      "coverage": {
+        "arm": "sensitive-paths-always-deep",
+        "cases": [
+          "pr15-r0",
+          "pr16-r0",
+          "pr17-r0",
+          "pr18-r0",
+          "pr21-r0",
+          "pr24",
+          "clean-pr2",
+          "clean-pr28"
+        ],
+        "enough": true,
+        "gap": "Gate code dominates. Non-gate bug cases are few (pr24, pr20-r1, pr30)."
+      }
+    },
+    {
+      "id": "fix-recurring-findings-at-source",
+      "idea": "When the reviewer keeps flagging the same thing, fix it at the source (skill, lint rule, CLAUDE.md or REVIEW.md) instead of in each PR.",
+      "quote": "we fix it at the source ... move repeated review comments into it",
+      "role": "arm",
+      "family": "I-cross-case-learning",
+      "in_skill_now": "no",
+      "switch": "Sequential replay in history order: after a finding class appears twice, the agent adds a REVIEW.md/CLAUDE.md line or a test, and it carries into later cases. Off: each case resets.",
+      "metric": "repeat finding classes and same-class escaped bugs in later cases",
+      "needs_cases": "recurring classes across PRs: per-call timeout vs total budget (B17 -> #32 -> #37), git failure read as an answer (#34/#36), agent options passed to git (--output, --fixup)",
+      "why_not": "",
+      "coverage": {
+        "arm": "fix-recurring-findings-at-source",
+        "cases": [
+          "pr16-r0",
+          "pr16-r1",
+          "pr15-r1",
+          "pr16-r2",
+          "pr17-r0",
+          "pr38-halt0",
+          "pr21-r0"
+        ],
+        "enough": false,
+        "gap": "Three recurring classes (timeouts, git failure read as an answer, option injection or abbreviation), with 2-4 instances each, ordered in time."
+      }
+    },
+    {
+      "id": "miss-analysis-into-context",
+      "idea": "When a review misses something, ask what the model did not have in front of it and add that to CLAUDE.md, a skill or a new check.",
+      "quote": "what the model didn't have in front of it",
+      "role": "arm",
+      "family": "I-cross-case-learning",
+      "in_skill_now": "no",
+      "switch": "Loop: for each missed train-split case an agent writes the missing context; rescore on the held-out split. Off: static context.",
+      "metric": "held-out recall; noise on held-out clean PRs",
+      "needs_cases": "a time-ordered train/held-out split with missed cases in train",
+      "why_not": "",
+      "coverage": {
+        "arm": "miss-analysis-into-context",
+        "cases": [
+          "pr14-r0",
+          "pr15-r0",
+          "pr15-r1",
+          "pr16-r0",
+          "pr16-r1",
+          "pr16-r2",
+          "pr17-r0",
+          "pr18-r0",
+          "pr19-r0",
+          "pr20-r0",
+          "pr20-r1",
+          "pr21-r0",
+          "pr24",
+          "pr35-r0",
+          "pr38-int",
+          "pr38-halt0"
+        ],
+        "enough": true,
+        "gap": "Train on pr14..pr18 (Oct 28-29, early) and hold out pr19..pr38. Missed classes in train (timeouts, fail-open) recur in held-out cases."
+      }
+    },
+    {
+      "id": "nightly-sweep-existing-code",
+      "idea": "Review agents run over existing code (not a diff) to catch old bugs before they show up elsewhere.",
+      "quote": "run nightly over existing code",
+      "role": "arm",
+      "family": "J-latent-sweep",
+      "in_skill_now": "no",
+      "switch": "Workflow: whole-repo /code-review at a snapshot before each latent bug's fix. Off: diff review only. The nightly schedule itself is not replayed.",
+      "metric": "latent-bug recall at snapshot; noise per KLOC",
+      "needs_cases": "long-lived latent bugs: traced() fail-open (865f1be -> #34), archive 5s cap (48e7d77 -> #37), guard test cwd dependence (c659ccb), `-Sn` false refusal",
+      "why_not": "",
+      "coverage": {
+        "arm": "nightly-sweep-existing-code",
+        "cases": [
+          "sweep-405c33d",
+          "pr14-r0"
+        ],
+        "enough": false,
+        "gap": "One sweep snapshot holding 8 latent bugs. A second snapshot (e.g. 4955503) would add guard-long-abbrev, shell-herestring and esc-typecheck."
+      }
+    },
+    {
+      "id": "human-time-objective",
+      "idea": "Optimize for the least human time per change, counting both reviewing and fixing what bad code breaks, without raising reverts or incidents.",
+      "quote": "the minimum amount of human review time",
+      "role": "measurement",
+      "family": "M-objective-and-guardrail",
+      "in_skill_now": "partly",
+      "switch": "",
+      "metric": "human interventions per replayed case (asks, fourth-round asks, halts the human must lift) and PR-body length, compared only among arms that hold the escaped-bug guardrail",
+      "needs_cases": "all cases",
+      "why_not": ""
+    },
+    {
+      "id": "human-time-metrics",
+      "idea": "Measure human time as approvals per PR (median, p95), human comments, and how long a PR waits on a person.",
+      "quote": "we track human approvals per PR",
+      "role": "measurement",
+      "family": "M-objective-and-guardrail",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "proxy only: asks-to-human per case and time from first commit to PR-ready",
+      "needs_cases": "n/a",
+      "why_not": "The real metrics need reviewers and queues; history has one maintainer and every PR has 0 comments except #24's \"LGTM\"."
+    },
+    {
+      "id": "escaped-bug-guardrail",
+      "idea": "Revert and incident rates are the guardrail: if they rise, human time was moved, not saved. Here: escaped-bug rate, with later follow-up bug issues standing in for reverts.",
+      "quote": "Revert and incident rates are the guardrail",
+      "role": "measurement",
+      "family": "M-objective-and-guardrail",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "share of bug cases whose confirmed bug is still present at PR-ready; drop any arm that raises it",
+      "needs_cases": "all bug cases; history has no reverts, so fix-forward issues (#25, #27, #32, #34/#36, #37) are the proxy",
+      "why_not": ""
+    },
+    {
+      "id": "speed-over-slowness",
+      "idea": "Slowing down lowers error rate mostly by doing less; prefer faster detection and fixing.",
+      "quote": "get faster at noticing and fixing problems",
+      "role": "measurement",
+      "family": "M-objective-and-guardrail",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "recall per round and per token; penalize arms whose gain comes only from many more rounds",
+      "needs_cases": "n/a",
+      "why_not": ""
+    },
+    {
+      "id": "priority-recall-then-rounds",
+      "idea": "Written priority: catch real bugs first, cut review rounds second.",
+      "quote": "catching real bugs first",
+      "role": "measurement",
+      "family": "M-scoring-and-decision",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "lexicographic arm ranking: recall (within noise) first, rounds-to-pass second",
+      "needs_cases": "n/a",
+      "why_not": ""
+    },
+    {
+      "id": "track-rounds-to-pass",
+      "idea": "Track rounds-to-pass alongside recall for every arm.",
+      "quote": "tracks rounds-to-pass alongside recall",
+      "role": "measurement",
+      "family": "M-scoring-and-decision",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "mean reviews to pass; pass after one review-and-fix round; share needing 5+ rounds; recall",
+      "needs_cases": "review-and-fix loop cases",
+      "why_not": ""
+    },
+    {
+      "id": "convergence-adoption-thresholds",
+      "idea": "Use the blog's before/after convergence numbers as the bar a convergence arm should clear: pass after one round 65% -> 78%, 5+ rounds 8.9% -> 1.5%, mean reviews to pass 2.08 -> 1.32.",
+      "quote": "Pass after one review and fix round",
+      "role": "measurement",
+      "family": "M-scoring-and-decision",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "per-arm delta vs baseline on the same three numbers; adopt a convergence arm when its relative improvement is of that order with recall held",
+      "needs_cases": "loop cases with enough rounds to move these (#33, #18, #35, #38)",
+      "why_not": ""
+    },
+    {
+      "id": "substantive-comment-rate",
+      "idea": "Share of PRs that get substantive review comments (16% -> 54% at launch).",
+      "quote": "went from 16% to 54%",
+      "role": "measurement",
+      "family": "M-scoring-and-decision",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "share of replayed bug PRs with at least one substantive finding vs share of clean PRs with one (should rise on bug PRs, not on clean)",
+      "needs_cases": "bug and clean PRs",
+      "why_not": ""
+    },
+    {
+      "id": "noise-by-author-response",
+      "idea": "Measure noise by sorting every finding by how the author responded: fixed, said wrong, said intentional, or did not matter.",
+      "quote": "We measure noise by watching what people do with the comments.",
+      "role": "measurement",
+      "family": "M-scoring-and-decision",
+      "in_skill_now": "partly",
+      "switch": "",
+      "metric": "acted-on rate; wrong/intentional/didn't-matter rates per arm, graded against ground truth",
+      "needs_cases": "the 45 non-fixed historical findings re-adjudicated against later history (two answered as intentional or fine became #34/#37)",
+      "why_not": ""
+    },
+    {
+      "id": "clean-pr-harmful-findings",
+      "idea": "Run the reviewer on known-clean PRs and count reports that would lead to a harmful change.",
+      "quote": "We also run the reviewer on PRs we know are clean",
+      "role": "measurement",
+      "family": "M-scoring-and-decision",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "harmful-finding and harmful-fix rate per clean PR (Pre-existing-tagged real old bugs count as correct)",
+      "needs_cases": "clean set without #38; weight down #2 and #30; add fix-only commits never touched again (3575482)",
+      "why_not": ""
+    },
+    {
+      "id": "noise-costlier-for-agent-authors",
+      "idea": "Noise costs more with an agent author: each nit becomes a commit and another round.",
+      "quote": "Noise costs more when the author is an agent.",
+      "role": "measurement",
+      "family": "M-scoring-and-decision",
+      "in_skill_now": "partly",
+      "switch": "",
+      "metric": "commits and rounds caused by non-bug findings; bugs introduced by fix rounds",
+      "needs_cases": "the six fix-round-introduced bugs",
+      "why_not": ""
+    },
+    {
+      "id": "ab-test-filters",
+      "idea": "A/B test each review filter on your own PRs before keeping it.",
+      "quote": "We A/B tested those filters",
+      "role": "measurement",
+      "family": "M-scoring-and-decision",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "paired per-case deltas for each filter arm vs baseline",
+      "needs_cases": "same case set for every arm",
+      "why_not": ""
+    },
+    {
+      "id": "rescore-on-reviewer-change",
+      "idea": "Score every change to the reviewer (prompts, tools, model) against every case; keep it only if the score goes up.",
+      "quote": "rescore the reviewer",
+      "role": "measurement",
+      "family": "M-scoring-and-decision",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "keep/drop decision per SKILL.md Review-row change, over repeated runs",
+      "needs_cases": "full set",
+      "why_not": ""
+    },
+    {
+      "id": "start-strict-loosen-with-evidence",
+      "idea": "Start strict and loosen with evidence.",
+      "quote": "start strict and loosen with evidence",
+      "role": "measurement",
+      "family": "M-scoring-and-decision",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "decision rule: an arm already in the skill is removed only when its ablation shows no recall loss",
+      "needs_cases": "n/a",
+      "why_not": "In the blog this governs approval tiers, which are not testable here; only the decision rule carries over."
+    },
+    {
+      "id": "review-md-adherence",
+      "idea": "Check separately whether the reviewer actually follows REVIEW.md.",
+      "quote": "We check separately whether the reviewer actually follows it.",
+      "role": "measurement",
+      "family": "M-scoring-and-decision",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "per-rule compliance (nit cap, skip paths, evidence, count-first) per review output in REVIEW.md arms",
+      "needs_cases": "any case run under a REVIEW.md arm",
+      "why_not": ""
+    },
+    {
+      "id": "incidents-and-fix-forwards-as-cases",
+      "idea": "Build cases from PRs that caused incidents, with their fix-forwards and reverts, each bug and its location confirmed by someone who knows the code.",
+      "quote": "with their fix-forwards and reverts",
+      "role": "measurement",
+      "family": "M-case-set",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "recall at the confirmed file:line",
+      "needs_cases": "escaped bugs with issue + fix PR: #25 (440c807), #27 (46490e1), #32 (8b2a99f), #34/#36 (865f1be), #37 (48e7d77); the human confirms each",
+      "why_not": ""
+    },
+    {
+      "id": "eval-grows-per-incident",
+      "idea": "Each new incident adds a case to the eval.",
+      "quote": "each incident adds a case",
+      "role": "measurement",
+      "family": "M-case-set",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "cases added per bug issue closed",
+      "needs_cases": "n/a (harness maintenance: the Close step of any bug-in-merged-work issue adds a case)",
+      "why_not": ""
+    },
+    {
+      "id": "tune-review-md-then-widen",
+      "idea": "Pilot the reviewer on one repo, tune REVIEW.md for a few weeks, then widen.",
+      "quote": "tune REVIEW.md for a few weeks, then widen",
+      "role": "measurement",
+      "family": "M-case-set",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "held-out recall/noise when REVIEW.md is tuned on an earlier time split",
+      "needs_cases": "time-ordered train/held-out split",
+      "why_not": "Widening across repos is not testable; there is one repo here."
+    },
+    {
+      "id": "blame-age-of-late-findings",
+      "idea": "git blame what the reviewer keeps flagging; about 59% was code present since its first pass.",
+      "quote": "about 59% of it was code that had been there",
+      "role": "measurement",
+      "family": "M-diagnostics",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "share of round-2+ findings on lines that existed at the round-1 review SHA",
+      "needs_cases": "#38 late commits (303747b, 6883b89, 82f120f targeting #15/#16/#17 code); replay loops",
+      "why_not": ""
+    },
+    {
+      "id": "size-predicts-findings",
+      "idea": "Large PRs mostly get findings; small ones mostly come back clean.",
+      "quote": "Most PRs over 1,000 lines get findings",
+      "role": "measurement",
+      "family": "M-diagnostics",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "finding rate and recall by diff-size bucket (exclude vendored lines)",
+      "needs_cases": ">1,000-line PRs #1, #14, #15, #17, #18, #38 (#26 is vendored); counterexample #33 (+19/-14, 4+ rounds); thin",
+      "why_not": ""
+    },
+    {
+      "id": "which-layer-should-have-caught",
+      "idea": "Incident reviews ask which layer should have caught the issue.",
+      "quote": "which layer should have caught the issue",
+      "role": "measurement",
+      "family": "M-diagnostics",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "per-case label (tests, e2e, /code-review, standards, spec, security, human); catches and misses per layer",
+      "needs_cases": "all bug cases labelled",
+      "why_not": ""
+    },
+    {
+      "id": "tier-table-vs-bug-sources",
+      "idea": "Apply the blog's tier contents (Low: docs, copy, internal-only, additive behind a flag; Medium: ordinary product changes plus sensitive areas such as caching, the auto-updater, system prompts; High: highest-risk code plus always-two-person paths) to every case and report bug rate per tier.",
+      "quote": "Docs, copy, internal-only features",
+      "role": "measurement",
+      "family": "M-diagnostics",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "bug rate per tier; Low-tier cases that held bugs",
+      "needs_cases": "README PRs (#24 Low, introduced #27 after a human \"LGTM\"; #28) vs guard/archive/hook code (High)",
+      "why_not": ""
+    },
+    {
+      "id": "one-human-in-the-loop",
+      "idea": "Most PRs merge with at most one human in the loop, who can be the author.",
+      "quote": "at most one human in the loop",
+      "role": "not-testable",
+      "family": "X-human-approval",
+      "in_skill_now": "yes",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "One maintainer is already the only human; \"Merging is the human's step\"."
+    },
+    {
+      "id": "risk-tier-approvals",
+      "idea": "Risk tier sets human approvals: Low none once automated checks are green, Medium one, High two.",
+      "quote": "A classifier sets the tier",
+      "role": "not-testable",
+      "family": "X-human-approval",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "One maintainer and no approvals in a replay; the testable half is risk-tier-sets-review-depth."
+    },
+    {
+      "id": "trusted-authors",
+      "idea": "Only authors on the repo's trusted list get the lighter paths; everyone else needs a second approver.",
+      "quote": "Only trusted authors get the lighter paths.",
+      "role": "not-testable",
+      "family": "X-human-approval",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Single author."
+    },
+    {
+      "id": "agent-approval-not-human",
+      "idea": "An agent's approval never fills a human slot; the reviewer posts findings, not approvals.",
+      "quote": "An agent's approval never counts as a person's",
+      "role": "not-testable",
+      "family": "X-human-approval",
+      "in_skill_now": "yes",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Already enforced (the human merges); no approval slots to vary."
+    },
+    {
+      "id": "low-risk-merge-on-green",
+      "idea": "Owners may let low-risk changes merge on automated checks alone.",
+      "quote": "low-risk changes merge on automated checks alone",
+      "role": "not-testable",
+      "family": "X-human-approval",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "ADR 0006: the human merges; replays end at PR-ready."
+    },
+    {
+      "id": "prompter-owns-outcome",
+      "idea": "Whoever prompted an agent-written change counts as a required reviewer and is accountable for it.",
+      "quote": "Whoever prompted the change is on the hook for it.",
+      "role": "not-testable",
+      "family": "X-human-approval",
+      "in_skill_now": "yes",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Human accountability norm; no human in a replay."
+    },
+    {
+      "id": "requester-signs-off-template",
+      "idea": "Claude may fill the PR template, but the person who asked for the change signs off.",
+      "quote": "the person who asked for the change signs off",
+      "role": "not-testable",
+      "family": "X-human-approval",
+      "in_skill_now": "partly",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Needs a human sign-off; the template half is pr-template-testing-risk-revert."
+    },
+    {
+      "id": "dismiss-approvals-on-new-commits",
+      "idea": "New commits the system cannot vouch for (agent pushes, hand-resolved merges) dismiss earlier approvals.",
+      "quote": "dismiss approvals on new commits",
+      "role": "not-testable",
+      "family": "X-human-approval",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "No approvals in a replay; the agent-side analogue is review-bound-to-commit."
+    },
+    {
+      "id": "codeowners-branch-protection",
+      "idea": "CODEOWNERS and branch protection make auth, billing, CI and release workflows, and installers always need a person.",
+      "quote": "Use CODEOWNERS and branch protection",
+      "role": "not-testable",
+      "family": "X-human-approval",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "GitHub settings over multiple humans; one maintainer. The agent-side analogue is sensitive-paths-always-deep."
+    },
+    {
+      "id": "humans-decide-whether-to-build",
+      "idea": "Humans keep direction, taste and scope (should we even do this?).",
+      "quote": "Deciding whether to build it.",
+      "role": "not-testable",
+      "family": "X-human-approval",
+      "in_skill_now": "partly",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Human judgement; replay cases have fixed scope (Track and grilling route this to the human today)."
+    },
+    {
+      "id": "humans-review-risky-and-architecture",
+      "idea": "Humans review risky code (billing, auto-updater, CI) and architecture that sets a pattern others will copy.",
+      "quote": "architecture that sets a pattern others will copy",
+      "role": "not-testable",
+      "family": "X-human-approval",
+      "in_skill_now": "partly",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Human review; the agent-side analogue is escalation-classifier."
+    },
+    {
+      "id": "merge-queue",
+      "idea": "A merge queue re-runs every check on main with the change applied.",
+      "quote": "The merge queue re-runs every check",
+      "role": "not-testable",
+      "family": "X-release-and-ops",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Single-PR replays have no concurrent PRs."
+    },
+    {
+      "id": "flags-internal-first",
+      "idea": "New behaviour ships behind a flag to employees first.",
+      "quote": "ships behind a flag to Anthropic employees first",
+      "role": "not-testable",
+      "family": "X-release-and-ops",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "No flags or internal user base."
+    },
+    {
+      "id": "staged-release-channels",
+      "idea": "Public releases go to a latest channel first; stable trails it.",
+      "quote": "The stable channel trails it.",
+      "role": "not-testable",
+      "family": "X-release-and-ops",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "No release channels for the plugin."
+    },
+    {
+      "id": "fast-rollback",
+      "idea": "Flags turn off without a deploy and broken builds are reverted in one step.",
+      "quote": "Flags turn off without a deploy.",
+      "role": "not-testable",
+      "family": "X-release-and-ops",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Post-merge operations; history has no reverts."
+    },
+    {
+      "id": "on-call-and-dashboards",
+      "idea": "A weekly on-call and revert/incident dashboards notice bad merges.",
+      "quote": "a weekly on-call rotation",
+      "role": "not-testable",
+      "family": "X-release-and-ops",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "No on-call, dashboards or incident stream."
+    },
+    {
+      "id": "circuit-breakers",
+      "idea": "Circuit breakers that tighten approval when revert/incident numbers move (wanted, not built).",
+      "quote": "We don't yet have circuit breakers",
+      "role": "not-testable",
+      "family": "X-release-and-ops",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Needs a live revert-rate signal and approvals."
+    },
+    {
+      "id": "regressions-surface-fast",
+      "idea": "Regressions surface fast through telemetry and internal use.",
+      "quote": "surface fast through telemetry",
+      "role": "not-testable",
+      "family": "X-release-and-ops",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "No telemetry or user base."
+    },
+    {
+      "id": "everything-reversible",
+      "idea": "Flags, reverts and staged releases undo most mistakes in minutes.",
+      "quote": "Everything is reversible.",
+      "role": "not-testable",
+      "family": "X-release-and-ops",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Release infrastructure absent; no reverts in history."
+    },
+    {
+      "id": "you-land-it-you-own-it",
+      "idea": "Whoever lands a small or medium change usually fixes what goes wrong with it.",
+      "quote": "you usually fix it",
+      "role": "not-testable",
+      "family": "X-team-culture",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Post-merge team norm; one maintainer."
+    },
+    {
+      "id": "blameless-incident-review",
+      "idea": "Ownership is not blame; incident reviews look at the system.",
+      "quote": "It isn't blame.",
+      "role": "not-testable",
+      "family": "X-team-culture",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Team norm."
+    },
+    {
+      "id": "open-channels",
+      "idea": "Work in open channels so anyone sees what others build and can pick up a thread.",
+      "quote": "open Slack channels",
+      "role": "not-testable",
+      "family": "X-team-culture",
+      "in_skill_now": "partly",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Team culture; one-person repo (public issue progress comments are the nearest analogue)."
+    },
+    {
+      "id": "explainer-for-humans",
+      "idea": "Review's second job (shared understanding) moves to explainers and small visual artifacts people ask Claude for.",
+      "quote": "a small artifact that visualizes that part of the code",
+      "role": "not-testable",
+      "family": "X-team-culture",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Human learning; no team. The agent-side form is agent-explainer-before-review."
+    },
+    {
+      "id": "ui-design-guideline-check",
+      "idea": "UI changes are checked against design guidelines.",
+      "quote": "checked against our design guidelines",
+      "role": "not-testable",
+      "family": "X-team-culture",
+      "in_skill_now": "no",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "No design guidelines and no UI bug cases (only the terminal band)."
+    },
+    {
+      "id": "agent-fixes-overnight",
+      "idea": "An agent picks up review fixes unattended, so the author returns to a PR already through another round.",
+      "quote": "an agent picks up the fix overnight",
+      "role": "not-testable",
+      "family": "X-team-culture",
+      "in_skill_now": "yes",
+      "switch": "",
+      "metric": "n/a",
+      "needs_cases": "n/a",
+      "why_not": "Replays are already unattended; there is no human-gated variant worth testing (the human-time proxy covers it)."
+    }
+  ],
+  "blog_numbers": [
+    "Convergence, pass after one review-and-fix round: 65% before, 78% after the convergence work (adoption bar for F-convergence arms: a relative gain of that order, recall held)",
+    "Convergence, PRs needing five or more rounds: 8.9% before, 1.5% after (bar for round-cap / no-repeat / diff-only arms)",
+    "Convergence, mean reviews to pass: 2.08 before, 1.32 after (bar for convergence arms)",
+    "Revert share of merged PRs fell by more than 40% from June to September while merged PRs more than doubled (guardrail: an arm may not raise the escaped-bug rate)",
+    "Share of internal PRs with substantive review comments rose from 16% to 54% at research-preview launch (bar for finder arms on bug PRs; must not rise on clean PRs)",
+    "About 59% of what the reviewer kept flagging (git blame) was code present since its first pass (compare with late-round findings in replay loops, e.g. #38)",
+    "Most PRs over 1,000 lines get findings; most small ones come back clean (stratify results by size; #33 at +19/-14 is a counterexample)",
+    "One CLI PR ran more than fifty review-and-fix rounds overnight (runaway-loop check for the no-cap arm)",
+    "Round cap at three rounds, then step back and reconsider (trace's current value; the cap arm tests none/2/3/5)",
+    "Verification estimated to make the final result two to three times better (Boris Cherny; motivation for A-verify-before-review)",
+    "Risk tiers: Low needs no human approval once automated and security checks are green, Medium one person, High two people (approvals not testable; tier contents used for tier-table-vs-bug-sources)",
+    "Claude writes about 90% of Claude Code's own code (context only)",
+    "Anthropic monorepo changes landing per day: about 2,500 in May to more than 30,000 in September (context only)",
+    "A typical CLI PR may run dozens of checks before anyone looks (context only; this repo has one local `npm run check`)",
+    "Human-time metrics: human approvals per PR at median and 95th percentile, human comments, time a PR waits on a person (proxy only here)"
+  ]
+}

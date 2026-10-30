@@ -2,3 +2,6 @@ node_modules/
 /trs-plugin/
 .DS_Store
 /plugins/trace/.claude-plugin/types/
+/.claude/hillclimb/*/*/traces/
+/.claude/hillclimb/*/*/progress.txt
+/.claude/hillclimb/*/report.html

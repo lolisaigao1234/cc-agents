@@ -1,0 +1,317 @@
+[
+  {
+    "finding": "1. Deadline starts when the world is made, a few ms after import",
+    "pr_or_issue": "PR #35 / #32",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "Still true on main: realWorld() sets endsAt = Date.now()+20_000 (trace.mjs:842), and hook.mjs:68 makes the world after reading stdin and readsOf. Since 1b5e73e/ab30793 (#37/#34), the archive block also draws on world.timeLeft, so nothing important runs outside the budget. The 10s gap to the 30s hook timeout absorbs the few ms. No later issue or fix touches it."
+  },
+  {
+    "finding": "2. ~220-line closure factory; a context object would avoid the re-indent",
+    "pr_or_issue": "PR #35 / #32",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "A style point. realWorld() is still a closure factory on main (trace.mjs:841-1071). #34/PR #38 built on it (timeLeft added to the world) without trouble, and no later issue arose. The PR #35 body gives the reason: git diff -w stays at 35 lines."
+  },
+  {
+    "finding": "3. engines >=20.11 is only advisory; the test fails on older Node",
+    "pr_or_issue": "PR #35 / #32",
+    "original_outcome": "intentional",
+    "final_verdict": "didnt-matter",
+    "evidence": "Factually true: npm only warns about engines. But the repo has no CI, everything runs on Node 24, and nothing in later history failed on an old Node. package.json still says >=20.11."
+  },
+  {
+    "finding": "4. No-op reads literal duplicated in the test and realWorld",
+    "pr_or_issue": "PR #35 / #32",
+    "original_outcome": "didnt-matter",
+    "final_verdict": "true-later-confirmed",
+    "evidence": "Low severity, but the author acted on it later. #37 added a third copy (archive.test). The #34 round-1 Standards review flagged 'the repeated reads stub' again, and 756657a extracted it to test/helpers.mjs noReads(). Only the test copies were merged: realWorld keeps its own literal (trace.mjs:1071)."
+  },
+  {
+    "finding": "5. ADR 0006 'applies only in opted-in repositories' is now contradicted",
+    "pr_or_issue": "PR #38 / #34",
+    "original_outcome": "intentional",
+    "final_verdict": "true-later-confirmed",
+    "evidence": "In #34's round-1 comment the author said 'ADR 0006 is left unchanged'. The human's halt decision then explicitly 'replaces ... the round-1 decision to leave ADR 0006 unchanged' and requires that it 'qualifies applies only in opted-in repositories'. a8fd424 and later commits amended it: 'Whether a repository is opted in is itself git's answer, so the halt reaches any repository ...'. Related bug B18 (82f120f): read-only commands were refused in untraced repos."
+  },
+  {
+    "finding": "6. Narrowings left for the human: PostToolUse never halts; over-long history command denied not halted; unparseable gh output keeps bypass; any prompt lifts halt; crashed/killed hook cannot halt",
+    "pr_or_issue": "PR #38 / #34 halt",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "The reviewer was right that each one departs from the human's halt criteria ('whenever any hook ... halts'). The departures are documented in ADR 0006 and the README and were listed under 'For the human to confirm'. The human merged PR #38 on 2026-10-30T17:30Z without objecting, and there is no later issue. A crashed or killed hook cannot halt at all, so that one is a platform limit."
+  },
+  {
+    "finding": "7. ADR 0005/0006 still name to-tickets/implement",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "Still the case after four more amendments to ADR 0006 in #34: it says 'tickets come from to-tickets', and ADR 0005's table names to-spec/to-tickets/implement. The author's answer (the ADRs record what is reused, and the human runs those skills) holds: SKILL.md and TRACK_HINT now route the model to gh issue create. No later bug came from the ADR wording."
+  },
+  {
+    "finding": "8. Band counts Review done on any open PR",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "ADR 0006 step 5 defines Review as 'a PR whose body says Closes #<n>', and status.mjs:105 follows it ('only an open PR does it'). #31 scoped this out on purpose. It is pre-existing design, not a defect, and no later issue."
+  },
+  {
+    "finding": "9. Two Track refusals stay as duplicate literals",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "intentional",
+    "final_verdict": "true-later-confirmed",
+    "evidence": "Round 2 answered 'stay as literals'. Round 3 (fd98d53) moved both into one TRACK_HINT constant to fix this duplication, and the round-4 comment records the reversal ('This also corrects round 2's refusals stay literals'). TRACK_HINT is on main at trace.mjs:24."
+  },
+  {
+    "finding": "10. Round 2 dropped ADR 0007's applies-to narrowing (overcorrection)",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "wrong",
+    "final_verdict": "didnt-matter",
+    "evidence": "The claim was accurate: d4dac3b said 'every active ADR'. It was fixed in fd98d53, and that restatement then drifted, giving 7 of the 8 round-3 findings. The merged 152cded goes back to 'every active ADR' on purpose ('Reading every ADR always satisfies the gates, and the hooks narrow the set themselves'). Over-reading is harmless, and acting on the finding cost rounds. This is the contested B16b: not a bug."
+  },
+  {
+    "finding": "11. Review base not named (default branch or blocker's)",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "wrong",
+    "final_verdict": "true-later-confirmed",
+    "evidence": "fd98d53 added '(the default branch, or the blocker's branch while stacked)' to both SKILL.md and the band. dd26dbe removed only the band copy, which was wrong for a PR merged into the blocker's branch. The SKILL.md copy survived the merge and is still on main (SKILL.md:16). The content was right; only putting it in the band was wrong."
+  },
+  {
+    "finding": "12. LGTM (no findings) on PR #24",
+    "pr_or_issue": "PR #24 / #23",
+    "original_outcome": "wrong",
+    "final_verdict": "wrong",
+    "evidence": "PR #24 (46490e1) put both /plugin commands in one code block, and pasting it fails ('... is not a valid GitHub owner/repo shorthand'). This was filed as #27 and fixed in 772cbef (PR #28). The LGTM missed a real bug."
+  },
+  {
+    "finding": "13. Re-nudge after a rebase or with a fast clock; /clear keeping reads",
+    "pr_or_issue": "PR #19 / #9",
+    "original_outcome": "wrong",
+    "final_verdict": "wrong",
+    "evidence": "Re-nudging on a new pushed head is the specified behaviour ('asks once per pushed head'). For /clear, vendor/claude-code/index.d.ts:11713 says a /clear continues 'under a new session id', so session-keyed reads do not carry over; hook.mjs only needs to clear reads on compaction (line 41). No later issue or fix."
+  },
+  {
+    "finding": "14. rsync --remove-sent-files; recording the #7 decision in code",
+    "pr_or_issue": "PR #21 / #13",
+    "original_outcome": "wrong",
+    "final_verdict": "true-later-confirmed",
+    "evidence": "The verifier's refutation was wrong for the rsync half, and I reproduced the bypass in this adjudication. On this machine's /usr/bin/rsync (openrsync, 2.6.9-compatible), `rsync -r --remove-sent-files a/ b/` and the abbreviation `--remove-so` both delete the source files, exit 0. guard() returns null for both, because guard.mjs:125 checks c.args.includes('--remove-source-files') exactly. The rule came in with PR #21 (b418246). It is unfixed on main, and no issue has been filed. The '#7 decision in code' half stays refuted."
+  },
+  {
+    "finding": "15. ADR 0005 still mentions quality-loop",
+    "pr_or_issue": "PR #14 / #4",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "ADR 0005 is the decision to replace quality-loop, so naming it (and the quality-loop-v0.1.0 tag) is the historical record. It is unchanged on main, with no later issue."
+  },
+  {
+    "finding": "16. Spec flagged TStack precedence rule, to-spec/implement as skills to use, guard rm -r coverage",
+    "pr_or_issue": "PR #12 / #11",
+    "original_outcome": "wrong",
+    "final_verdict": "true-later-confirmed",
+    "evidence": "Mixed. The to-spec/implement part was right: the PR #12 rebuttal ('installed skills') was wrong, because #31 showed to-tickets, to-spec and implement set disable-model-invocation, so the model's Skill call fails (B6/B12, fixed in 195172b). The TStack rule came from the request, and the guard does cover rm -r, so those two parts stay wrong."
+  },
+  {
+    "finding": "17. ADR 0005 still names quality-loop",
+    "pr_or_issue": "PR #14 / #4",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "Duplicate of #15: waived as the decision's history and its tag. No later change or issue."
+  },
+  {
+    "finding": "18. Routes text reading cannot see: scripts, gh api/curl PRs, revert/merge messages, xargs, >> appends, markdown subtleties, piped shell text",
+    "pr_or_issue": "PR #17 / #7, #13",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "The routes are real. PR #21 closed piped shell text, and the rest are left open on purpose as the seatbelt-not-sandbox limit (ADR 0007; #13 progress comment). No later issue escalated any of them."
+  },
+  {
+    "finding": "19. Re-nudging after a rebase or with a fast clock; /clear keeping reads",
+    "pr_or_issue": "PR #19 / #9",
+    "original_outcome": "wrong",
+    "final_verdict": "wrong",
+    "evidence": "Duplicate of #13. A new pushed head re-asks by spec. /clear starts a new session id (index.d.ts:11713), so reads do not survive it."
+  },
+  {
+    "finding": "20. rsync --remove-sent-files; recording the #7 decision in code",
+    "pr_or_issue": "PR #21 / #13",
+    "original_outcome": "wrong",
+    "final_verdict": "true-later-confirmed",
+    "evidence": "Duplicate of #14. Reproduced: openrsync's --remove-sent-files and --remove-so delete the sources, and guard() returns null (guard.mjs:125 matches only the exact '--remove-source-files'). The guard bypass is still open on main."
+  },
+  {
+    "finding": "21. `/plugin install trace --marketplace ...` is not a valid /plugin install form",
+    "pr_or_issue": "#23 / PR #24",
+    "original_outcome": "wrong",
+    "final_verdict": "wrong",
+    "evidence": "The Claude Code changelog quoted in session e4ba87bc says 'Added `/plugin install <plugin> --marketplace <source>`' (2.1.275). `claude plugin validate` advice, seen in session 96bc1737, also recommends '/plugin install trace --marketplace <owner>/<repo>' on 2.1.275+. Acting on this wrong finding produced the two-command block that became #27. This settles the critic's flag dispute in favour of PR #28."
+  },
+  {
+    "finding": "22. ADRs 0005/0006 still name to-tickets/implement; band counts Review done on any open PR; band Review reason lacks standards; Track refusals as literals; guard tests cwd",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "This aggregates #7, #8, #9 and #31. The ADR wording, Review-done-on-open-PR (ADR 0006) and standards-only-in-SKILL.md parts stand as valid choices, and the guard-test cwd part did not matter. Exception: 'Track refusals as literals' was reversed in round 3 (TRACK_HINT), so that sub-part is true-later-confirmed."
+  },
+  {
+    "finding": "23. docs.test.mjs failure called transient / pre-existing flake",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "wrong",
+    "final_verdict": "true-pre-existing",
+    "evidence": "The failing test was a real signal that the author dismissed. The round-4 comment's 'Corrected record' says DEADLINE was set at module load (from 8b2a99f, PR #16, older than #31). It was filed as #32 and fixed in 52c688f, 9ac4c75 and 23c288c (PR #35). The 'flake' dismissal was wrong; the underlying finding was true."
+  },
+  {
+    "finding": "24. Band Review reason has no base; TRACK_HINT names ##; 'every active ADR' over-reads for an edit",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "All three remain on main: status.mjs:115 has no base, TRACK_HINT says '## Acceptance criteria', and the Read row says every active ADR. The PR body gives reasons: SKILL.md carries the base and restating it drifted twice; one concrete heading form; reading every ADR satisfies the gates. The human merged with no fifth round, and no later issue."
+  },
+  {
+    "finding": "25. Deadline starts after import, not at hook start; no-op reads literal duplicated",
+    "pr_or_issue": "PR #35 / #32",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "Duplicate of #1 and #4. The deadline half is a valid choice, unchanged and harmless (and since #37 the archive block shares the world's deadline). The literal half was later extracted for the tests in 756657a, which is true-later-confirmed (see #4)."
+  },
+  {
+    "finding": "26. ~220-line closure factory re-indents adapters; engines >=20.11 only advisory",
+    "pr_or_issue": "PR #35 / #32",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "Duplicate of #2 and #3. The factory is still on main and #34 extended it without trouble. Advisory engines never mattered: no CI, Node 24."
+  },
+  {
+    "finding": "27. Archive denial keeps unrequested advice; gh missing for gh issue view still refused; ADR 0006 unchanged",
+    "pr_or_issue": "PR #38 / #34",
+    "original_outcome": "intentional",
+    "final_verdict": "true-later-confirmed",
+    "evidence": "Mixed. 'ADR 0006 unchanged' was right: the human's decision explicitly replaced it and ADR 0006 was amended in place (a8fd424 onward). The advice is a harmless valid choice and is still on main (EXCLUDE_HINT in archive.mjs). 'gh missing still refused' was overtaken: every gh command now asks gh for aliases and halts. It hardly matters, because with gh missing a gh command cannot run anyway."
+  },
+  {
+    "finding": "28. Narrowings: PostToolUse never halts; over-long history command denied not halted; gh unparseable output still names bypass; any prompt lifts halt; crashed hook cannot halt",
+    "pr_or_issue": "PR #38 / #34",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "Duplicate of #6. Documented in ADR 0006 and the README, surfaced for the human, and merged on 2026-10-30. 'Any prompt' was refined within the PR (6e541fa) to exclude a background agent's report. No later issue."
+  },
+  {
+    "finding": "29. ADR 0006/0005 still name to-tickets/implement, which the model cannot invoke",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "Duplicate of #7. The ADRs are unchanged on main, and the model-facing routes (SKILL.md, TRACK_HINT, status.mjs) were fixed in 195172b. No later bug came from the ADR text."
+  },
+  {
+    "finding": "30. reviewWhy returns 'Review done' on any open PR, so review can be skipped",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "Duplicate of #8. ADR 0006 defines Review as the PR, and status.mjs:105 says so. Out of scope by design; no later issue."
+  },
+  {
+    "finding": "31. guard.test cwd: tmpdir() hides a cwd dependency; breaks if TMPDIR is inside a traced checkout",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "didnt-matter",
+    "final_verdict": "didnt-matter",
+    "evidence": "A theoretical edge: on macOS, TMPDIR is under /var/folders. No later test failure or issue. The other guard tests already ran from tmpdir."
+  },
+  {
+    "finding": "32. Skill routes around ADR 0005/0006's to-tickets and implement without flagging the ADR conflict",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "Answered by flagging it in the PR body ('ADRs still name the human-only skills') with a reason. The ADRs are unchanged on main and no later issue arose."
+  },
+  {
+    "finding": "33. The Read row restates ADR 0007's list (single source of truth), a drift risk",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "intentional",
+    "final_verdict": "true-later-confirmed",
+    "evidence": "The author first answered that the issue asks for that list. Round 3's review then traced 7 of its 8 findings to this restatement drifting, and round 4 (dd26dbe) changed approach ('The approach was the problem'). The final 152cded keeps a short plain list with no rule restatement."
+  },
+  {
+    "finding": "34. Band Review reason has no base and disagrees with SKILL",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "The band omits the base, which is not a contradiction: SKILL.md:16 carries it. Restating it in the band was wrong for a PR merged into the blocker's branch and drifted twice (round-5 comment). The human merged and no later issue arose."
+  },
+  {
+    "finding": "35. TRACK_HINT names only '##', reversing round 2",
+    "pr_or_issue": "PR #33 / #31",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "TRACK_HINT on main (trace.mjs:24) gives the skill's single form, which context.mjs accepts. A hint that names one working form is fine. No later issue."
+  },
+  {
+    "finding": "36. Deadline now starts after stdin/readsOf; archive's 5s spawn not bounded; risk of passing the 30s hook timeout",
+    "pr_or_issue": "PR #35 / #32",
+    "original_outcome": "intentional",
+    "final_verdict": "true-pre-existing",
+    "evidence": "The archive half was right, and the author's round-2 answer ('5s plus 20s still fits') was wrong. Round 3 retracted it: 'archiveBlock gives each history segment 5s, with no cap'. It was filed as #37 and fixed by 7a97221 and 1b5e73e (PR #38). The code was from 48e7d77 (PR #15), so it predates #32. The deadline-start half is a valid choice (see #1)."
+  },
+  {
+    "finding": "37. Budget is per world, not per hook process",
+    "pr_or_issue": "PR #35 / #32",
+    "original_outcome": "intentional",
+    "final_verdict": "true-pre-existing",
+    "evidence": "The gap it points at was real: the archive block ran on its own timers outside the world's budget. It was deferred to #34 and built there as 'One budget per hook call ... shared with the archive block' (1b5e73e: hook.mjs passes world.timeLeft to archiveBlock; ab30793). The budget is still per world, which equals per hook call because hook.mjs makes one world per call. The defect predates #32."
+  },
+  {
+    "finding": "38. The ~220-line realWorld closure factory and the re-indent",
+    "pr_or_issue": "PR #35 / #32",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "Duplicate of #2. Still the shape on main, and later work extended it without problems."
+  },
+  {
+    "finding": "39. engines >=20.11 is advisory only",
+    "pr_or_issue": "PR #35 / #32",
+    "original_outcome": "didnt-matter",
+    "final_verdict": "didnt-matter",
+    "evidence": "Duplicate of #3. No CI and Node 24 locally; nothing later failed on old Node."
+  },
+  {
+    "finding": "40. PostToolUse no longer halts; a 5s-cap timeout is denied, not halted; unparseable gh output still offers the bypass",
+    "pr_or_issue": "PR #38 / #34",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "Duplicate of #6 and #28. Declined, documented in ADR 0006 ('recording what an agent read never halts'; a history command 'too long ... is denied too, not halted'), surfaced to the human, and merged."
+  },
+  {
+    "finding": "41. The noEmit --showConfig test restates config (speculative)",
+    "pr_or_issue": "PR #26 / #25",
+    "original_outcome": "intentional",
+    "final_verdict": "didnt-matter",
+    "evidence": "The test is unchanged on main (test/typecheck.test.mjs, \"the mod's typecheck writes nothing\"). It is a cheap regression pin on the #25 symptom (emitted .js files), and nothing later broke or drifted because of it."
+  },
+  {
+    "finding": "42. Only claude-code/ vendored; git ls-files lists the index; noEmit proxy",
+    "pr_or_issue": "PR #26 / #25",
+    "original_outcome": "didnt-matter",
+    "final_verdict": "didnt-matter",
+    "evidence": "Technically accurate nits: an index entry counts as committed. No later failure or issue."
+  },
+  {
+    "finding": "43. Non-hermetic test runs the real `claude --version` and goes red after any upgrade",
+    "pr_or_issue": "PR #26 / #25",
+    "original_outcome": "intentional",
+    "final_verdict": "intentional-valid",
+    "evidence": "The prediction has come true. Installed Claude Code is now 2.1.314 and the vendored file says 2.1.312, so `node --test --test-name-pattern='installed Claude Code' test/typecheck.test.mjs` fails on main today. The user chose this hard fail on purpose ('Hard fail it is') as the signal to refresh the snapshot. It is designed behaviour, and the reviewer described it correctly."
+  },
+  {
+    "finding": "44. quality-loop pre-loop review: 9 distinct bugs (.sol symlink write, COPILOT_ALLOW_ALL inherited, temp-dir read, unnamed model accepted, import.meta.dirname crash on Node 20.0-20.10, ...)",
+    "pr_or_issue": "none (uncommitted Sol-lens work, Oct 28)",
+    "original_outcome": "unknown",
+    "final_verdict": "unclear",
+    "evidence": "These were verifier-confirmed and fixed only in uncommitted work. The nearest artifact is bde89af, a reflog-only commit on no branch. It has the unnamed-model check, but also import.meta.dirname with engines '>=20', so whether it predates the fixes is unclear. quality-loop was deleted in c659ccb (#4). No later history can confirm or refute these; exclude them from noise ground truth."
+  },
+  {
+    "finding": "45. quality-loop loop R1-R3: 17 fixed, F7 wontfix, F9 pre-existing, capped with round 3 unreviewed",
+    "pr_or_issue": "none (same uncommitted work)",
+    "original_outcome": "unknown",
+    "final_verdict": "unclear",
+    "evidence": "Same abandoned code as #44: never committed to main, and the plugin was deleted in c659ccb. No later history exists to adjudicate individual findings. Usable only as evidence that a round cap was hit, not as true or false labels."
+  }
+]
