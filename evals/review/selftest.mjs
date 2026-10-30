@@ -21,7 +21,9 @@ const cases = JSON.parse(readFileSync(join(HERE, 'data/cases.json'), 'utf8'));
 const bugs = new Map(JSON.parse(readFileSync(join(HERE, 'data/bugs.json'), 'utf8')).map(b => [b.id, b]));
 const c = cases.find(x => x.id === (process.argv[2] ?? 'pr16-r1'));
 if (!c?.bug_ids.length) throw new Error('pick a bug case with known bugs');
-const other = cases.find(x => x.kind === 'bug' && x.bug_ids.length && x.bug_ids.every(id => !c.bug_ids.includes(id) && !c.pre_existing_bugs.includes(id)));
+// Wrong target: bugs from a case that starts after this one ends, so they cannot exist in this snapshot yet.
+const later = x => spawnSync('git', ['merge-base', '--is-ancestor', c.head, x.base], { cwd: ROOT }).status === 0 && x.base !== c.head;
+const other = cases.find(x => x.kind === 'bug' && x.bug_ids.length && later(x));
 
 const prDiff = spawnSync('git', ['diff', c.base, c.head, '--', '.', ':(exclude)archive'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 }).stdout.slice(0, 300_000);
 const issue = c.issue ? readFileSync(join(HERE, 'data/issues', `${c.issue}.md`), 'utf8') : c.title;

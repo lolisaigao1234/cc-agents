@@ -34,6 +34,9 @@ export async function runAgent({ dir, home, model, prompt, pluginDirs, denyRead,
       failIfUnavailable: true,
       autoAllowBashIfSandboxed: true,
       allowUnsandboxedCommands: false,
+      // gh is a Go binary; on macOS it verifies TLS through trustd, which the
+      // sandbox otherwise blocks (x509: OSStatus -26276). Reads stay denied below.
+      enableWeakerNetworkIsolation: true,
       // Writes stay in the clone and the throwaway HOME; the plugin copies and the
       // other cases' clones (later snapshots hold earlier cases' fixes) are unreadable.
       filesystem: { denyRead, allowRead, allowWrite: [dir, home] },

@@ -268,7 +268,9 @@ async function runCase(c, ctx) {
     const d = digest(a.events, R.leak);
     const res = d.result;
     const mu = res?.modelUsage ?? {};
-    const billed = { model: ctx.model, usage: mu[ctx.model] ? apiUsage(mu[ctx.model]) : undefined };
+    // modelUsage keys can carry a context suffix such as [1m].
+    const mainKey = Object.keys(mu).find(k => k.startsWith(ctx.model));
+    const billed = { model: ctx.model, usage: mainKey ? apiUsage(mu[mainKey]) : undefined };
     if (d.leaks.length) throw fail('answer_key_leak', `agent reached for the answer key: ${d.leaks[0]}`, billed);
     if (a.timedOut) throw fail('timeout', `agent ran past ${limitS}s`, billed);
     if (!res) throw fail('harness', `claude exited ${a.code} with no result: ${a.stderr.slice(-500)}`);
@@ -335,7 +337,7 @@ function perfFrom(run, g) {
 function parseArgs(argv) {
   const a = { flow: '.claude/hillclimb/flow', variant: 'baseline',
               model: undefined, reps: 1, concurrency: 2, timeoutS: 5400,
-              approveHarness: false, cases: null, kinds: null, keep: false, budgetUsd: 40 };
+              approveHarness: false, cases: null, kinds: null, keep: false, budgetUsd: 40, dryRun: false };
   // A flag at the end of argv would otherwise consume undefined - which for
   // --model equals the default and silently disables the served-model check.
   const val = (i) => { if (argv[i] === undefined) { eprint(`missing value for ${argv[i - 1]}`); usage(); process.exit(2); } return argv[i]; };
@@ -352,6 +354,7 @@ function parseArgs(argv) {
     else if (k === '--kinds') a.kinds = val(++i).split(',').map(x => x.trim()).filter(Boolean);
     else if (k === '--budget-usd') a.budgetUsd = +val(++i);
     else if (k === '--keep') a.keep = true;
+    else if (k === '--dry-run') a.dryRun = true;
     else if (k === '-h' || k === '--help') { usage(); process.exit(0); }
     else { eprint(`unknown argument: ${k}`); usage(); process.exit(2); }
   }
@@ -374,6 +377,7 @@ function usage() {
   eprint('usage: node evals/review/run.mjs --flow DIR --variant ID --model ID [--reps N] [--cases id,id] [--kinds bug,clean,convergence]');
   eprint('         [--concurrency N] [--timeout-s N (0 = no ceiling)] [--budget-usd N per case] [--keep] [--approve-harness]');
   eprint('  --keep leaves each replay repository and clone in place for inspection.');
+  eprint('  --dry-run checks the setup and lists the (case, rep) pairs it would run, then exits.');
 }
 
 // Harness integrity gate. The hillclimb loop gets this runner command
@@ -611,6 +615,11 @@ async function main() {
     tasks.push({ c, rep });
   }
   eprint(`[${args.variant}] ${tasks.length} of ${cases.length * args.reps} (id,rep) to run`);
+  if (args.dryRun) {
+    for (const t of tasks) eprint(`  ${t.c.id} rep${t.rep}`);
+    rmSync(R.work, { recursive: true, force: true });
+    process.exit(0);
+  }
 
   let i = 0, ok = 0, fail = 0;
   const errorsPath = join(vdir, 'errors.jsonl');

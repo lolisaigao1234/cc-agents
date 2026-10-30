@@ -65,7 +65,7 @@ Instructions:
 2. Classify each finding:
    - in_diff_bug: it identifies one of the known bugs introduced by this pull request. It must name the same defect, meaning the same failure on the same input or path. Touching the same lines, or naming the bug's general area, is not enough. Set bug_id to that bug's id.
    - pre_existing_bug: it identifies one of the known pre-existing bugs, by the same standard. Set bug_id.
-   - valid_other: a real defect, or a real violation of the issue's requirements, that is in neither list. Check it against the diff, and use it only if a careful maintainer would agree it is correct and worth changing.
+   - valid_other: a real defect, or a real violation of the issue's requirements, that is in neither list. Use it only if you can confirm it from the diff or the issue, and a careful maintainer would agree it is correct and worth changing. A claim about code the diff does not show, which you cannot confirm, is noise.
    - wrong: it is factually incorrect, it claims one of the known non-bugs, or acting on it would make the code worse.
    - noise: it is correct but does not matter (style preference, speculation with no failure named, restating the code).
    bug_id is null except for in_diff_bug and pre_existing_bug.
