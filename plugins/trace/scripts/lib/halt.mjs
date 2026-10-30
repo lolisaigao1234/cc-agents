@@ -26,7 +26,12 @@ export class Unanswered extends Error {
 // untrusted, locked, corrupt or unreadable repository, or a HEAD that names no
 // object. It exits 128 for these and for some answers alike ("path 'x' does
 // not exist in 'HEAD'").
-const GIT_FAILS = /bad object HEAD(?!\S)|dubious ownership|safe\.directory|not a git repository|cannot change to|unable to (?:access|read|open|create)|\.lock'?: File exists|corrupt|object file .* is empty|inflate:|bad config|repository format version|repo version|Permission denied/i
+const GIT_FAILS = /bad object HEAD(?!\S)|dubious ownership|safe\.directory|not a git repository|cannot change to|unable to (?:access|read|open|create)|\.lock'?: File exists|is corrupt|(?:index file|object) corrupt|corrupt (?:loose |packed )?(?:object|pack|index)|object file .* is empty|inflate:|bad config|repository format version|repo version|Permission denied/i
+
+// What git repeats of the command, which says nothing of the repository:
+// the names it quotes (a revision, branch or path), and an option's own file
+// it cannot read (`-O<orderfile>`).
+const NOT_THE_REPOSITORY = /'[^'\n]*'|failed to read orderfile.*/g
 
 // gh's words, and its exit code 4, when it is not logged in or cannot reach
 // GitHub. "Not Found (HTTP 404)" and "no pull requests found" are answers.
@@ -71,7 +76,7 @@ export function answered(who, r, answers) {
   if (r.signal) throw new Unanswered(who, `it was killed by ${r.signal}`)
   if (r.status === 0) return r
   const stderr = String(r.stderr ?? '').trim()
-  const fails = who === 'git' ? GIT_FAILS.test(stderr) : r.status === 4 || GH_FAILS.test(stderr)
+  const fails = who === 'git' ? GIT_FAILS.test(stderr.replace(NOT_THE_REPOSITORY, '')) : r.status === 4 || GH_FAILS.test(stderr)
   const isAnswer = !answers || (who === 'git' && r.status === 1 && !stderr) || answers.test(stderr)
   if (fails || !isAnswer) throw new Unanswered(who, stderr.split('\n')[0] || `exit ${r.status}`)
   return r

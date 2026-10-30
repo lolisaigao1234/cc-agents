@@ -719,25 +719,27 @@ const specExcludesArchive = p => p.exclude && /^archive(?:\/(?:\*{1,2})?)?$/.tes
  */
 function historyTouches(sub, opts, cwd) {
   const diff = /^diff/.test(sub)
-  const fix = HISTORY_FIX
   // The hook runs before any permission prompt, so it never runs what writes.
-  if (opts.some(a => /^--output(?:=|$)/.test(a))) return `\`git ${sub} --output\` writes a file, so the archive block does not run it to check what it prints. ${fix}`
+  if (opts.some(a => /^--output(?:=|$)/.test(a))) return `\`git ${sub} --output\` writes a file, so the archive block does not run it to check what it prints. ${HISTORY_FIX}`
   const timeout = gitTimeout()
-  const r = spawnSync('git', ['-C', cwd, sub === 'difftool' ? 'diff' : sub, ...opts, '--name-only', '--no-renames', '--no-ext-diff',
+  // Options that change how git prints the paths, or what it exits with, are
+  // left out: the paths it lists are the same without them.
+  const listed = opts.filter(a => !/^(?:--exit-code|--check|--name-status|-s|--no-patch|-z)$/.test(a))
+  const r = spawnSync('git', ['-C', cwd, sub === 'difftool' ? 'diff' : sub, ...listed, '--name-only', '--no-renames', '--no-ext-diff',
     ...(sub === 'diff' || sub === 'difftool' ? ['--no-relative'] : []), ...(diff ? [] : ['--format='])],
   { encoding: 'utf8', env: GIT_ENV(), timeout, maxBuffer: 64 * 1024 * 1024 })
   // A long history takes git long, or overflows the hook's buffer, to list:
   // that is the command's size, not git failing to answer.
   const code = /** @type {NodeJS.ErrnoException | undefined} */ (r.error)?.code
   if (code === 'ENOBUFS' || (code === 'ETIMEDOUT' && timeout === HISTORY_CAP)) {
-    return `the archive could not be checked: git took ${code === 'ENOBUFS' ? 'more room than the hook has' : `over ${HISTORY_CAP / 1000}s`} to list what \`git ${sub}\` prints. ${fix}`
+    return `the archive could not be checked: git took ${code === 'ENOBUFS' ? 'more room than the hook has' : `over ${HISTORY_CAP / 1000}s`} to list what \`git ${sub}\` prints. ${HISTORY_FIX}`
   }
   // The command is the agent's: a failure git has no words for in halt.mjs,
   // as for a bad revision or option, may be its own mistake, so it is denied
   // in git's words rather than halting the session.
   answered('git', r)
-  if (r.status !== 0) return `\`git ${sub}\` fails here (${String(r.stderr).trim().split('\n')[0] || `exit ${r.status}`}), so what it prints cannot be checked. ${fix}`
-  if (r.stdout.split('\n').some(l => l === 'archive' || l.startsWith('archive/'))) return `\`git ${sub}\` would print changes in the archive. ${fix}`
+  if (r.status !== 0) return `\`git ${sub}\` fails here (${String(r.stderr).trim().split('\n')[0] || `exit ${r.status}`}), so what it prints cannot be checked. ${HISTORY_FIX}`
+  if (r.stdout.split('\n').some(l => l === 'archive' || l.startsWith('archive/'))) return `\`git ${sub}\` would print changes in the archive. ${HISTORY_FIX}`
   return null
 }
 
@@ -917,6 +919,8 @@ function gitTouches(gitArgs, cwds) {
     const changes = before.filter(a => SHOWS_CHANGES.test(a))
     if (/^(?:log|reflog)$/.test(sub) && !changes.length) continue
     if (sub === 'show' && before.some(a => a === '-s' || a === '--no-patch') && !changes.some(a => a !== '-s')) continue
+    // --quiet prints no changes, whatever other options say.
+    if (before.includes('--quiet')) continue
     // A -L range shows only the file it names.
     if (changes.length && changes.every(a => a.startsWith('-L'))) continue
     // A repository an earlier command on the line makes is not there yet to ask.

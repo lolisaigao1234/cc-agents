@@ -479,14 +479,51 @@ test("a history command git refuses is denied in git's words; one git cannot ans
   }
   const bin = mkdtempSync(join(tmpdir(), 'brokengit-'))
   const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim()
-  writeFileSync(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" --name-only "*) echo "fatal: bad object HEAD" >&2; exit 128;; esac\nexec "${realGit}" "$@"\n`, { mode: 0o755 })
+  writeFileSync(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" --name-only "*) echo "$BROKEN" >&2; exit 128;; esac\nexec "${realGit}" "$@"\n`, { mode: 0o755 })
   const path = process.env.PATH
   process.env.PATH = `${bin}:${path}`
   try {
-    assert.throws(() => bash('git log -p'), /git did not answer: fatal: bad object HEAD/)
+    for (const words of ['fatal: bad object HEAD', 'fatal: index file corrupt', 'fatal: loose object 1234 (stored in .git/objects/12/34) is corrupt']) {
+      process.env.BROKEN = words
+      assert.throws(() => bash('git log -p'), (/** @type {Error} */ err) => err.message === `git did not answer: ${words}`, words)
+    }
   } finally {
+    delete process.env.BROKEN
     process.env.PATH = path
   }
+})
+
+test("a name the agent chose, or a file its option names, is the command's own mistake, even in words git uses for a broken repository", () => {
+  const orderfile = join(realpathSync(mkdtempSync(join(tmpdir(), 'orderfile-'))), 'order')
+  writeFileSync(orderfile, 'docs/*\n', { mode: 0o000 })
+  for (const [command, words] of [
+    ['git show fix-corrupt-index', "fatal: ambiguous argument 'fix-corrupt-index': unknown revision or path not in the working tree."],
+    ['git diff corrupted-cache', "fatal: ambiguous argument 'corrupted-cache': unknown revision or path not in the working tree."],
+    [`git show -O${orderfile} HEAD`, `fatal: failed to read orderfile '${orderfile}': Permission denied`],
+  ]) {
+    const why = String(bash(command))
+    assert.ok(why.startsWith(`archive block: \`${command.split(' ').slice(0, 2).join(' ')}\` fails here (${words}), so what it prints cannot be checked.`), why)
+  }
+})
+
+test("a history command's output and exit-code options are judged by the paths it prints, as without them", () => {
+  // HEAD~1..HEAD changes only docs/; the empty tree to HEAD takes in the archive.
+  const all = '4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD'
+  for (const opts of ['--exit-code', '--name-status', '--check', '--stat --no-patch', '-s', '-z']) {
+    assert.equal(bash(`git diff ${opts} HEAD~1`), null, opts)
+    assert.match(String(bash(`git diff ${opts} ${all}`)), /^archive block: `git diff` would print changes in the archive\./, opts)
+  }
+  assert.equal(bash('git log -p --exit-code -1'), null)
+  // --quiet prints no changes at all.
+  for (const command of ['git diff --quiet', 'git diff --quiet HEAD~1', `git diff --quiet ${all}`, 'git show --quiet HEAD~1', 'git log -p --quiet']) {
+    assert.equal(bash(command), null, command)
+  }
+  // With -z, git ends each path with NUL, not a newline: a path before the archive's does not hide it.
+  const r = fixture()
+  writeFileSync(join(r, '0.md'), 'x\n')
+  execFileSync('git', ['add', '0.md'], { cwd: r })
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'third'], { cwd: r, stdio: 'ignore' })
+  assert.match(String(bash(`git diff -z ${all}`, r)), /would print changes in the archive/)
 })
 
 test('the archive block does not run a history command that writes a file to check what it prints', () => {
