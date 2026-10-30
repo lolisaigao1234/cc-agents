@@ -172,6 +172,8 @@ async function setup(ctx) {
   cpSync(join(MATT_CACHE, String(mattVersion)), matt, { recursive: true });
   R.pluginDirs = [trace, matt];
   R.variant = JSON.parse(readIfPresentAbs(join(HERE, 'variants', ctx.variant, 'variant.json')) ?? '{}');
+  // repo/ is laid over each replay's trees; repo-append/ is appended to the files it names.
+  R.repoOverlay = { replace: join(HERE, 'variants', ctx.variant, 'repo'), append: join(HERE, 'variants', ctx.variant, 'repo-append') };
 
   // Paths whose content gives the answers away: this checkout (and its git
   // history), the installed plugins, the eval's credentials and the plugin copy.
@@ -180,6 +182,9 @@ async function setup(ctx) {
   R.denyRead = [...answerKeys, R.work];
   R.matt = matt;
   R.leak = new RegExp([SOURCE.owner, ...answerKeys].map(escape).join('|'));
+  // The token's owner shows up legitimately as the issue's author; the source
+  // repository's own slug in a tool's output means the agent reached it.
+  R.seen = new RegExp(escape(`${SOURCE.owner}/${SOURCE.repo}`), 'i');
   R.bugs = new Map(JSON.parse(readFileSync(join(DATA, 'bugs.json'), 'utf8')).map(b => [b.id, b]));
   eprint(`[setup] eval org ${ORG} reachable, source repo not writable; matt skills ${mattVersion}; work ${R.work}`);
 }
@@ -257,15 +262,15 @@ async function runCase(c, ctx) {
   const home = join(R.work, `${name}-home`);
   let replay = null;
   try {
-    replay = await buildReplay({ gh: R.gh, token: R.token, org: ORG, source: SOURCE, c, issue, work: R.work, name });
+    replay = await buildReplay({ gh: R.gh, token: R.token, org: ORG, source: SOURCE, c, issue, work: R.work, name, overlay: R.repoOverlay });
     const before = testsPass(replay.dir);
     const limitS = ctx.timeoutS > 0 ? Math.max(60, ctx.timeoutS - 900) : 4 * 3600;
     const a = await runAgent({
       dir: replay.dir, home, model: ctx.model, prompt: promptFor(replay), pluginDirs: R.pluginDirs,
       denyRead: R.denyRead, allowRead: [replay.dir, home, R.matt], denyReadTool: R.denyReadTool,
-      limitS, budgetUsd: ctx.budgetUsd, oauth: R.oauth, ghToken: R.token,
+      limitS, budgetUsd: ctx.budgetUsd, oauth: R.oauth, ghToken: R.token, slug: replay.slug,
     });
-    const d = digest(a.events, R.leak);
+    const d = digest(a.events, R.leak, R.seen);
     const res = d.result;
     const mu = res?.modelUsage ?? {};
     // modelUsage keys can carry a context suffix such as [1m].
@@ -705,6 +710,12 @@ async function main() {
         if (run.transcript)
           writeFileNoFollow(join(vdir, 'traces', `${safeId}_rep${rep}.json`),
             JSON.stringify(run.transcript, null, 2));
+        // What the judge read, so a row can be re-graded and the judge's own
+        // variance measured without re-running the agent.
+        mkdirNoFollow(join(vdir, 'judge-inputs'));
+        writeFileNoFollow(join(vdir, 'judge-inputs', `${safeId}_rep${rep}.json`), JSON.stringify({
+          issue: run.issueText, prDiff: run.prDiff, changes: run.changes, material: run.material,
+          counts: run.counts, tests: run.tests }));
         // For pairwise: on the baseline run, freeze the reference output once.
         if (args.variant === 'baseline' && run.output != null
             && !REF_EXTS.some(ext => lexists(join(refDir, safeId) + ext))) {

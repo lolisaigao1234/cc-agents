@@ -4,16 +4,19 @@
 // the plugin copies, which hold the fixes to the bugs being replayed.
 
 import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { baseEnv, claude } from './cli.mjs';
 
+const GUARD = join(dirname(fileURLToPath(import.meta.url)), 'egress-guard.mjs');
 const NETWORK = ['github.com', 'api.github.com', 'codeload.github.com', '*.githubusercontent.com', 'registry.npmjs.org'];
 
 /**
  * @param {{dir: string, home: string, model: string, prompt: string, pluginDirs: string[],
- *   denyRead: string[], allowRead: string[], denyReadTool: string[], limitS: number, budgetUsd: number, oauth: string, ghToken: string}} o
+ *   denyRead: string[], allowRead: string[], denyReadTool: string[], limitS: number, budgetUsd: number, oauth: string, ghToken: string,
+ *   slug: string}} o
  */
-export async function runAgent({ dir, home, model, prompt, pluginDirs, denyRead, allowRead, denyReadTool, limitS, budgetUsd, oauth, ghToken }) {
+export async function runAgent({ dir, home, model, prompt, pluginDirs, denyRead, allowRead, denyReadTool, limitS, budgetUsd, oauth, ghToken, slug }) {
   const env = {
     ...baseEnv(home, oauth),
     GH_TOKEN: ghToken, GH_CONFIG_DIR: join(home, '.config/gh'), GH_PROMPT_DISABLED: '1', GIT_TERMINAL_PROMPT: '0',
@@ -29,6 +32,8 @@ export async function runAgent({ dir, home, model, prompt, pluginDirs, denyRead,
       // the answer-key paths; the sandbox below covers Bash more widely.
       deny: ['WebFetch', 'WebSearch', ...denyReadTool.map(p => `Read(/${p}/**)`)],
     },
+    // Keeps Bash, in every agent of the session, on the replay repository.
+    hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `node ${JSON.stringify(GUARD)} ${JSON.stringify(slug)}`, timeout: 10 }] }] },
     sandbox: {
       enabled: true,
       failIfUnavailable: true,

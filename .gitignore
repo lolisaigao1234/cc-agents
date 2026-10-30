@@ -5,3 +5,4 @@ node_modules/
 /.claude/hillclimb/*/*/traces/
 /.claude/hillclimb/*/*/progress.txt
 /.claude/hillclimb/*/report.html
+/.claude/hillclimb/*/*/judge-inputs/

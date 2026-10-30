@@ -5,8 +5,8 @@
 // the bugs.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 
 const AUTHOR = {
   GIT_AUTHOR_NAME: 'eval', GIT_AUTHOR_EMAIL: 'eval@example.invalid',
@@ -65,9 +65,29 @@ function rewriteSlugs(dir, from, to) {
   walk(dir);
 }
 
-function layTree(sourceRoot, sha, dir, source, slug) {
+// A variant's repository files (a REVIEW.md, lines for CLAUDE.md, a workflow
+// script) go into both trees, so they are part of the repository the PR is
+// made against and never part of its diff.
+export function overlayRepo(dir, overlay) {
+  if (overlay?.replace && existsSync(overlay.replace)) cpSync(overlay.replace, dir, { recursive: true });
+  if (!overlay?.append || !existsSync(overlay.append)) return;
+  const walk = d => {
+    for (const ent of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, ent.name);
+      if (ent.isDirectory()) { walk(p); continue; }
+      const to = join(dir, relative(overlay.append, p));
+      mkdirSync(dirname(to), { recursive: true });
+      const before = existsSync(to) ? readFileSync(to, 'utf8') : '';
+      appendFileSync(to, `${before && !before.endsWith('\n') ? '\n' : ''}${before ? '\n' : ''}${readFileSync(p, 'utf8')}`);
+    }
+  };
+  walk(overlay.append);
+}
+
+function layTree(sourceRoot, sha, dir, source, slug, overlay) {
   extract(sourceRoot, sha, dir);
   rewriteSlugs(dir, source, slug);
+  overlayRepo(dir, overlay);
   // The plugin under test acts only in traced repositories.
   mkdirSync(join(dir, '.claude'), { recursive: true });
   if (!existsSync(join(dir, '.claude/trace.json'))) writeFileSync(join(dir, '.claude/trace.json'), '{}\n');
@@ -75,9 +95,10 @@ function layTree(sourceRoot, sha, dir, source, slug) {
 
 /**
  * @param {{gh: any, token: string, org: string, source: {owner: string, repo: string, root: string},
- *   c: any, issue: {title: string, body: string}, work: string, name: string}} o
+ *   c: any, issue: {title: string, body: string}, work: string, name: string,
+ *   overlay?: {replace?: string, append?: string}}} o
  */
-export async function buildReplay({ gh, token, org, source, c, issue, work, name }) {
+export async function buildReplay({ gh, token, org, source, c, issue, work, name, overlay }) {
   const slug = `${org}/${name}`;
   const dir = join(work, name);
   mkdirSync(dir, { recursive: true });
@@ -88,7 +109,7 @@ export async function buildReplay({ gh, token, org, source, c, issue, work, name
   const replay = { slug, dir, name };
   try {
     run('git', ['init', '-q', '-b', 'main'], { cwd: dir });
-    layTree(source.root, c.base, dir, source, slug);
+    layTree(source.root, c.base, dir, source, slug, overlay);
     run('git', ['add', '-A'], { cwd: dir });
     run('git', ['commit', '-q', '-m', 'Initial state'], { cwd: dir, env });
     run('git', ['remote', 'add', 'origin', remote], { cwd: dir });
@@ -98,7 +119,7 @@ export async function buildReplay({ gh, token, org, source, c, issue, work, name
     const branch = `${iss.number}-${slugify(issue.title)}`;
     run('git', ['checkout', '-q', '-b', branch], { cwd: dir });
     run('git', ['rm', '-r', '-q', '-f', '.'], { cwd: dir });
-    layTree(source.root, c.head, dir, source, slug);
+    layTree(source.root, c.head, dir, source, slug, overlay);
     run('git', ['add', '-A'], { cwd: dir });
     run('git', ['commit', '-q', '--allow-empty', '-m', `${c.title} (#${iss.number})`], { cwd: dir, env });
     run('git', [...CRED, 'push', '-q', '-u', 'origin', branch], { cwd: dir, env });

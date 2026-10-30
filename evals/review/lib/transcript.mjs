@@ -13,8 +13,8 @@ const isBugReview = input => /^\/?code-review\b/.test(String(input?.skill ?? inp
 const isStdReview = input => /mattpocock-skills:code-review/.test(String(input?.skill ?? input?.command ?? ''));
 const HOOK_DENY = /PreToolUse:\S+ hook|hook (error|denied|blocking)|blocked by .*hook/i;
 
-/** @param {any[]} events @param {RegExp} leak */
-export function digest(events, leak) {
+/** @param {any[]} events @param {RegExp} leak tool inputs that reach for the answer key @param {RegExp} [seen] tool output that shows it */
+export function digest(events, leak, seen) {
   const turns = [];
   const material = [];
   const servedMain = new Set();
@@ -64,6 +64,7 @@ export function digest(events, leak) {
         if (b.type !== 'tool_result') continue;
         const body = textOf(b.content);
         if (b.is_error && HOOK_DENY.test(body)) counts.hook_denials++;
+        if (seen?.test(body)) leaks.push(`result: ${body.slice(Math.max(0, body.search(seen) - 150), body.search(seen) + 150)}`);
         const name = toolNames.get(b.tool_use_id);
         // Subagent reports and skill output carry the findings.
         if (name === 'Agent' || name === 'Task' || name === 'Skill') material.push(`[${name} result]\n${clip(body, 12_000)}`);
