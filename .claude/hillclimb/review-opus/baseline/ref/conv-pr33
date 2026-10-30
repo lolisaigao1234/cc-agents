@@ -1,0 +1,20 @@
+PR #2 is ready for your review, with one exception: `npm test` still has one failure that you need to fix, because I can't from here. It is at 93 pass, 1 fail.
+
+**The failure:** "the vendored declarations come from the installed Claude Code". `vendor/claude-code/index.d.ts` was written by Claude Code 2.1.312, and 2.1.314 is installed. It fails on `main` too, so this PR didn't cause it. The README's fix is to start an interactive `claude --plugin-dir plugins/trace` session and copy the file it writes over the vendored one. `npm run typecheck` passes.
+
+**What the three review rounds changed** (pushed as `bdefbaf`, `9b96e9f`, `beec59e`):
+- **Skill names:** SKILL.md and the band's reasons now use full names the model can run, such as `mattpocock-skills:tdd` and `mattpocock-skills:pr`. `/to-spec`, `/to-tickets` and `/implement` are named as yours to run.
+- **Read row:** it now matches ADR 0007:
+  - an ADR with `applies-to:` counts only for edits to its paths, but every ADR counts at any commit-making git command;
+  - only the `docs/` files the issue body links are included.
+
+  It is done when no gate lists a doc as unread for this agent. The band shows only the main session's reads.
+- **Review row:** both reviews now run since the branch's base. The band's Review reason gives the same order and says which review is for bugs and which for standards and spec.
+- **Track refusals:** both share one phrase, `OPEN_ISSUE_HINT`, which names the `## Acceptance criteria` section.
+- **Guard tests:** one more hook test now runs from outside the repo. On `main`, "the hook says nothing about allowed commands and other tools" was failing because the repo's own gates interfered.
+
+Every finding has a fix or a written reason in the progress comments on #1. The PR body was written with `mattpocock-skills:pr` and says `Closes #1`.
+
+**Decisions for you:**
+- **Fourth round:** the third round is finished. The trace says to stop and ask you before starting a fourth, so I have.
+- **ADRs 0005 and 0006:** they still list `to-spec`, `to-tickets` and `implement` without saying only you can run them. I left them alone because changing ADRs is outside issue #1. A follow-up issue could fix that if you want one.

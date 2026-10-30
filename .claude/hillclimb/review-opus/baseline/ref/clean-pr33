@@ -1,0 +1,21 @@
+I ran three rounds of review and fixes on PR #2 and stopped there, which is the trace's cap. The PR is ready for your review except for two things only you can do (below). `npm test` still fails one test, which also fails on `main` and isn't caused by this change.
+
+**What the reviews changed** (each round used both `/code-review` and `mattpocock-skills:code-review`; after the first, only the new changes were reviewed):
+- **Round 1 (b76c67b):**
+  - The band's Review message now gives the branch's base and the standards, matching SKILL.md.
+  - The Read row says the linked docs are the ones in the issue body.
+  - The guard's hook tests run with `TRACE_BYPASS=1`, so the trace's checks on this repository stay out of them.
+- **Round 2 (a7d7603):**
+  - The Review message says `/code-review` is for bugs and `mattpocock-skills:code-review` is for standards and spec.
+  - One test now scans the plugin's messages. It fails if a message names `to-tickets`, `to-spec` or `implement` as a skill, or names any skill SKILL.md doesn't. I planted bad names to confirm it fails.
+- **Round 3 (2bc9104):**
+  - The Read row states ADR 0007's rule in full: every active ADR before a commit; before an edit, only those whose `applies-to:` matches the path. Rounds 1 and 2 disagreed on this wording, so it now states both cases.
+  - The message test also covers `hook.mjs` and `band.tsx`.
+
+The PR body is rewritten with `Closes #1`, a summary, before/after test results and the merge risk. The progress comment on #1 lists every finding, either with its fix or with why I left it. I'm not starting a fourth round without you; round 3 only tightened wording and test coverage, and the approach still looks right to me.
+
+**Your decisions:**
+1. **The "`npm test` passes" criterion isn't met yet.** One test fails: `vendor/claude-code/index.d.ts` is from Claude Code 2.1.312 and 2.1.314 is installed. It also fails on `main`. Fixing it needs an interactive session (`claude --plugin-dir plugins/trace`) and copying the regenerated file over, as README › Developing describes. Everything else passes: 94 of 95 tests, typecheck, the band's tests, the plugin's typecheck and validation.
+2. **ADRs 0005 and 0006 still name `to-spec`, `to-tickets` and `implement`.** They don't contradict the change, since those skills are still used, just by you. I left the accepted ADRs alone because that's outside #1's scope. Decide whether they should say outright that those three are yours to run.
+
+Merging is yours once you're happy with both.

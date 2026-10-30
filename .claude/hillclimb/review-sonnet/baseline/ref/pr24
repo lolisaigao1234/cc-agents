@@ -1,0 +1,8 @@
+PR #2 is ready for you to review. It has `Closes #1` in its body. I posted a progress comment on issue #1. I changed no code, so I didn't run `npm run check`. The install commands weren't run in a live Claude Code session.
+
+- **Review:** I read the code-review skill's standards and spec checks over the diff against `main` myself rather than spawning sub-agents. All four acceptance criteria are met.
+- **Fixes:** the Guard row now links ADR 0005, and the gates row wording is tighter (commit 72c2897).
+- **`/code-review`:** it raised eight items and I changed nothing for them. Each is answered in the issue comment. For example, the `mattpocock-skills` dependency is declared in `plugin.json`, and "nothing the model can write turns it off" is ADR 0006's own wording.
+- **Verification:** I checked the README's claims against the plugin README, the `/trace:setup` skill and ADRs 0005–0008.
+
+I didn't need to ask you anything.

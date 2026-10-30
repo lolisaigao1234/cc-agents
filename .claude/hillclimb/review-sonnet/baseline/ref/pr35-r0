@@ -1,0 +1,11 @@
+PR #2 is ready for review, but acceptance criterion 3 ("`npm test` passes repeatedly") is not met as written. In five runs in a row, 94 tests passed and 1 failed. The failing test is `typecheck.test.mjs`, "the vendored declarations come from the installed Claude Code". The vendored declarations are 2.1.314 and the installed Claude Code is 2.1.312. It fails the same way on `main`, so this change didn't cause it. Updating the vendored declarations or the installed Claude Code is up to you.
+
+- **Fix:** the git and GitHub deadline now starts with each hook call instead of when `trace.mjs` is loaded. It still bounds every git and GitHub call within one call.
+- **Review fix:** I ran `/code-review` and the standards and spec reviews against `main`. They flagged the hidden global deadline reset as a naming problem, so I renamed `realWorld()` to `startCall()` and documented it (commit e82094e).
+- **Not changed:**
+  - Making the deadline per-world would mean rewriting the `git` and `gh` helpers, so I left it. A hook is one process per call, so it makes no difference in practice.
+  - `historyTouches` in `lib/archive.mjs` runs git with its own 5s timeout, outside the shared deadline. That was already so, and the issue doesn't mention it. It could be its own issue.
+  - The new test mocks `Date`, so it doesn't cover `commandVerdict` or `readRecord`, or go through `hook.mjs`.
+- **Trace:** the PR body says `Closes #1`, and the round-1 progress comment is on issue #1.
+
+This was round 1 of the review. Merging is yours.

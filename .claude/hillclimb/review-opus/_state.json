@@ -22,6 +22,13 @@
       "scale": 1
     },
     {
+      "id": "reintroduced",
+      "label": "reintroduced",
+      "kind": "float",
+      "scale": 1,
+      "better": "lower"
+    },
+    {
       "id": "precision",
       "label": "precision",
       "kind": "float",
@@ -157,5 +164,6 @@
     "evals/review/lib/transcript.mjs",
     "evals/review/data/cases.json",
     "evals/review/data/bugs.json"
-  ]
+  ],
+  "harness_sha": "cea40d0302fe20c6da600f7db4ebbfbcf4e5860224839825f360686f718ae0ab"
 }

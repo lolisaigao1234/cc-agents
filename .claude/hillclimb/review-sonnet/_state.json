@@ -157,5 +157,6 @@
     "evals/review/lib/transcript.mjs",
     "evals/review/data/cases.json",
     "evals/review/data/bugs.json"
-  ]
+  ],
+  "harness_sha": "7c40d24aa9f7a2b8830e55e92fff486e94e54a1440e446de2f16349efa7e3217"
 }

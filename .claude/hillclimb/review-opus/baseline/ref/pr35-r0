@@ -1,0 +1,18 @@
+PR #2 is ready for your review. One acceptance criterion is still open: `npm test` passing five runs in a row. In every run, the single failure is a check that the vendored Claude Code declarations match the installed version. That's a local mismatch this branch doesn't touch.
+
+**What changed in review.** The first version reset one module-level deadline whenever a new set of git and GitHub calls was set up. So a later call could quietly extend an earlier call's deadline. Now each call gets its own deadline and its own cached answers. The caches (issues, origin remote, default branch, `gh` aliases) had the same problem as the deadline: they lived as long as the module rather than one hook call. In the hook itself nothing behaves differently, since it makes one call's worth of these per process. Most of the `trace.mjs` diff is the same code indented into `realWorld()`; `git diff -w` shows the real change.
+
+**Verification**
+- **New test:** it fails against `main` and passes now. It shows a call made 25s after the module loaded still reaches git, an older call still runs out of time, and a later call doesn't extend it.
+- **Other checks:** `test/trace.test.mjs` passes 46/46, and the typecheck is clean.
+- **`npm test` ×5:** 94 pass and 1 fails in every run. The failure is `test/typecheck.test.mjs` "the vendored declarations come from the installed Claude Code": `vendor/claude-code/index.d.ts` is from 2.1.312 and 2.1.314 is installed.
+
+**Trace status**
+- Both reviews (`/code-review` for bugs, then standards and spec) ran, and I fixed most findings in two commits, both pushed.
+- The PR body is rewritten from the PR template and says `Closes #1`.
+- The progress comment on #1 lists every finding with its fix or the reason it was kept.
+
+**Decisions for you**
+1. **Vendored declarations:** refresh `vendor/claude-code/index.d.ts` to the installed version (README, Developing), or tell me to. Until then, the five-runs criterion can't honestly be ticked.
+2. **Timeout fails open:** `realGit.traced` catches every error, including running out of time. When the marker exists only in git history and not in the working tree, a timeout makes the repository look untraced and lets the edit through. The code says this is intended, and it was there before this PR, so I left it alone. It may deserve its own issue.
+3. **Merge:** merging PR #2 is yours.

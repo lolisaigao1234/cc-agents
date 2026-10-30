@@ -1,0 +1,26 @@
+PR #2 has been through Review and Update and is ready for you, but one design decision is yours. The trace says to ask you before a fourth review round, so I've stopped here.
+
+**Decision needed: an ADR 0006 conflict.** Last round had added protection for the trace's own on/off switches. It refused edits to Claude Code settings and installed plugins in every repository, and it gated `.git/`. Both reviews flagged this: it breaks the issue's criterion *"Edits outside the repository's working tree are never blocked"* and ADR 0006's scope. The issue wins, so I removed it.
+
+ADR 0006 also says "nothing the model can write turns the trace off", and that isn't true. Without being stopped, the model can still:
+- write `disableAllHooks` or `TRACE_BYPASS` into `~/.claude/settings.json`;
+- overwrite the installed plugin;
+- add an `insteadOf` rewrite to `~/.gitconfig` that points the issue check at another repository.
+
+Closing those gaps means blocking files outside the working tree. That needs ADR 0006 and this issue's criterion amended, plus a new issue for the protection. The alternative is to accept the gap. The README now says plainly that the gate doesn't protect its own switches.
+
+**Fixed this round** (commits `ccae380` and `924eb4e`, pushed):
+- **Origin repository:** it is now read in a way that applies git's `insteadOf` rewrites. Only `github.com` itself counts as GitHub, so a look-alike such as `notgithub.com` doesn't.
+- **Private repositories:** a 404 means "missing issue" only when GitHub can see the repository. Otherwise the edit is refused with "GitHub could not say".
+- **Deny messages:** when git or GitHub can't answer, both refusal paths now share one message that names the Branch step.
+- **`.git/` directories:** `.git/` is exempt again, including a nested repository's.
+- **Smaller fixes:** some renames and glossary wording. I removed the README's links to #7 and #13, which don't exist in this repository.
+
+**Answered with a reason in the progress comment, not changed:**
+- Edits are refused when git can't answer, even in an untraced repository, because only git can say whether the repository is traced.
+- A nested repository that isn't traced itself is still gated by the traced one around it; otherwise `git init` in a subdirectory would opt out.
+- The two copies of the "find the repository root" code stay separate: the archive's version depends on parsing the Bash command, which the edit gate shouldn't.
+
+**Checks:** all 32 tests pass, the type check is clean, and plugin validation passes. `setup` is user-only and `trace` is model-invokable. The PR body is rewritten and says `Closes #1`, and the progress comment on #1 answers every finding.
+
+**Not done: acceptance criteria 3 and 4.** They need a live opted-in session where an edit on `main` is refused and then allowed on a `gh issue develop` branch, plus the same refusal inside a subagent. I didn't run those, so you'll need to.

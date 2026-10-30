@@ -1,0 +1,15 @@
+PR #2 has had one review-and-fix round and the issue has the progress comment. One acceptance criterion isn't met here: `npm test` gives 93 passes and 1 failure. The failing test is "the vendored declarations come from the installed Claude Code", which expects Claude Code 2.1.314 and finds 2.1.312. It fails the same way without my round-1 edits (checked against the PR's own HEAD, not against `main`), so it comes from the installed version, not this diff. You'll need to update Claude Code or the vendored declarations.
+
+I ran `/code-review` and `mattpocock-skills:code-review` (against `main`), and fixed these in one new commit, pushed to the PR:
+- **Read row:** the done-when is now the hooks' test (no doc unread or stale for this agent). It also says the issue body's `docs/` links are related docs, and that a commit needs every active ADR.
+- **Review round:** SKILL.md now says what a round is, and that re-review covers the diff since the last review.
+- **Guard test:** a comment moved above its JSDoc.
+
+I answered but didn't change these, with reasons in the issue comment:
+- **Band's Review reason:** it doesn't repeat the base or the round cap. SKILL.md carries those, and the issue asks only for the same order and the full skill name.
+- **Track refusals:** they don't mention `/to-spec` or `/to-tickets`. The criterion asks them to point at what the model can do, and SKILL.md covers asking the human.
+- **`cwd: tmpdir()` in the guard tests:** it stays so the repo's own gates don't intercept those tests.
+
+**For you to decide:** ADR 0005 and ADR 0006 still say `to-tickets` and `implement` are model-run. The issue didn't ask to amend them, so I left them.
+
+Merging is yours.

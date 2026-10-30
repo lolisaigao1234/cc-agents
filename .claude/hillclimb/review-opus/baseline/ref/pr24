@@ -1,0 +1,20 @@
+PR #2 has been through three rounds of review and fixes. Its body now says `Closes #1`, and issue #1 has a progress comment covering what changed, what didn't and why, and the verification. The last round's fixes are pushed but haven't been reviewed: the trace says to ask you before a fourth round, so I stopped there.
+
+**What the reviews changed in `README.md`** (commits 00ae487, 1c1160e, d6776b2):
+- **Install steps:** they now mention the `mattpocock-skills@claude-plugins-official` dependency and that `/setup-matt-pocock-skills` must be run first if any of its three `docs/agents/` files is missing. They also say what `/trace:setup` commits and when the trace goes live.
+- **Bypass:** "nothing the model can write turns it off" claimed too much. It now says the guard and the archive block stay on under `TRACE_BYPASS=1`, which I confirmed in the hook code.
+- **Table:** the garbled gates row is fixed and it uses "Traced repositories" as the glossary does. The Guard row now links ADRs 0005 and 0007 instead of having an empty ADR cell.
+- **Other:** TStack moved from "Built on" to background reading, since ADR 0005 says nothing more is taken from it. The disclaimer keeps its original meaning, and the unverifiable "(none yet)" note on `archive/` is gone.
+
+**The decision you should check:** every round found the root README copying rules from `plugins/trace/README.md` and missing some of them, and adding detail each round only made it worse. In round 3 I cut the copied detail instead: the table is now explicitly a summary and points to the plugin README for the exact rules.
+
+**Left as is, with reasons in the issue comment:**
+- There's no `/plugin marketplace add` command for `claude-plugins-official`, because I couldn't confirm where it comes from. The README states the requirement without a command that might be wrong.
+- `/setup-matt-pocock-skills` stays un-namespaced, to match the setup skill.
+
+**Checks:** `npm run check` passes 90 of 91 tests. The failing test (`test/guard.test.mjs`, "the hook says nothing about allowed commands and other tools") fails the same way on `main`: when run from inside this repo, the hook refuses the test's own edit. It isn't caused by this PR.
+
+**Your decisions:**
+1. Whether to run a fourth review round on d6776b2, or accept it as is.
+2. Whether to keep the "summary, not the rules" approach for the table.
+3. When it's ready, merging the PR — that's your step.

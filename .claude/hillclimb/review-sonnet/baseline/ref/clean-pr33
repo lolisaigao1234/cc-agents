@@ -1,0 +1,15 @@
+PR #2 is ready for you to review, but `npm test` doesn't pass yet. It gives 93 passes and 1 failure. The failing test checks the vendored Claude Code declarations: the vendored copy is from 2.1.312 and 2.1.314 is installed. It fails the same way on `main`, so this change didn't cause it. Re-vendoring is a separate step and I left it alone. That leaves the last acceptance criterion, "`npm test` passes", unmet.
+
+**Review (round 1 of 3):** I ran `/code-review` and `mattpocock-skills:code-review` (standards and spec) against `main`.
+
+**Fixes (pushed to PR #2):**
+- The Read row in `SKILL.md` now carries ADR 0007's `applies-to:` narrowing, the rule that every active ADR is related at a commit, and re-reads after a file changes.
+- The band's Review reason in `status.mjs` now gives the same base branch and standards (`GLOSSARY.md` and the active ADRs) as `SKILL.md`. I updated its test to match.
+- The round-cap wording now says the "new diff" is the commits since the last review.
+- I moved a misplaced comment in `test/guard.test.mjs`.
+
+**Answered without a change:** these are in the progress comment on issue #1, and I also updated the PR #2 body with `Closes #1`.
+
+**Needs you:** ADRs 0005 and 0006 still say tickets come from `to-tickets`. The skill now has the model open issues with `gh issue create` and asks you to run `/to-tickets`. ADRs are your decisions and the issue doesn't amend them, so I left them. Please decide whether to amend them.
+
+Merging is yours.

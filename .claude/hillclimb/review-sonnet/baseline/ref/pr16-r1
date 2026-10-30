@@ -1,0 +1,7 @@
+The standards review came back earlier and I've already acted on it, so there's nothing left to collect.
+
+- **Fixed and pushed:** the `.git/` exemption and the hook hardening, in the second commit on PR #2.
+- **Waiting on you:** whether `switchVerdict` stays, as I described in my last message. I didn't remove it because that's your call. The findings that depend on it are deferred, and the reasons are in the progress comment on #1.
+- **Still unverified:** the two live-session criteria.
+
+I'm stopping here. The PR is ready for you to review once you've decided on `switchVerdict`.
