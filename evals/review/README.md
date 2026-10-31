@@ -39,6 +39,7 @@ node evals/review/run.mjs --flow .claude/hillclimb/review-opus --variant baselin
 node evals/review/run.mjs --flow .claude/hillclimb/review-opus --variant v1 --model claude-opus-5-5 --cases <ids> --concurrency 2
 ```
 
+- The agent runs at `--effort high` (the human's own Opus setting), or at the `effort` in the arm's `variant.json`; the judge runs at `high`. Both are pinned so Claude Code's server-side default cannot shift mid-screen. Each row records its `meta.effort`.
 - Runs resume at the (case, rep) key, so a stopped run picks up where it left off. Failed attempts go to `errors.jsonl` with a failure class and are retried on the next run.
 - Long runs belong in `tmux` or a service, with the output sent to a log file.
 - Each run creates and deletes private repositories in `trace-eval-rocky`. `--keep` leaves them for inspection; delete them afterwards.

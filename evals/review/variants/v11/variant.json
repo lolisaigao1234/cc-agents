@@ -1,0 +1,7 @@
+{
+  "family": "effort-scale-check",
+  "ideas": [],
+  "deferred": [],
+  "effort": "low",
+  "check_cases": ["pr17-r0", "pr21-r0", "pr20-r0", "pr18-r0", "pr15-r0", "pr16-r0", "pr17-r1", "pr19-r0"]
+}

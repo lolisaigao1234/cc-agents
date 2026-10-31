@@ -181,6 +181,9 @@ async function setup(ctx) {
   cpSync(join(MATT_CACHE, String(mattVersion)), matt, { recursive: true });
   R.pluginDirs = [trace, matt];
   R.variant = JSON.parse(readIfPresentAbs(join(HERE, 'variants', ctx.variant, 'variant.json')) ?? '{}');
+  // The agent's effort, the human's own setting for Opus unless the arm says otherwise.
+  R.effort = R.variant.effort ?? 'high';
+  if (!['low', 'medium', 'high', 'xhigh', 'max'].includes(R.effort)) throw new Error(`variant ${ctx.variant}: unknown effort '${R.effort}'`);
   // repo/ is laid over each replay's trees; repo-append/ is appended to the files it names.
   R.repoOverlay = { replace: join(HERE, 'variants', ctx.variant, 'repo'), append: join(HERE, 'variants', ctx.variant, 'repo-append') };
 
@@ -197,7 +200,7 @@ async function setup(ctx) {
   // repository's own slug in a tool's output means the agent reached it.
   R.seen = new RegExp(escape(`${SOURCE.owner}/${SOURCE.repo}`), 'i');
   R.bugs = new Map(JSON.parse(readFileSync(join(DATA, 'bugs.json'), 'utf8')).map(b => [b.id, b]));
-  eprint(`[setup] eval org ${ORG} reachable, source repo not writable; matt skills ${mattVersion}; work ${R.work}`);
+  eprint(`[setup] eval org ${ORG} reachable, source repo not writable; matt skills ${mattVersion}; agent effort ${R.effort}; work ${R.work}`);
 }
 
 function readIfPresentAbs(p) {
@@ -282,7 +285,7 @@ async function runCase(c, ctx) {
     const before = testsPass(replay.dir);
     const limitS = ctx.timeoutS > 0 ? Math.max(60, ctx.timeoutS - 900) : 4 * 3600;
     const a = await runAgent({
-      dir: replay.dir, home, tmp, model: ctx.model, prompt: promptFor(replay), pluginDirs: R.pluginDirs,
+      dir: replay.dir, home, tmp, model: ctx.model, effort: R.effort, prompt: promptFor(replay), pluginDirs: R.pluginDirs,
       denyRead: R.denyRead, allowRead: [replay.dir, home, tmp, R.matt], denyReadTool: R.denyReadTool,
       limitS, budgetUsd: ctx.budgetUsd, oauth: R.oauth, ghToken: R.token, slug: replay.slug,
     });
@@ -318,7 +321,7 @@ async function runCase(c, ctx) {
       counts: d.counts, tests: { before, after },
       model_usage: Object.fromEntries(Object.entries(mu).map(([k, v]) => [k, apiUsage(v)])),
       turns: res.num_turns, budget_hit: /max_budget/.test(res.subtype ?? '') ? 1 : 0,
-      meta: { replay: name, served_main: d.servedMain, segments: res.segments, cli_cost_usd: res.total_cost_usd, tests: { before, after } },
+      meta: { replay: name, effort: R.effort, served_main: d.servedMain, segments: res.segments, cli_cost_usd: res.total_cost_usd, tests: { before, after } },
     };
   } finally {
     if (!ctx.keep) {

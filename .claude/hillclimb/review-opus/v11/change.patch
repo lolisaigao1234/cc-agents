@@ -1,0 +1,4 @@
+--- a/agent effort (baseline: variant.json has no effort, so high)
++++ b/evals/review/variants/v11/variant.json
+@@
++  "effort": "low",

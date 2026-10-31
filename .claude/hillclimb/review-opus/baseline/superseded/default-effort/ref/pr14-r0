@@ -1,0 +1,26 @@
+PR #2 has been through Review and Update and is ready for you to review, apart from two acceptance criteria I couldn't check and one decision you need to make. The `claude` CLI isn't installed here, so `npm run validate` / `claude plugin validate` and the live-session check were not run. Typecheck and the guard tests pass. The branch is pushed and in sync.
+
+**Fixed during review:**
+- **Missing tag:** `quality-loop-v0.1.0` didn't exist anywhere. I created it on 37961e8, the last commit with the old code, and pushed it to origin.
+- **Guard bypasses:** I ran three rounds of `/code-review`, each on the newest changes, plus Matt's standards and spec review on the full diff. The fixes are in 5e338b2, ee03a5d and f7d77a4. The guard now refuses:
+  - abbreviated options such as `git reset --har`;
+  - pushes that delete remote branches, such as `git push origin :main`;
+  - commands that reset an existing branch, such as `git checkout -B`;
+  - commands run through `env -S`, `time -p` or `find -exec`, and `find -delete`;
+  - scripts written out in the command (with `echo`, `printf` or a heredoc) and piped into a shell.
+
+  Each of these is a test case. `git push --dry-run` and similar harmless commands are still allowed, also covered by tests.
+- **Dead code:** removed parser bookkeeping that only the deleted rules used.
+- **Docs:** the plugin README now lists what the guard covers and says only the guard has shipped so far.
+- **PR and issue:** the PR body now follows the PR template and says `Closes #1`. Issue #1 has a progress comment listing each finding with its fix or its reason.
+
+**Findings I left unfixed, with reasons in the progress comment:**
+- A suggestion to refuse every shell that reads a script from a pipe, such as `cat x.sh | sh` or `curl … | bash`. The guard only reads command text, so script contents it can't see are out of its scope.
+- A reported bypass, `$'--\U68ard'`, isn't one: bash turns it into `--ڊrd`, not `--hard`.
+
+**What you need to do:**
+1. **Run the two unchecked criteria:** `npm run check`, then start a session with `claude --plugin-dir plugins/trace` and confirm the guard refuses `git reset --hard` and `git push --force`.
+2. **Decide on the guard's scope:** each round found narrower bypasses, and round 3 was down to oddities like `printf '%*s'`. The trace says to ask you before a fourth round, so I stopped. Should the guard keep chasing shell spellings, or accept its documented limits ("a seatbelt, not a sandbox") and close this class of findings?
+3. **Merge**, once you're satisfied.
+
+The progress comment has one garbled character in the "Dead code" line, where it should name the `\uE000`–`\uE002` escapes. A trace hook blocked my edit to the comment.

@@ -1,0 +1,32 @@
+PR #2 has been through three rounds of review and fixes, but it isn't ready for your review yet. The trace stops after three rounds and needs your decision on the approach before a fourth. The issue also has two acceptance criteria still unverified live.
+
+**Review rounds.** Each round ran `/code-review`, and round 1 also ran the standards and spec reviews. Every finding was either fixed (commits `868bfb3`, `2699624`, `da297da`, all pushed) or answered with a reason in the progress comment on #1.
+- The worst bug, now fixed: a malformed glob such as `[z-a]` made the hook crash and allow the call ("fail open").
+- Other bypasses fixed: `git grep foo HEAD`, `find . ! -name archive`, `rg -f archive/…`, brace globs, look-alike or overridden exclusions, and `mv` overwriting an archived file.
+- Each round's new tests failed against the previous commit and pass now: `npm test` passes 12 of 12 and `tsc` is clean.
+
+**False claim corrected.** ADR 0008 on the branch said "Verified live (#5)", but issue #5 doesn't exist and nothing had been verified. It now records only what was actually checked live.
+
+**Live checks.** They ran in a scratch repo with a root `archive/`, because this repo has none. They exercise the installed plugin, which is a different build from this branch.
+
+| Who | What was refused by the hook |
+|---|---|
+| Main session | Read, `cat`, repo-wide `grep -r` |
+| A subagent | Read, `cat`, repo-wide `grep -r` |
+| `/code-review` fork | Read |
+
+**Not verified:**
+- **Workflow agents:** checking them needs the Workflow tool, which you haven't opted into, so I didn't run it.
+- **Grep tool:** not tested live, because this session has no Grep tool. Only unit tests cover it.
+
+**Updates made:** the PR body now follows the `pr` template and says `Closes #1`. `gh pr edit` failed on a deprecated GitHub Projects (classic) field, so I set the body through the REST API instead. The progress comment is posted on #1.
+
+**Decision needed:**
+1. **Approach.** Every round found new ways around how the hook recognises a search that "excludes the archive", and round 2 introduced three regressions that round 3 had to fix. The options, posted on #1:
+   - **(1) Recommended:** only accept one standard exclusion per tool, or a root `.ignore`, and deny everything else that walks into the archive.
+   - **(2)** Have `/trace:setup` also add an OS-level sandbox read-deny on `./archive`. This would also close paths built at run time, which reading command text can't catch.
+   - **(3)** Keep the current approach and run a fourth review round.
+
+   My recommendation is (1), plus (2) where a sandbox is available.
+2. **`mkdir` inside the archive.** It stays allowed so a file can be moved in under its mirrored path, since `mv` can't create directories. I added this to ADR 0008; please confirm or reject it.
+3. **Workflow-agent check.** Opt in to the Workflow tool, or run that check yourself.

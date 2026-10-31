@@ -1,0 +1,1 @@
+Baseline rows run on the server before the agent effort was pinned (#39): Claude Code chose Opus 5.5 effort itself (a server flag or catalog default), while the human runs Opus at high. From here every arm passes --effort (high unless its variant.json says otherwise). Superseded unscored; kept for the record.

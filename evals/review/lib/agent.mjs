@@ -13,11 +13,11 @@ const GUARD = join(dirname(fileURLToPath(import.meta.url)), 'egress-guard.mjs');
 const NETWORK = ['github.com', 'api.github.com', 'codeload.github.com', '*.githubusercontent.com', 'registry.npmjs.org'];
 
 /**
- * @param {{dir: string, home: string, tmp: string, model: string, prompt: string, pluginDirs: string[],
+ * @param {{dir: string, home: string, tmp: string, model: string, effort: string, prompt: string, pluginDirs: string[],
  *   denyRead: string[], allowRead: string[], denyReadTool: string[], limitS: number, budgetUsd: number, oauth: string, ghToken: string,
  *   slug: string}} o
  */
-export async function runAgent({ dir, home, tmp, model, prompt, pluginDirs, denyRead, allowRead, denyReadTool, limitS, budgetUsd, oauth, ghToken, slug }) {
+export async function runAgent({ dir, home, tmp, model, effort, prompt, pluginDirs, denyRead, allowRead, denyReadTool, limitS, budgetUsd, oauth, ghToken, slug }) {
   const env = {
     ...baseEnv(home, oauth), TMPDIR: tmp,
     GH_TOKEN: ghToken, GH_CONFIG_DIR: join(home, '.config/gh'), GH_PROMPT_DISABLED: '1', GIT_TERMINAL_PROMPT: '0',
@@ -53,7 +53,9 @@ export async function runAgent({ dir, home, tmp, model, prompt, pluginDirs, deny
   }, null, 2));
 
   const args = [
-    '-p', prompt, '--model', model,
+    // Pinned: unset, Claude Code takes the effort from a server-side default that
+    // can change mid-screen, and it may not be the human's own setting.
+    '-p', prompt, '--model', model, '--effort', effort,
     '--output-format', 'stream-json', '--verbose',
     '--settings', settings, '--strict-mcp-config', '--no-session-persistence',
     '--permission-mode', 'bypassPermissions',
