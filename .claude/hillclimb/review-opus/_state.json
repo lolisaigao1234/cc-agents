@@ -37,7 +37,8 @@
     {
       "id": "passed",
       "label": "passed",
-      "kind": "binary"
+      "kind": "float",
+      "scale": 1
     },
     {
       "id": "reviews",
@@ -49,8 +50,9 @@
     {
       "id": "five_plus",
       "label": "5+ reviews",
-      "kind": "binary",
-      "better": "lower"
+      "kind": "float",
+      "better": "lower",
+      "scale": 1
     },
     {
       "id": "noise",
@@ -62,8 +64,9 @@
     {
       "id": "broke_tests",
       "label": "broke tests",
-      "kind": "binary",
-      "better": "lower"
+      "kind": "float",
+      "better": "lower",
+      "scale": 1
     }
   ],
   "perf_fields": [
@@ -160,5 +163,14 @@
     "evals/review/variants",
     "plugins/trace"
   ],
-  "harness_sha": "7adc81b0fa99b280ae5a7d5374c2806f50d544a5dd5601c2c34b33cf8e8ee91a"
+  "harness_sha": "7adc81b0fa99b280ae5a7d5374c2806f50d544a5dd5601c2c34b33cf8e8ee91a",
+  "goal": {
+    "target": "recall",
+    "direction": "higher",
+    "hold": [
+      "harmful",
+      "reviews"
+    ]
+  },
+  "approve_each_round": true
 }
