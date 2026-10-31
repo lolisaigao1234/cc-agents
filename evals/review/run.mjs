@@ -160,7 +160,16 @@ async function setup(ctx) {
   try { R.oauth = readOAuth(); }
   catch { throw new Error('no subscription token: run `claude setup-token` and save it to ~/.config/trace-eval/oauth-token'); }
 
-  R.work = mkdtempSync(join(tmpdir(), `review-eval-${ctx.variant}-`));
+  // One root for every run's work dir, so a single sandbox rule hides the other
+  // cases' clones, including those of another runner process on this machine.
+  // It must sit outside the home, which is denied whole below.
+  const workRoot = join(realpathSync(tmpdir()), 'review-eval');
+  const fromHome = relative(realpathSync(homedir()), workRoot);
+  if (!fromHome.startsWith('..') && !isAbsolute(fromHome))
+    throw new Error(`the work dir ${workRoot} is inside HOME, which the agent cannot read: point TMPDIR outside it`);
+  mkdirSync(workRoot, { recursive: true, mode: 0o700 });
+  R.workRoot = workRoot;
+  R.work = mkdtempSync(join(workRoot, `${ctx.variant}-`));
   // The plugin under test is this checkout's trace plugin, with the variant's
   // files laid over it. Matt's skills come from the installed copy.
   const trace = join(R.work, 'plugins/trace');
@@ -176,10 +185,12 @@ async function setup(ctx) {
   R.repoOverlay = { replace: join(HERE, 'variants', ctx.variant, 'repo'), append: join(HERE, 'variants', ctx.variant, 'repo-append') };
 
   // Paths whose content gives the answers away: this checkout (and its git
-  // history), the installed plugins, the eval's credentials and the plugin copy.
-  const answerKeys = [REPO_ROOT, join(homedir(), '.claude'), join(homedir(), '.config/trace-eval'), trace];
+  // history), and the human's home, which holds any other clone, the installed
+  // plugins, the eval's credentials and the human's own (a GitHub token with
+  // write on the source repo, session logs). Then the plugin copy.
+  const answerKeys = [REPO_ROOT, homedir(), trace];
   R.denyReadTool = answerKeys;
-  R.denyRead = [...answerKeys, R.work];
+  R.denyRead = [...answerKeys, workRoot];
   R.matt = matt;
   R.leak = new RegExp([SOURCE.owner, ...answerKeys].map(escape).join('|'));
   // The token's owner shows up legitimately as the issue's author; the source
@@ -255,19 +266,24 @@ async function gitHubMaterial(replay) {
   ];
 }
 
+const SANDBOX_DOWN = /Sandbox (?:is required but )?failed to initialize/;
+
 async function runCase(c, ctx) {
   const name = `${ctx.variant}-${ctx.model.replace(/^claude-/, '')}-${c.id}-${ctx.rep}-${randomBytes(3).toString('hex')}`
     .toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 100);
   const issue = issueFor(c);
   const home = join(R.work, `${name}-home`);
+  // The agent's TMPDIR, kept short: on Linux the sandbox puts its bridge sockets
+  // there, and a socket path past 108 bytes stops the sandbox from starting.
+  const tmp = mkdtempSync(join(R.workRoot, 't-'));
   let replay = null;
   try {
     replay = await buildReplay({ gh: R.gh, token: R.token, org: ORG, source: SOURCE, c, issue, work: R.work, name, overlay: R.repoOverlay });
     const before = testsPass(replay.dir);
     const limitS = ctx.timeoutS > 0 ? Math.max(60, ctx.timeoutS - 900) : 4 * 3600;
     const a = await runAgent({
-      dir: replay.dir, home, model: ctx.model, prompt: promptFor(replay), pluginDirs: R.pluginDirs,
-      denyRead: R.denyRead, allowRead: [replay.dir, home, R.matt], denyReadTool: R.denyReadTool,
+      dir: replay.dir, home, tmp, model: ctx.model, prompt: promptFor(replay), pluginDirs: R.pluginDirs,
+      denyRead: R.denyRead, allowRead: [replay.dir, home, tmp, R.matt], denyReadTool: R.denyReadTool,
       limitS, budgetUsd: ctx.budgetUsd, oauth: R.oauth, ghToken: R.token, slug: replay.slug,
     });
     const d = digest(a.events, R.leak, R.seen, R.variant.round_workflows ?? []);
@@ -278,6 +294,9 @@ async function runCase(c, ctx) {
     const billed = { model: ctx.model, usage: mainKey ? apiUsage(mu[mainKey]) : undefined };
     if (d.leaks.length) throw fail('answer_key_leak', `agent reached for the answer key: ${d.leaks[0]}`, billed);
     if (a.timedOut) throw fail('timeout', `agent ran past ${limitS}s`, billed);
+    // With no sandbox, no command runs: the row would score an agent that never reviewed.
+    if (a.events.some(e => e.type === 'user' && SANDBOX_DOWN.test(JSON.stringify(e.message?.content ?? ''))))
+      throw fail('sandbox_unavailable', 'the sandbox failed to start, so no command ran', billed);
     if (!res) throw fail('harness', `claude exited ${a.code} with no result: ${a.stderr.slice(-500)}`);
     if (res.is_error && !/max_turns|max_budget/.test(res.subtype ?? '')) {
       const status = res.api_error_status ?? (/overloaded|rate.?limit/i.test(String(res.result)) ? 529 : undefined);
@@ -304,7 +323,7 @@ async function runCase(c, ctx) {
   } finally {
     if (!ctx.keep) {
       if (replay?.slug) await deleteReplay(R.gh, replay).catch(e => eprint(`  could not delete ${replay.slug}: ${e.message}`));
-      for (const p of [join(R.work, name), home]) rmSync(p, { recursive: true, force: true });
+      for (const p of [join(R.work, name), home, tmp]) rmSync(p, { recursive: true, force: true });
     }
   }
 }

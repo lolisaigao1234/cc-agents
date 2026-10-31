@@ -12,7 +12,15 @@ Measures which ideas from Anthropic's [Solving code review at Anthropic](https:/
 
 Nothing below is in git. Every token stays out of chat and out of the repository.
 
-1. **Tools.** Node 24, `gh` and git; Claude Code (2.1.314 when the pilot ran). Claude Code's sandbox must work, since every agent run sets `failIfUnavailable`: on Linux that needs bubblewrap and socat.
+1. **Tools.** Node 24, `gh` and git; Claude Code (2.1.314 when the pilot ran). Claude Code's sandbox must work, since every agent run sets `failIfUnavailable`: on Linux that needs bubblewrap and socat. On Ubuntu 24.04 and later, AppArmor also stops bwrap from creating a user namespace (`bwrap: loopback: Failed RTM_NEWADDR`) until `/usr/bin/bwrap` has a profile granting `userns`:
+
+   ```
+   printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile bwrap /usr/bin/bwrap flags=(unconfined) {\n  userns,\n  include if exists <local/bwrap>\n}\n' | sudo tee /etc/apparmor.d/bwrap
+   sudo apparmor_parser -r /etc/apparmor.d/bwrap
+   ```
+
+   The agent cannot read anything under the human's home, so the runner's temp dir (`TMPDIR`) must sit outside it.
+   Hold the system under test still for a whole screen: turn off the `mattpocock` marketplace's `autoUpdate` in `~/.claude/settings.json` (the runner copies the newest cached version), and keep Claude Code from updating itself.
 2. **Matt Pocock's skills**, installed as a plugin, so that `~/.claude/plugins/cache/mattpocock/mattpocock-skills/<version>/` exists (1.3.2 when the pilot ran). The runner copies the newest version there into each run.
 3. **GitHub token** at `~/.config/trace-eval/gh-token` (mode 600): a fine-grained token whose resource owner is the `trace-eval-rocky` org, with Administration, Contents, Issues and Pull requests read and write on all its repositories, and nothing on any other owner. The runner refuses to start unless a write probe on `lolisaigao1234/cc-agents` fails.
 4. **Subscription token** at `~/.config/trace-eval/oauth-token` (mode 600), from `claude setup-token`. Every agent and judge call runs on it, not on an API key.

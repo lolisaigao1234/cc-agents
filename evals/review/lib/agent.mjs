@@ -1,7 +1,8 @@
 // Runs the agent under test: `claude -p` in the replay clone, with the trace
 // plugin variant and Matt's skills, under a throwaway HOME and Claude Code's
-// sandbox. The sandbox denies reads of this checkout, the installed plugins and
-// the plugin copies, which hold the fixes to the bugs being replayed.
+// sandbox. The sandbox denies reads of this checkout, the human's home (other
+// clones, the installed plugins, the human's own credentials) and the plugin
+// copies, which hold the fixes to the bugs being replayed.
 
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -12,13 +13,13 @@ const GUARD = join(dirname(fileURLToPath(import.meta.url)), 'egress-guard.mjs');
 const NETWORK = ['github.com', 'api.github.com', 'codeload.github.com', '*.githubusercontent.com', 'registry.npmjs.org'];
 
 /**
- * @param {{dir: string, home: string, model: string, prompt: string, pluginDirs: string[],
+ * @param {{dir: string, home: string, tmp: string, model: string, prompt: string, pluginDirs: string[],
  *   denyRead: string[], allowRead: string[], denyReadTool: string[], limitS: number, budgetUsd: number, oauth: string, ghToken: string,
  *   slug: string}} o
  */
-export async function runAgent({ dir, home, model, prompt, pluginDirs, denyRead, allowRead, denyReadTool, limitS, budgetUsd, oauth, ghToken, slug }) {
+export async function runAgent({ dir, home, tmp, model, prompt, pluginDirs, denyRead, allowRead, denyReadTool, limitS, budgetUsd, oauth, ghToken, slug }) {
   const env = {
-    ...baseEnv(home, oauth),
+    ...baseEnv(home, oauth), TMPDIR: tmp,
     GH_TOKEN: ghToken, GH_CONFIG_DIR: join(home, '.config/gh'), GH_PROMPT_DISABLED: '1', GIT_TERMINAL_PROMPT: '0',
   };
   writeFileSync(join(home, '.gitconfig'), [
@@ -44,8 +45,10 @@ export async function runAgent({ dir, home, model, prompt, pluginDirs, denyRead,
       enableWeakerNetworkIsolation: true,
       // Writes stay in the clone and the throwaway HOME; the plugin copies and the
       // other cases' clones (later snapshots hold earlier cases' fixes) are unreadable.
-      filesystem: { denyRead, allowRead, allowWrite: [dir, home] },
-      network: { allowedDomains: NETWORK },
+      filesystem: { denyRead, allowRead, allowWrite: [dir, home, tmp] },
+      // strictAllowlist: without it, bypassPermissions answers the sandbox's
+      // "new host?" prompt with yes, and any host is reachable.
+      network: { allowedDomains: NETWORK, strictAllowlist: true },
     },
   }, null, 2));
 

@@ -1,1 +1,2 @@
 Rows graded before cases.json split later_bugs out of bug_ids (#39): conv-pr33 counted bugs a historical fix round introduced after its head.
+clean-pr2 rep0 (first Linux run): the sandbox failed to start (its bridge socket path in TMPDIR passed 108 bytes), so no command ran, yet the row was scored. The runner now gives the agent a short TMPDIR and fails such an attempt as sandbox_unavailable.
