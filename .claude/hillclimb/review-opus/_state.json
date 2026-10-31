@@ -155,15 +155,10 @@
     }
   },
   "harness_paths": [
-    "evals/review/lib/agent.mjs",
-    "evals/review/lib/cli.mjs",
-    "evals/review/lib/github.mjs",
-    "evals/review/lib/grade.mjs",
-    "evals/review/lib/prices.mjs",
-    "evals/review/lib/replay.mjs",
-    "evals/review/lib/transcript.mjs",
-    "evals/review/data/cases.json",
-    "evals/review/data/bugs.json"
+    "evals/review/lib",
+    "evals/review/data",
+    "evals/review/variants",
+    "plugins/trace"
   ],
   "harness_sha": "8d0468b1371e9c08bfa4934447c93a6d5d92c5202056a3affb2a6d58208ec562"
 }

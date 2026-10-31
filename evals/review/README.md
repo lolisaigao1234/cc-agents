@@ -24,7 +24,7 @@ Nothing below is in git. Every token stays out of chat and out of the repository
 2. **Matt Pocock's skills**, installed as a plugin, so that `~/.claude/plugins/cache/mattpocock/mattpocock-skills/<version>/` exists (1.3.2 when the pilot ran). The runner copies the newest version there into each run.
 3. **GitHub token** at `~/.config/trace-eval/gh-token` (mode 600): a fine-grained token whose resource owner is the `trace-eval-rocky` org, with Administration, Contents, Issues and Pull requests read and write on all its repositories, and nothing on any other owner. The runner refuses to start unless a write probe on `lolisaigao1234/cc-agents` fails.
 4. **Subscription token** at `~/.config/trace-eval/oauth-token` (mode 600), from `claude setup-token`. Every agent and judge call runs on it, not on an API key.
-5. **Harness approval.** The runner refuses to run while the harness files differ from what the human approved in `_state.json`. Only the human approves, after reviewing the diff:
+5. **Harness approval.** The runner refuses to run while the harness files differ from what the human approved in `_state.json`. The harness is the runner, the lockfile and every path in `harness_paths`. A listed directory covers every file git sees in it, including files not yet committed, which `git diff` does not show, so check `git status` too. Run from the repo root. Only the human approves, after reviewing the diff:
 
    ```
    node evals/review/run.mjs --flow .claude/hillclimb/review-opus --variant baseline --model claude-opus-5-5 --reps 3 --approve-harness --dry-run

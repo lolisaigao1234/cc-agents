@@ -32,7 +32,7 @@ import { grade } from './lib/grade.mjs';
 import { apiUsage, costOf } from './lib/prices.mjs';
 import { readOAuth } from './lib/cli.mjs';
 import { createHash } from 'node:crypto';
-import { closeSync, constants as FS, existsSync, fstatSync, ftruncateSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, writeFileSync, writeSync } from 'node:fs';
+import { closeSync, constants as FS, existsSync, fstatSync, ftruncateSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -413,7 +413,10 @@ function usage() {
 // beside it or in the directory the runner is invoked from (dependency drift
 // is harness drift too; with neither, a note says so), plus
 // every path in `_state.json.harness_paths` (relative to the directory the
-// runner is invoked from, i.e. the repo root); compare to
+// runner is invoked from, i.e. the repo root; a listed directory stands for
+// every file git sees in it, committed or not, so a new variant file is gated
+// before it is committed, while ignored, generated files are left out; a
+// listed path that is missing or holds no file refuses); compare to
 // `_state.json.harness_sha`; refuse on absent/mismatch unless a human passes
 // --approve-harness, which records the new sha. That write is the one
 // sanctioned exception to "never write _state.json".
@@ -426,15 +429,34 @@ function usage() {
 // actually bounds an unattended run is the permission allowlist the user
 // grants the runner command (scope it to this exact command line, not a
 // prefix). Installed dependencies beyond the lockfile are outside the digest.
+function harnessFiles(listed) {
+  const p = resolve(listed);
+  let st;
+  try { st = statSync(p); }
+  catch (e) {
+    eprint(`refusing to run: harness path '${listed}' is not there (${e?.code || 'error'}) - run from the repo root, or fix _state.json.harness_paths`);
+    process.exit(2);
+  }
+  if (!st.isDirectory()) return [p];
+  const r = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '.'], { cwd: p, encoding: 'utf8' });
+  if (r.status !== 0) {
+    eprint(`refusing to run: cannot list the harness directory '${listed}' with git: ${(r.stderr || r.error?.message || '').trim()}`);
+    process.exit(2);
+  }
+  const files = r.stdout.split('\0').filter(Boolean).map(f => join(p, f));
+  if (!files.length) { eprint(`refusing to run: harness directory '${listed}' holds no file git sees`); process.exit(2); }
+  return files;
+}
+
 function checkHarness(statePath, st, approve) {
   const self = fileURLToPath(import.meta.url);
   const listed = Array.isArray(st.harness_paths) ? st.harness_paths.map(String) : [];
   const lockfiles = [...new Set([dirname(self), process.cwd()].flatMap(d =>
     ['package-lock.json', 'bun.lock', 'bun.lockb', 'yarn.lock', 'pnpm-lock.yaml'].map(f => join(d, f))))]
     .filter(f => existsSync(f));
-  const paths = [...new Set([self, ...lockfiles, ...listed.map(p => resolve(p))])].sort();
+  const paths = [...new Set([self, ...lockfiles, ...listed.flatMap(harnessFiles)])].sort();
   const h = createHash('sha256');
-  const hashed = [];
+  let hashed = 0;
   for (const p of paths) {
     let buf;
     try { buf = readFileSync(p); }
@@ -444,23 +466,25 @@ function checkHarness(statePath, st, approve) {
       continue;
     }
     h.update(relative(process.cwd(), p)).update('\0').update(buf).update('\0');
-    hashed.push(relative(process.cwd(), p));
+    hashed++;
   }
   const sha = h.digest('hex');
   if (st.harness_sha === sha) return;
+  // A listed directory is named once, not file by file.
+  const coverage = `${hashed} file(s) from ${[self, ...lockfiles].map(p => relative(process.cwd(), p)).concat(listed).join(', ')}`;
   // Said only here, where a person is about to approve or is being refused.
   if (!lockfiles.length) eprint('note: no lockfile beside the runner or in the current directory - dependency changes are outside the harness sha');
   if (approve) {
     st.harness_sha = sha;
     writeFileNoFollow(statePath, JSON.stringify(st, null, 2) + '\n');
-    eprint(`harness approved: sha256 ${sha.slice(0, 12)} over ${hashed.length} file(s) recorded in ${statePath}`);
+    eprint(`harness approved: sha256 ${sha.slice(0, 12)} over ${hashed} file(s) recorded in ${statePath}`);
     return;
   }
   if (st.harness_sha == null) {
-    eprint(`no approved harness sha in ${statePath} (computed ${sha.slice(0, 12)} over: ${hashed.join(', ')}).`);
+    eprint(`no approved harness sha in ${statePath} (computed ${sha.slice(0, 12)} over ${coverage}).`);
     eprint('Review the harness, then run once with --approve-harness to record it.');
   } else {
-    eprint(`harness changed since last approved run (files: ${hashed.join(', ')}); `
+    eprint(`harness changed since last approved run (${coverage}); `
       + `approved ${String(st.harness_sha).slice(0, 12)}, now ${sha.slice(0, 12)}.`);
     eprint('Re-run with --approve-harness after reviewing the diff.');
   }
