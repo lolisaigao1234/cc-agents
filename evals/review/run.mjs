@@ -21,7 +21,7 @@
 //     completed, the billed model/usage (never in results.jsonl)
 
 import { randomBytes } from 'node:crypto';
-import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import * as GH from './lib/github.mjs';
@@ -31,6 +31,7 @@ import { clip, digest } from './lib/transcript.mjs';
 import { grade } from './lib/grade.mjs';
 import { apiUsage, costOf } from './lib/prices.mjs';
 import { readOAuth } from './lib/cli.mjs';
+import { removeTree } from './lib/cleanup.mjs';
 import { createHash } from 'node:crypto';
 import { closeSync, constants as FS, existsSync, fstatSync, ftruncateSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -326,7 +327,7 @@ async function runCase(c, ctx) {
   } finally {
     if (!ctx.keep) {
       if (replay?.slug) await deleteReplay(R.gh, replay).catch(e => eprint(`  could not delete ${replay.slug}: ${e.message}`));
-      for (const p of [join(R.work, name), home, tmp]) rmSync(p, { recursive: true, force: true });
+      for (const p of [join(R.work, name), home, tmp]) removeTree(p, m => eprint(`  ${m}`));
     }
   }
 }
@@ -337,7 +338,7 @@ async function gradeCase(c, run, ref, ctx) {
     return await grade({ oauth: R.oauth, work, c, bugs: R.bugs, issue: run.issueText, prDiff: run.prDiff,
       changes: run.changes, material: run.material, counts: run.counts, tests: run.tests });
   } finally {
-    if (!ctx.keep) rmSync(work, { recursive: true, force: true });
+    if (!ctx.keep) removeTree(work, m => eprint(`  ${m}`));
   }
 }
 
@@ -668,7 +669,7 @@ async function main() {
   eprint(`[${args.variant}] ${tasks.length} of ${cases.length * args.reps} (id,rep) to run`);
   if (args.dryRun) {
     for (const t of tasks) eprint(`  ${t.c.id} rep${t.rep}`);
-    rmSync(R.work, { recursive: true, force: true });
+    removeTree(R.work, eprint);
     process.exit(0);
   }
 
@@ -817,7 +818,7 @@ async function main() {
   await Promise.all(Array.from({ length: Math.max(1, args.concurrency) }, worker));
   clearInterval(tick); progress();
   eprint(`[${args.variant}] done - ${ok} ok, ${fail} failed -> ${resultsPath}`);
-  if (!args.keep) rmSync(R.work, { recursive: true, force: true });
+  if (!args.keep) removeTree(R.work, eprint);
   process.exit(fail ? 1 : 0);
 }
 
