@@ -1,9 +1,9 @@
 # Review-step eval
 
-Measures which ideas from Anthropic's [Solving code review at Anthropic](https://claude.dev/blog/solving-code-review-at-anthropic/) trace's Review step should adopt (issue #39). The design, the decisions and each round's results live on the issue; this file is how to run it.
+Measures which ideas from Anthropic's [Solving code review at Anthropic](https://claude.dev/blog/solving-code-review-at-anthropic/) trace's Review step should adopt (issue #39), plus family K (`v12`), three rules for settling findings from Google's [elephant-goldfish-model](https://github.com/google/elephant-goldfish-model). The design, the decisions and each round's results live on the issue; this file is how to run it.
 
 - `data/`: the cases, the ground-truth bugs, the post's ideas, and the source issues' bodies.
-- `lib/`: replay, agent, judge, transcript digest, prices, and the egress guard.
+- `lib/`: replay, agent, judge, transcript digest, prices, the egress guard, and cleanup of a run's directories.
 - `variants/<vN>/`: one family of ideas switched on (`change.md` says what and why).
 - `run.mjs`: the runner. `selftest.mjs`: the grader's oracle, null, "I don't know" and wrong-target probes.
 - Results: `.claude/hillclimb/review-opus/` (`_state.json`, `baseline/`, `v<N>/`).

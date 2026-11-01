@@ -1905,7 +1905,7 @@
     },
     {
       "id": "checkable-answers",
-      "idea": "A finding answered without a fix must cite evidence the reviewer could check (a file and line, a test, a recorded decision); otherwise fix it or ask the human. The wish to defend code you wrote is not evidence.",
+      "idea": "A finding answered without a fix must cite evidence the reviewer could check (a file and line, a test, a decision the human recorded in an issue or ADR); otherwise fix it or ask the human. The wish to defend code you wrote is not evidence.",
       "quote": "A contest must be checkable. \"This was intentional\" is not evidence.",
       "source": "google/elephant-goldfish-model",
       "role": "arm",
@@ -1990,18 +1990,18 @@
           "pr38-halt2"
         ],
         "enough": false,
-        "gap": "Only the convergence cases measure reintroduced, and only some of their loops churned historically. Needs more than one rep per case to separate from noise."
+        "gap": "Only the convergence cases measure reintroduced. Replays squash history, so the rule acts only on the agent's own fixes in the run; the fix-round cases are chosen because their code churned historically. Needs more than one rep per case to separate from noise."
       }
     },
     {
       "id": "two-clean-rounds",
-      "idea": "A round is clean when no finding other than a nit is left unanswered. Review ends after two clean rounds in a row; after a clean round, the next one reviews the whole PR diff again.",
+      "idea": "A round is clean when no finding other than a nit is left unanswered from an earlier round. Review ends after two clean rounds in a row; after a clean round, the next one reviews the whole PR diff again and does not count toward the three-round cap.",
       "quote": "Converged: Two consecutive clean rounds. One clean round is not enough, because the next fresh reviewer can find a different gap in the same text.",
       "source": "google/elephant-goldfish-model",
       "role": "arm",
       "family": "K-settlement",
       "in_skill_now": "no",
-      "switch": "Skill text: two clean rounds in a row, the confirming round on the whole PR diff, nits do not block. Off: current (diff-only after round one; nothing says when review is done).",
+      "switch": "Skill text: two clean rounds in a row, the confirming round on the whole PR diff and outside the cap, nits do not block. Off: current (diff-only after round one; nothing says when review is done).",
       "metric": "recall; fixed; reviews; passed",
       "needs_cases": "bug cases where a first clean round missed bugs; clean PRs to price the extra round",
       "why_not": "",
@@ -2048,7 +2048,7 @@
           "clean-fix-3575482"
         ],
         "enough": false,
-        "gap": "The three-round cap leaves room for only one confirming round after a fix round. Clean cases price the extra round."
+        "gap": "A loop with two fix rounds needs a fourth, confirming round. Clean cases price the extra round."
       }
     }
   ],

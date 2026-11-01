@@ -7,11 +7,12 @@
 //   node evals/review/selftest.mjs [bug-case-id]
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readOAuth } from './lib/cli.mjs';
+import { removeTree } from './lib/cleanup.mjs';
 import { grade } from './lib/grade.mjs';
 import { costOf } from './lib/prices.mjs';
 
@@ -49,7 +50,7 @@ for (const p of probes) {
     if (!ok) failed++;
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${p.name}: recall ${g.grade.recall.toFixed(2)} (want ${p.want}); ${g.explanation.recall}; findings ${g.detail.findings.map(f => f.category).join(',') || 'none'}`);
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    removeTree(work, m => console.error(m));
   }
 }
 console.log(`judge spend at API prices: $${spend.toFixed(2)}`);
