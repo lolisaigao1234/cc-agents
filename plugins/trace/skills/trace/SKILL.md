@@ -17,7 +17,7 @@ Every change, code or docs or config, ties to one GitHub issue from start to fin
 | **Update** | `gh issue comment <n>` | the issue shows this round's progress, decisions and verification |
 | **Close** | the human merges | the issue is closed by its PR, or closed with a state reason and a comment |
 
-Review and fix run in rounds. A review that fails, times out or returns nothing has not reviewed: run it once more, and if it fails again, record it as not run in the progress comment and do not take the round as clean. Answer every finding with a fix or, in the progress comment, a reason. Fix the finding's whole class. After the first round, review only the new diff. After three rounds, step back: reconsider the approach and ask the human before a fourth.
+Review and fix run in rounds. A review, or a part of one, that fails, times out or returns no report has not reviewed, which is not the same as finding nothing: run it once more, and if it fails again, record it as not run in the progress comment, and do not end the rounds or mark the PR ready on it. Answer every finding with a fix or, in the progress comment, a reason. Fix the finding's whole class. After the first round, review only the new diff. After three rounds, step back: reconsider the approach and ask the human before a fourth.
 
 The issue is the source of truth across compaction, resumes and subagents: when memory and the issue disagree, reread the issue.
 
