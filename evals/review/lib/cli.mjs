@@ -48,12 +48,13 @@ export function baseEnv(home, oauth) {
 
 /**
  * Spawns `claude` and collects its stdout. Kills it after `limitS` seconds.
+ * `bin` runs another program the same way, such as Copilot CLI under bwrap.
  * @param {{args: string[], cwd: string, env: Record<string, string>, input?: string, limitS: number,
- *   onLine?: (line: string) => void}} o
+ *   onLine?: (line: string) => void, bin?: string}} o
  */
-export function claude({ args, cwd, env, input, limitS, onLine }) {
+export function claude({ args, cwd, env, input, limitS, onLine, bin }) {
   return new Promise((resolve, reject) => {
-    const child = spawn(resolveClaude(), args, { cwd, env, stdio: [input == null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
+    const child = spawn(bin ?? resolveClaude(), args, { cwd, env, stdio: [input == null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
     let out = '', buf = '', stderr = '', timedOut = false;
     child.stdout?.on('data', d => {
       if (!onLine) { out += d; return; }

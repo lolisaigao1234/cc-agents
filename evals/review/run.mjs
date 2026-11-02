@@ -27,9 +27,10 @@ import { spawnSync } from 'node:child_process';
 import * as GH from './lib/github.mjs';
 import { buildReplay, deleteReplay, run as sh } from './lib/replay.mjs';
 import { runAgent } from './lib/agent.mjs';
-import { clip, digest } from './lib/transcript.mjs';
+import { resolveCopilot, runCopilot } from './lib/copilot.mjs';
+import { clip, copilotDigest, digest } from './lib/transcript.mjs';
 import { grade } from './lib/grade.mjs';
-import { apiUsage, costOf } from './lib/prices.mjs';
+import { agentCost, apiUsage, costOf } from './lib/prices.mjs';
 import { readOAuth } from './lib/cli.mjs';
 import { selectCases } from './lib/cases.mjs';
 import { removeTree } from './lib/cleanup.mjs';
@@ -161,6 +162,11 @@ async function setup(ctx) {
   await GH.assertScoped(R.gh, ORG, `${SOURCE.owner}/${SOURCE.repo}`);
   try { R.oauth = readOAuth(); }
   catch { throw new Error('no subscription token: run `claude setup-token` and save it to ~/.config/trace-eval/oauth-token'); }
+  // Under Copilot the judge still runs in Claude Code; the agent's gh needs the token's login.
+  if (ctx.agent === 'copilot') {
+    eprint(`[setup] copilot ${resolveCopilot()}`);
+    R.ghUser = String((await R.gh.call('GET', '/user')).login);
+  }
 
   // One root for every run's work dir, so a single sandbox rule hides the other
   // cases' clones, including those of another runner process on this machine.
@@ -280,12 +286,21 @@ async function runCase(c, ctx) {
     replay = await buildReplay({ gh: R.gh, token: R.token, org: ORG, source: SOURCE, c, issue, work: R.work, name, overlay: R.repoOverlay });
     const before = testsPass(replay.dir);
     const limitS = ctx.timeoutS > 0 ? Math.max(60, ctx.timeoutS - 900) : 4 * 3600;
-    const a = await runAgent({
-      dir: replay.dir, home, tmp, model: ctx.model, effort: R.effort, prompt: promptFor(replay), pluginDirs: R.pluginDirs,
-      denyRead: R.denyRead, allowRead: [replay.dir, home, tmp, R.matt], denyReadTool: R.denyReadTool,
-      limitS, budgetUsd: ctx.budgetUsd, oauth: R.oauth, ghToken: R.token, slug: replay.slug,
-    });
-    const d = digest(a.events, R.leak, R.seen, R.variant.round_workflows ?? []);
+    const copilot = ctx.agent === 'copilot';
+    const a = copilot
+      ? await runCopilot({
+        dir: replay.dir, home, tmp, model: ctx.model, effort: R.effort, prompt: promptFor(replay), pluginDirs: R.pluginDirs,
+        denyReadTool: R.denyReadTool, limitS, ghToken: R.token, ghUser: R.ghUser, slug: replay.slug,
+        workRoot: R.workRoot, sourceOwner: SOURCE.owner,
+      })
+      : await runAgent({
+        dir: replay.dir, home, tmp, model: ctx.model, effort: R.effort, prompt: promptFor(replay), pluginDirs: R.pluginDirs,
+        denyRead: R.denyRead, allowRead: [replay.dir, home, tmp, R.matt], denyReadTool: R.denyReadTool,
+        limitS, budgetUsd: ctx.budgetUsd, oauth: R.oauth, ghToken: R.token, slug: replay.slug,
+      });
+    const d = copilot
+      ? copilotDigest(a.events, R.leak, R.seen, R.variant.round_workflows ?? [], { usage: a.usage })
+      : digest(a.events, R.leak, R.seen, R.variant.round_workflows ?? []);
     const res = d.result;
     const mu = res?.modelUsage ?? {};
     // modelUsage keys can carry a context suffix such as [1m].
@@ -296,9 +311,9 @@ async function runCase(c, ctx) {
       { ...billed, transcript: [{ role: 'user', content: promptFor(replay) }, ...d.turns] });
     if (a.timedOut) throw fail('timeout', `agent ran past ${limitS}s`, billed);
     // With no sandbox, no command runs: the row would score an agent that never reviewed.
-    if (a.events.some(e => e.type === 'user' && SANDBOX_DOWN.test(JSON.stringify(e.message?.content ?? ''))))
+    if (!copilot && a.events.some(e => e.type === 'user' && SANDBOX_DOWN.test(JSON.stringify(e.message?.content ?? ''))))
       throw fail('sandbox_unavailable', 'the sandbox failed to start, so no command ran', billed);
-    if (!res) throw fail('harness', `claude exited ${a.code} with no result: ${a.stderr.slice(-500)}`);
+    if (!res) throw fail('harness', `${ctx.agent} exited ${a.code} with no result: ${a.stderr.slice(-500)}`);
     if (res.is_error && !/max_turns|max_budget/.test(res.subtype ?? '')) {
       const status = res.api_error_status ?? (/overloaded|rate.?limit/i.test(String(res.result)) ? 529 : undefined);
       throw fail(status ? 'serving' : 'harness', `agent errored (${res.subtype}): ${String(res.result ?? a.stderr).slice(0, 500)}`, { ...billed, status });
@@ -319,7 +334,7 @@ async function runCase(c, ctx) {
       counts: d.counts, tests: { before, after },
       model_usage: Object.fromEntries(Object.entries(mu).map(([k, v]) => [k, apiUsage(v)])),
       turns: res.num_turns, budget_hit: /max_budget/.test(res.subtype ?? '') ? 1 : 0,
-      meta: { replay: name, effort: R.effort, served_main: d.servedMain, segments: res.segments, cli_cost_usd: res.total_cost_usd, tests: { before, after } },
+      meta: { replay: name, agent: ctx.agent, premium_requests: res.premium_requests, nano_aiu: res.nano_aiu, model_usage: Object.fromEntries(Object.entries(mu).map(([k, v]) => [k, apiUsage(v)])), effort: R.effort, served_main: d.servedMain, segments: res.segments, cli_cost_usd: res.total_cost_usd, tests: { before, after } },
     };
   } finally {
     if (!ctx.keep) {
@@ -340,19 +355,20 @@ async function gradeCase(c, run, ref, ctx) {
 }
 
 function perfFrom(run, g) {
-  const agentCosts = Object.entries(run.model_usage ?? {}).map(([m, u]) => costOf(m, u));
-  const agent_cost_usd = agentCosts.some(x => x == null) ? null : agentCosts.reduce((a, b) => a + b, 0);
+  // agent_cost_usd covers priced models only; unpriced_models names the rest.
+  const { usd: agent_cost_usd, unpriced: unpriced_models } = agentCost(run.model_usage);
   const judge_cost_usd = costOf(g.judge_model, g.judge_usage);
   const all = Object.values(run.model_usage ?? {});
   return {
-    cost_usd: agent_cost_usd == null || judge_cost_usd == null ? null : agent_cost_usd + judge_cost_usd,
-    agent_cost_usd, judge_cost_usd,
+    cost_usd: judge_cost_usd == null ? null : agent_cost_usd + judge_cost_usd,
+    agent_cost_usd, judge_cost_usd, unpriced_models,
     in_tokens: all.reduce((a, u) => a + u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens, 0),
     out_tokens: all.reduce((a, u) => a + u.output_tokens, 0),
     tool_calls: run.counts.tool_calls, turns: run.turns,
     rounds: run.counts.bug_reviews, std_reviews: run.counts.std_reviews,
     findings: g.detail.findings.length, reviews_to_pass: g.detail.first_clean_round,
     asked_human: g.detail.asked_human ? 1 : 0, hook_denials: run.counts.hook_denials,
+    premium_requests: run.meta?.premium_requests ?? null, nano_aiu: run.meta?.nano_aiu ?? null,
     refusals: run.counts.refusals, max_tokens_hits: run.counts.max_tokens_hits, budget_hit: run.budget_hit,
   };
 }
@@ -360,7 +376,7 @@ function perfFrom(run, g) {
 // --- harness (you usually won't need to touch below this line) --------------
 
 function parseArgs(argv) {
-  const a = { flow: '.claude/hillclimb/flow', variant: 'baseline',
+  const a = { flow: '.claude/hillclimb/flow', variant: 'baseline', agent: 'claude',
               model: undefined, reps: 1, concurrency: 2, timeoutS: 5400,
               approveHarness: false, cases: null, kinds: null, keep: false, budgetUsd: 40, dryRun: false };
   // A flag at the end of argv would otherwise consume undefined - which for
@@ -371,6 +387,7 @@ function parseArgs(argv) {
     if (k === '--flow') a.flow = val(++i);
     else if (k === '--variant') a.variant = val(++i);
     else if (k === '--model') a.model = val(++i);
+    else if (k === '--agent') a.agent = val(++i);
     else if (k === '--reps') a.reps = +val(++i);
     else if (k === '--concurrency') a.concurrency = +val(++i);
     else if (k === '--timeout-s') a.timeoutS = +val(++i);
@@ -395,12 +412,14 @@ function parseArgs(argv) {
       || !Number.isInteger(a.reps) || a.reps < 1
       || !Number.isInteger(a.concurrency) || a.concurrency < 1
       || !(a.budgetUsd > 0)) { usage(); process.exit(2); }
-  if (!a.model) { eprint('--model is required (claude-opus-5-5 or claude-sonnet-5-5)'); usage(); process.exit(2); }
+  if (!['claude', 'copilot'].includes(a.agent)) { eprint(`--agent must be 'claude' or 'copilot', got '${a.agent}'`); usage(); process.exit(2); }
+  if (!a.model) { eprint('--model is required (claude-opus-5-5 or claude-sonnet-5-5; under copilot, claude-opus-5.5)'); usage(); process.exit(2); }
   return a;
 }
 function usage() {
-  eprint('usage: node evals/review/run.mjs --flow DIR --variant ID --model ID [--reps N] [--cases id,id] [--kinds bug,clean,convergence]');
+  eprint('usage: node evals/review/run.mjs --flow DIR --variant ID --model ID [--agent claude|copilot] [--reps N] [--cases id,id] [--kinds bug,clean,convergence]');
   eprint('         [--concurrency N] [--timeout-s N (0 = no ceiling)] [--budget-usd N per case] [--keep] [--approve-harness]');
+  eprint('  --agent copilot runs the agent in GitHub Copilot CLI (autopilot, allow-all) under bwrap; the judge stays on Claude.');
   eprint('  --keep leaves each replay repository and clone in place for inspection.');
   eprint('  --dry-run checks the setup and lists the (case, rep) pairs it would run, then exits.');
 }
@@ -616,6 +635,10 @@ async function main() {
     catch { eprint(`${statePath} exists but is not valid JSON - fix it before spending a pass`); process.exit(2); }
   }
   checkHarness(statePath, st, args.approveHarness);
+  // A flow's rows compare only against runs of the same agent and model.
+  for (const [k, want] of [['agent', st.agent ?? 'claude'], ['model', st.model]]) {
+    if (want != null && args[k] !== want) { eprint(`${statePath} is a ${k} '${want}' flow; got --${k} '${args[k]}'`); process.exit(2); }
+  }
   const ctx = { ...args, state: st };
   await setup(ctx);
 

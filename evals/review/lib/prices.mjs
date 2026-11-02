@@ -9,7 +9,9 @@ export const PRICES = {
 };
 
 export function priceOf(model) {
-  const key = Object.keys(PRICES).find(k => String(model).startsWith(k));
+  // Copilot CLI names models with dots: claude-opus-5.5.
+  const m = String(model).replace(/\./g, '-');
+  const key = Object.keys(PRICES).find(k => m.startsWith(k));
   return key ? PRICES[key] : null;
 }
 
@@ -19,6 +21,20 @@ export function costOf(model, u) {
   if (!p || !u) return null;
   return ((u.input_tokens ?? 0) * p.in + (u.output_tokens ?? 0) * p.out
     + (u.cache_read_input_tokens ?? 0) * p.cacheRead + (u.cache_creation_input_tokens ?? 0) * p.in * 1.25) / 1e6;
+}
+
+// Copilot's sub-agents can run on models with no published price here (such as
+// gpt-5.6-luna). Their cost is left out and the models are named instead, so
+// one small sub-agent call does not void the whole run's cost.
+/** @param {Record<string, any>} modelUsage API-shape usage per model */
+export function agentCost(modelUsage) {
+  let usd = 0;
+  const unpriced = [];
+  for (const [m, u] of Object.entries(modelUsage ?? {})) {
+    const c = costOf(m, u);
+    if (c == null) unpriced.push(m); else usd += c;
+  }
+  return { usd, unpriced };
 }
 
 // The CLI's result.modelUsage is camelCase per model; convert to API shape.

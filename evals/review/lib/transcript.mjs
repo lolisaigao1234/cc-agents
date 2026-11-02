@@ -108,4 +108,107 @@ function merge(results) {
   };
 }
 
+// Copilot CLI's `--output-format json` stream: one {type, data} event per line.
+// Its tools are lowercase (bash, skill, task), skills are not namespaced, and
+// there is no built-in /code-review, so the `code-review` skill is Matt's.
+const GH_POST = /\bgh\b.*\b(comment|review|pr (create|edit))\b/;
+
+/**
+ * @param {any[]} events @param {RegExp} leak @param {RegExp} [seen] @param {string[]} [roundWorkflows]
+ * @param {{usage?: any}} [o] the --usage-output-file report
+ */
+export function copilotDigest(events, leak, seen, roundWorkflows = [], { usage } = {}) {
+  const saw = (text, where) => { if (seen?.test(text)) leaks.push(`${where}: ${text.slice(Math.max(0, text.search(seen) - 150), text.search(seen) + 150)}`); };
+  const turns = [];
+  const material = [];
+  const servedMain = new Set();
+  const counts = { tool_calls: 0, hook_denials: 0, refusals: 0, max_tokens_hits: 0, bug_reviews: 0, std_reviews: 0 };
+  const leaks = [];
+  const toolNames = new Map();
+  let init = null, summary = null, taskOk = null, lastMain = null, final = null, numTurns = 0, premium = null;
+
+  for (const ev of events) {
+    if (ev.ephemeral && ev.type !== 'session.tools_updated') continue;
+    const d = ev.data ?? {};
+    const sub = d.parentToolCallId != null;
+    const tag = sub ? 'sub:' : '';
+    if (ev.type === 'session.tools_updated' && !init) {
+      init = { model: d.model };
+      turns.push({ role: 'system', content: `model ${d.model}` });
+    } else if (ev.type === 'user.message') {
+      turns.push({ role: 'user', content: d.content ?? '' });
+    } else if (ev.type === 'assistant.turn_start') {
+      numTurns++;
+    } else if (ev.type === 'assistant.message') {
+      if (!sub && d.model) servedMain.add(d.model);
+      if (d.content?.trim()) {
+        turns.push({ role: 'assistant', content: sub ? `[subagent] ${d.content}` : d.content });
+        material.push(`${sub ? '[subagent] ' : ''}${d.content}`);
+        if (!sub) lastMain = d.content;
+      }
+    } else if (ev.type === 'tool.execution_start') {
+      counts.tool_calls++;
+      const name = d.toolName;
+      toolNames.set(d.toolCallId, name);
+      const args = d.arguments ?? {};
+      const input = JSON.stringify(args, null, 2);
+      if (leak.test(input)) leaks.push(`${name}: ${input.slice(0, 300)}`);
+      if (roundWorkflows.some(w => input.includes(w))) {
+        counts.bug_reviews++;
+        material.push(`=== REVIEW ROUND ${counts.bug_reviews} (review workflow) ===`);
+      } else if (name === 'skill' && /^\/?code-review\b/.test(String(args.skill ?? '').trim())) {
+        counts.std_reviews++;
+        material.push(`=== standards and spec review (${counts.std_reviews}) ===`);
+      } else if (name === 'bash' && GH_POST.test(args.command ?? '')) {
+        material.push(`[agent posts to GitHub]\n${clip(args.command, 8000)}`);
+      }
+      turns.push({ role: 'tool_call', name: `${tag}${name}`, content: clip(input, 8000) });
+    } else if (ev.type === 'tool.execution_complete') {
+      const body = d.success ? String(d.result?.detailedContent ?? d.result?.content ?? '') : String(d.error?.message ?? '');
+      if (d.error?.code === 'denied') counts.hook_denials++;
+      saw(body, d.success ? 'result' : 'feedback');
+      const name = toolNames.get(d.toolCallId);
+      if (['task', 'skill'].includes(name)) material.push(`[${name} result]\n${clip(body, 12_000)}`);
+      turns.push({ role: 'tool_result', content: clip(body) });
+    } else if (ev.type === 'session.task_complete') {
+      summary = d.summary ?? null;
+      taskOk = d.success ?? null;
+    } else if (ev.type === 'session.usage_checkpoint') {
+      premium = d.totalPremiumRequests ?? premium;
+    } else if (ev.type === 'session.error') {
+      turns.push({ role: 'system', content: `error: ${JSON.stringify(d)}` });
+    } else if (ev.type === 'result') {
+      final = ev;
+    }
+  }
+  const text = summary ?? lastMain;
+  if (text) turns.push({ role: 'assistant', content: `[final] ${text}` });
+  const result = final && {
+    is_error: final.exitCode !== 0,
+    subtype: final.exitCode !== 0 ? 'error_exit' : taskOk === false ? 'task_incomplete' : 'success',
+    result: text,
+    num_turns: numTurns,
+    segments: 1,
+    total_cost_usd: null,
+    premium_requests: final.usage?.premiumRequests ?? usage?.totalPremiumRequestCost ?? premium,
+    nano_aiu: usage?.totalNanoAiu ?? null,
+    modelUsage: copilotModelUsage(usage),
+  };
+  return { turns, material, servedMain: [...servedMain], counts, leaks, result, init };
+}
+
+// The usage report's inputTokens include cache reads and writes; the CLI's
+// modelUsage shape, which apiUsage converts, counts them apart.
+/** @param {any} usage */
+function copilotModelUsage(usage) {
+  return Object.fromEntries(Object.entries(usage?.modelMetrics ?? {}).map(([m, v]) => {
+    const u = v.usage ?? {};
+    const read = u.cacheReadTokens ?? 0, write = u.cacheWriteTokens ?? 0;
+    return [m, {
+      inputTokens: Math.max(0, (u.inputTokens ?? 0) - read - write), outputTokens: u.outputTokens ?? 0,
+      cacheReadInputTokens: read, cacheCreationInputTokens: write,
+    }];
+  }));
+}
+
 export { clip };
