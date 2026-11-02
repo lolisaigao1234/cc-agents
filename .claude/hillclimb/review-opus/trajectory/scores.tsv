@@ -28,9 +28,27 @@ legacy-ql-06b80d8	all	0.333
 legacy-ql-bc70d1c	all	0.667
 legacy-ql-fe4dde9	all	1.000
 legacy-ql-ledger	all	1.000
+clean-pr12	all	
+clean-pr18	all	
+clean-pr19	all	
+clean-pr21	all	
+clean-pr26	all	
+clean-pr33	all	
+clean-pr33-r1	all	
+clean-pr35	all	
+clean-fix-56ec0ee	all	
+clean-fix-09cb725	all	
+clean-fix-37f9b30	all	
+clean-fix-3575482	all	
+clean-pr2	all	
 conv-pr15	all	0.704
 conv-pr16	all	0.714
 conv-pr17	all	1.000
 conv-pr18	all	0.333
+conv-pr19	all	
+conv-pr20	all	
+conv-pr21	all	
+conv-pr26	all	
+conv-pr33	all	
 conv-pr35	all	1.000
 conv-pr38-halt	all	0.500
