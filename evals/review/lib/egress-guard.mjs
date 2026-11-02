@@ -8,14 +8,28 @@
 // reads command text, so a determined agent could get past it; the runner's
 // scan of tool results is the second layer.
 //
-//   node egress-guard.mjs <replay owner/name>   (hook JSON on stdin)
+// It also denies a command that names an answer-key path (the human's home,
+// this checkout, the plugin copy), so nothing the sandbox fails to cover runs
+// against them (#39, conv-pr38-halt rep 2 ran `HOME=/home/<human> git ...`).
+//
+//   node egress-guard.mjs <replay owner/name> [answer-key path ...]   (hook JSON on stdin)
 
 import { readFileSync } from 'node:fs';
 
 const slug = String(process.argv[2] ?? '').toLowerCase();
+const answerKeys = process.argv.slice(3);
 
-/** @param {string} command @returns {string | null} why the command is denied, or null */
-export function verdict(command, allowed) {
+const escape = (/** @type {string} */ s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * @param {string} command @param {string} allowed the replay's owner/name
+ * @param {string[]} [keys] absolute paths the agent must not touch
+ * @returns {string | null} why the command is denied, or null
+ */
+export function verdict(command, allowed, keys = []) {
+  // A key counts only as a whole path: /home/u matches /home/u and /home/u/x, not /home/u2.
+  const key = keys.find(k => k && new RegExp(`${escape(k)}(?![\\w.-])`).test(command));
+  if (key) return `${key} is outside this task's sandbox`;
   const cmd = command.toLowerCase();
   if (/\bgh\s+search\b/.test(cmd)) return 'GitHub search reaches other repositories';
   if (/\bgh\s+api\b[^\n;&|]*\bsearch\//.test(cmd)) return 'GitHub search reaches other repositories';
@@ -36,7 +50,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   let input = null;
   try { input = JSON.parse(readFileSync(0, 'utf8')); } catch {}
   const command = input?.tool_input?.command;
-  const why = typeof command === 'string' && slug ? verdict(command, slug) : null;
+  const why = typeof command === 'string' && slug ? verdict(command, slug, answerKeys) : null;
   if (why) {
     process.stdout.write(JSON.stringify({ hookSpecificOutput: {
       hookEventName: 'PreToolUse', permissionDecision: 'deny',

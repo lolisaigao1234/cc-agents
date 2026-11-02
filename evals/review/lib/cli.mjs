@@ -1,7 +1,7 @@
 // Every model call in the eval goes through `claude -p` on the human's
 // subscription, authenticated by a long-lived token from `claude setup-token`.
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -12,13 +12,34 @@ export function readOAuth() {
   return readFileSync(OAUTH_PATH, 'utf8').trim();
 }
 
+/**
+ * The agent's PATH: the runner's, without entries in the human's home. Those
+ * name the home to the agent (#39, conv-pr38-halt rep 2), and the sandbox
+ * denies reading them anyway.
+ * @param {string | undefined} path @param {string} home
+ */
+export function pathWithoutHome(path, home) {
+  const inHome = (/** @type {string} */ d) => d === home || d.startsWith(home.endsWith('/') ? home : home + '/');
+  return (path ?? '').split(':').filter(d => d && !inHome(d)).join(':');
+}
+
+// `claude` resolved on the runner's own PATH, since the agent's may not hold it.
+let claudeBin = '';
+function resolveClaude() {
+  if (claudeBin) return claudeBin;
+  const r = spawnSync('sh', ['-c', 'command -v claude'], { encoding: 'utf8' });
+  claudeBin = r.status === 0 && r.stdout.trim() ? r.stdout.trim() : 'claude';
+  return claudeBin;
+}
+
 // Only what a run needs: no credential of the human's leaks in.
+/** @param {string} home @param {string} oauth */
 export function baseEnv(home, oauth) {
   const tmp = join(home, 'tmp');
   mkdirSync(join(home, '.claude'), { recursive: true });
   mkdirSync(tmp, { recursive: true });
   return {
-    PATH: process.env.PATH ?? '', LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb',
+    PATH: pathWithoutHome(process.env.PATH, homedir()), LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb',
     HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), TMPDIR: tmp,
     CLAUDE_CODE_OAUTH_TOKEN: oauth,
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', DISABLE_AUTOUPDATER: '1',
@@ -32,15 +53,15 @@ export function baseEnv(home, oauth) {
  */
 export function claude({ args, cwd, env, input, limitS, onLine }) {
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', args, { cwd, env, stdio: [input == null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
+    const child = spawn(resolveClaude(), args, { cwd, env, stdio: [input == null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
     let out = '', buf = '', stderr = '', timedOut = false;
-    child.stdout.on('data', d => {
+    child.stdout?.on('data', d => {
       if (!onLine) { out += d; return; }
       buf += d;
       let i;
       while ((i = buf.indexOf('\n')) >= 0) { onLine(buf.slice(0, i)); buf = buf.slice(i + 1); }
     });
-    child.stderr.on('data', d => { stderr = (stderr + d).slice(-20_000); });
+    child.stderr?.on('data', d => { stderr = (stderr + d).slice(-20_000); });
     if (input != null) child.stdin?.end(input);
     const timer = setTimeout(() => {
       timedOut = true;

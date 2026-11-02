@@ -291,7 +291,9 @@ async function runCase(c, ctx) {
     // modelUsage keys can carry a context suffix such as [1m].
     const mainKey = Object.keys(mu).find(k => k.startsWith(ctx.model));
     const billed = { model: ctx.model, usage: mainKey ? apiUsage(mu[mainKey]) : undefined };
-    if (d.leaks.length) throw fail('answer_key_leak', `agent reached for the answer key: ${d.leaks[0]}`, billed);
+    // The transcript is kept (leaks/), so what the agent did there can be checked; it is never scored.
+    if (d.leaks.length) throw fail('answer_key_leak', `agent reached for the answer key: ${d.leaks[0]}`,
+      { ...billed, transcript: [{ role: 'user', content: promptFor(replay) }, ...d.turns] });
     if (a.timedOut) throw fail('timeout', `agent ran past ${limitS}s`, billed);
     // With no sandbox, no command runs: the row would score an agent that never reviewed.
     if (a.events.some(e => e.type === 'user' && SANDBOX_DOWN.test(JSON.stringify(e.message?.content ?? ''))))
@@ -576,7 +578,7 @@ async function main() {
   const vdir = join(args.flow, args.variant);
   // Preflight every output path before the first model call: a planted
   // symlink would otherwise fail each case after its (billed) run.
-  for (const p of [args.flow, join(args.flow, 'baseline'), vdir, join(vdir, 'traces'),
+  for (const p of [args.flow, join(args.flow, 'baseline'), vdir, join(vdir, 'traces'), join(vdir, 'leaks'),
                    join(vdir, 'results.jsonl'), join(vdir, 'errors.jsonl'),
                    join(vdir, 'progress.txt'), join(args.flow, 'baseline', 'ref'), join(args.flow, '_state.json')])
     if (isSymlink(p)) { eprint(`refusing to run: ${p} is a symlink (the flow dir must hold regular files)`); process.exit(2); }
@@ -790,6 +792,14 @@ async function main() {
           judge_usage: e?.judge_usage ?? lastRun?.judge_usage,
           latency_s: (Date.now() - t0) / 1000,
         }) + '\n');
+        if (e?.transcript) {
+          try {
+            mkdirNoFollow(join(vdir, 'leaks'));
+            // One file per attempt: a retry pass that leaks again must not replace the first one's evidence.
+            // Tool results may hold whatever the agent reached, so leaks/ is git-ignored.
+            writeFileNoFollow(join(vdir, 'leaks', `${safeId}_rep${rep}_${Date.now()}.json`), JSON.stringify(e.transcript, null, 2));
+          } catch (w) { eprint(`  [${args.variant}] ${c.id} rep${rep}: could not keep the voided transcript: ${w?.message || w}`); }
+        }
         eprint(`  [${args.variant}] ${c.id} rep${rep} FAILED: ${e?.message || e}`);
       }
     }

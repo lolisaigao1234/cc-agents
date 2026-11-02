@@ -33,8 +33,9 @@ export async function runAgent({ dir, home, tmp, model, effort, prompt, pluginDi
       // the answer-key paths; the sandbox below covers Bash more widely.
       deny: ['WebFetch', 'WebSearch', ...denyReadTool.map(p => `Read(/${p}/**)`)],
     },
-    // Keeps Bash, in every agent of the session, on the replay repository.
-    hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `node ${JSON.stringify(GUARD)} ${JSON.stringify(slug)}`, timeout: 10 }] }] },
+    // Keeps Bash, in every agent of the session, on the replay repository and off the answer-key paths.
+    hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', timeout: 10,
+      command: ['node', GUARD, slug, ...denyReadTool].map(a => JSON.stringify(a)).join(' ') }] }] },
     sandbox: {
       enabled: true,
       failIfUnavailable: true,
