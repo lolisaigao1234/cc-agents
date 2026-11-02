@@ -47,7 +47,13 @@ function extract(sourceRoot, sha, dir) {
 }
 
 // The source repository's slug points at its public issues, which hold the
-// answers; every copy names the replay repository instead.
+// answers; every copy, of a file or of the issue, names the replay repository
+// instead.
+/** @param {string} text @param {{owner: string, repo: string}} from @param {string} to */
+export function renameSlugs(text, from, to) {
+  return text.replaceAll(`${from.owner}/${from.repo}`, to).replaceAll(from.owner, to.split('/')[0]);
+}
+
 function rewriteSlugs(dir, from, to) {
   const walk = d => {
     for (const ent of readdirSync(d, { withFileTypes: true })) {
@@ -59,7 +65,7 @@ function rewriteSlugs(dir, from, to) {
       if (buf.includes(0)) continue;
       const text = buf.toString('utf8');
       if (!text.includes(from.owner)) continue;
-      writeFileSync(p, text.replaceAll(`${from.owner}/${from.repo}`, to).replaceAll(from.owner, to.split('/')[0]));
+      writeFileSync(p, renameSlugs(text, from, to));
     }
   };
   walk(dir);
@@ -115,7 +121,7 @@ export async function buildReplay({ gh, token, org, source, c, issue, work, name
     run('git', ['remote', 'add', 'origin', remote], { cwd: dir });
     run('git', [...CRED, 'push', '-q', '-u', 'origin', 'main'], { cwd: dir, env });
 
-    const iss = await gh.call('POST', `/repos/${slug}/issues`, { title: issue.title, body: issue.body });
+    const iss = await gh.call('POST', `/repos/${slug}/issues`, { title: renameSlugs(issue.title, source, slug), body: renameSlugs(issue.body, source, slug) });
     const branch = `${iss.number}-${slugify(issue.title)}`;
     run('git', ['checkout', '-q', '-b', branch], { cwd: dir });
     run('git', ['rm', '-r', '-q', '-f', '.'], { cwd: dir });
