@@ -1,0 +1,27 @@
+PR #2 is ready for your review, with one question for you: whether to run a fourth review round. The trace says to ask after three, so I stopped there. Round 3's own fixes (commit `29be93d`) haven't been reviewed.
+
+**What changed**
+- **Main fix:** the first commit only handled timeouts. Two reviews found that `traced()` still read other git failures as "no marker", so the gates let the edit through. That included exit 128 (dubious ownership, a broken `.git`), git killed by a signal, and a failing default-branch lookup. Now only git's plain "no" (exit 1) makes a repository untraced. Anything else makes the edit, commit and PR gates refuse, naming `TRACE_BYPASS=1`. I checked these exit codes against real git.
+- **Round 2:** a tag named `main` could stand in for the default branch and make the repo look untraced. It's now probed by full ref name.
+- **Round 3:** round 2's change broke repos with a local branch named `origin/main`. Reading origin's default branch in full fixed that.
+- **Archive block:** when git doesn't answer, it now says the archive "could not be checked" instead of wrongly saying the command touches the archive. A new `lib/git.mjs` gives the trace and the archive block the same wording.
+- **Tests:** each new test fails on the code from before its fix and passes now. They cover all three acceptance criteria, including the timeout case.
+
+**Verification**
+- `npm test`: 100 of 103 pass.
+- One unrelated test ("the shell runs what the gates read…") fails here and also fails on `main`; this branch doesn't touch it.
+- `npm run typecheck`: clean.
+
+The PR body says `Closes #1`. The progress comment on issue #1 records the decisions, the findings answered with a reason, and the test results.
+
+**Decisions for you**
+1. **Fourth review round:** whether to review `29be93d` now.
+2. **Scope:** the archive block's git calls now share the trace's per-call time limit, so together they can't run past the hook's 30 s and let the command through. The spec review said this should be its own issue. I kept it because it's the same kind of fail-open, but you may want to split it out.
+3. **Wider gating:** with no git on the PATH, or a repository git can't read, edits, commits and PRs are now refused even in untraced repositories. The acceptance criteria require this, and the PR states it under Merge Danger.
+4. **Refusal message:** this refusal names the bypass but no pipeline step, which ADR 0006 requires of every refusal. The message predates this PR and is shared with GitHub failures, so I left it. It may deserve a follow-up issue.
+5. **Corrupt repositories:** if git's object store is missing a tree, git still says a plain "no", so that case reads as untraced.
+
+**Housekeeping**
+- `gh pr edit` failed on GitHub's Projects (classic) deprecation error, so I set the PR body through `gh api` (REST).
+- The sandbox wouldn't let me delete a temporary worktree I made to run tests on `main`. `git worktree list` shows it as prunable, and `git worktree prune` will clear it.
+- `git status` lists untracked dotfiles (`.bashrc`, `.claude/agents`, …) that weren't there at session start. They look like sandbox placeholders; I didn't touch or commit them.

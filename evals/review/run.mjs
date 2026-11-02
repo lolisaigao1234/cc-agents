@@ -31,6 +31,7 @@ import { clip, digest } from './lib/transcript.mjs';
 import { grade } from './lib/grade.mjs';
 import { apiUsage, costOf } from './lib/prices.mjs';
 import { readOAuth } from './lib/cli.mjs';
+import { selectCases } from './lib/cases.mjs';
 import { removeTree } from './lib/cleanup.mjs';
 import { createHash } from 'node:crypto';
 import { closeSync, constants as FS, existsSync, fstatSync, ftruncateSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, writeFileSync, writeSync } from 'node:fs';
@@ -209,15 +210,9 @@ function readIfPresentAbs(p) {
 }
 
 async function loadCases() {
-  let cases = JSON.parse(readFileSync(join(DATA, 'cases.json'), 'utf8'));
-  // A whole-tree sweep is a different task; only the sweep arm runs it.
-  cases = cases.filter(c => c.mode !== 'sweep' || R.variant.sweep);
-  if (parsedArgs.kinds) cases = cases.filter(c => parsedArgs.kinds.includes(c.kind));
-  if (parsedArgs.cases) {
-    const unknown = parsedArgs.cases.filter(id => !cases.some(c => c.id === id));
-    if (unknown.length) throw new Error(`unknown case ids: ${unknown.join(', ')}`);
-    cases = cases.filter(c => parsedArgs.cases.includes(c.id));
-  }
+  const { cases, skipped } = selectCases(JSON.parse(readFileSync(join(DATA, 'cases.json'), 'utf8')),
+    { sweep: !!R.variant.sweep, kinds: parsedArgs.kinds, ids: parsedArgs.cases });
+  for (const s of skipped) eprint(`[cases] skipping dropped case ${s.id}: ${s.why}`);
   return cases.map(c => ({
     ...c,
     prompt: `${c.title} (${c.base}..${c.head}, ${c.diff_size})`,

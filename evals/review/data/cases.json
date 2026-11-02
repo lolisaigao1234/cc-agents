@@ -547,7 +547,8 @@
       "esc-traced-fails-open"
     ],
     "diff_size": "+1, 1 file",
-    "notes": "The change itself is correct ('{}' marker), but it turns npm test red on main, because of a latent cwd dependence in test/guard.test.mjs (c659ccb/b418246). Only a check run finds it, so it is a run-tests/checks-block case, not a clean one. Score a finding tagged Pre-existing on the test as correct."
+    "notes": "The change itself is correct ('{}' marker), but it turns npm test red on main, because of a latent cwd dependence in test/guard.test.mjs (c659ccb/b418246). Only a check run finds it, so it is a run-tests/checks-block case, not a clean one. Score a finding tagged Pre-existing on the test as correct.",
+    "dropped": "Replayed, the PR is empty: the replay writes .claude/trace.json into the base tree too, so the reviewed diff has nothing in it and recall turns on whether the agent ran npm test. Fixing the replay would change every case's environment from the baseline's, so the case is dropped instead (#39, Step 0.5)."
   },
   {
     "id": "pr33-r2",
@@ -633,7 +634,7 @@
       "traced-missing-head-object-untraced"
     ],
     "diff_size": "+112/-23, 5 files",
-    "notes": "Two sub-branch merges, 0406cf3 (#37) and 9b6eb4f (#36). Integration review round 1 found the 7377d95 regression and a sibling on old code (esc-archive-errors-fail-open, so 6883b89, since 7a97221 caught only OutOfTime). The diff fixes esc-traced-fails-open and esc-archive-history-timeout-uncapped."
+    "notes": "Two sub-branch merges, 0406cf3 (#37) and 9b6eb4f (#36). Integration review round 1 found the 7377d95 regression and a sibling on old code (esc-archive-errors-fail-open, so 6883b89, since 7a97221 caught only OutOfTime). The diff fixes esc-traced-fails-open and esc-archive-history-timeout-uncapped. conv-pr38-int, its convergence twin, is merged here: its historical loop (82f120f, 6883b89, 08a2c7e, ab30793, 756657a, ccc0110) stopped at ccc0110 on the human's halt decision."
   },
   {
     "id": "pr38-halt0",
@@ -1281,7 +1282,8 @@
       "esc-archive-errors-fail-open"
     ],
     "diff_size": "+112/-23 start",
-    "notes": "Historical: 1 integration round (82f120f, 6883b89, 08a2c7e, ab30793, 756657a, ccc0110). Then the human's halt decision changed the spec, so stop this loop at ccc0110."
+    "notes": "Historical: 1 integration round (82f120f, 6883b89, 08a2c7e, ab30793, 756657a, ccc0110). Then the human's halt decision changed the spec, so stop this loop at ccc0110.",
+    "dropped": "Merged into pr38-int: same base, head, issue, diff and bug, and no later bugs, so it scored nothing pr38-int does not and counted one bug twice (#39, Step 0.5)."
   },
   {
     "id": "conv-pr38-halt",
