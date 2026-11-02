@@ -163,7 +163,7 @@
     "evals/review/variants",
     "plugins/trace"
   ],
-  "harness_sha": "c900798ec556604385dc463b916c4758f8305e36451c35f63f0111a722956524",
+  "harness_sha": "3307b65468ee34d458f3000b301dd2e688195b712430af970cfb4787904a3ee4",
   "goal": {
     "target": "recall",
     "direction": "higher",
