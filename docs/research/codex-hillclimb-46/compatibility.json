@@ -1,0 +1,48 @@
+{
+  "frozen_commit": "0762c55447ada38cd9bf1112c32850833b32b596",
+  "integration_tip": "7721d63ce7b2ba3b6e1a6736ecccf3a434886273",
+  "merged_head": "fe3069416d77995f73c4f0b4630f42eef0c8cc97",
+  "requested_judge_constant_unchanged": true,
+  "judge_constant": "export const CODEX_JUDGE = { agent: 'codex', model: 'gpt-6-astra', effort: 'high', service_tier: 'fast' };",
+  "files": [
+    {
+      "path": "evals/review/lib/grade.mjs",
+      "frozen_sha256": "d1d8268d69763db5145e07fc12cc947f4c973bc93706ddb30aec3f7a0c894036",
+      "integrated_sha256": "d1d8268d69763db5145e07fc12cc947f4c973bc93706ddb30aec3f7a0c894036",
+      "identical": true
+    },
+    {
+      "path": "evals/review/lib/config.mjs",
+      "frozen_sha256": "f088b6bafe5f940fa0d6d3dbe3b2af6cbceeb97b301aa422ead730cd4168aff4",
+      "integrated_sha256": "572b3b6407f89bd89eeee8dbbc0876e6b88080550dd18c0f0534fd5caba06237",
+      "identical": false
+    },
+    {
+      "path": "evals/review/lib/codex.mjs",
+      "frozen_sha256": "9e8466882920a70d7d47174c3203fd538794e4e1dae214f21e7de86dd5beba73",
+      "integrated_sha256": "8e55bf2a3474e47db695a5888d905fd5f55e70757183870472311926961b9209",
+      "identical": false
+    },
+    {
+      "path": "evals/review/lib/codex-hooks.mjs",
+      "frozen_sha256": "262ffdcd6145a4745d10ed2c1f64af8d3a32c39bbf7ef4232bf584f136dcf6ed",
+      "integrated_sha256": "262ffdcd6145a4745d10ed2c1f64af8d3a32c39bbf7ef4232bf584f136dcf6ed",
+      "identical": true
+    },
+    {
+      "path": "evals/review/lib/codex-digest.mjs",
+      "frozen_sha256": "0582aa34c6c8f507f6c0dfd6552ec2af8c9629c29924e8a9f0bb1fed3f9f2d84",
+      "integrated_sha256": "0582aa34c6c8f507f6c0dfd6552ec2af8c9629c29924e8a9f0bb1fed3f9f2d84",
+      "identical": true
+    }
+  ],
+  "new_protected_harness_sha256": "ecd719b832effc148c15241f66b8133c6c8766a2dde4facd51679aa5a166a2f5",
+  "approved": false,
+  "live_calls": 0,
+  "selection": "BLOCK",
+  "reason": "Rubric bytes and requested judge identity match, but adapter/config/runner bytes changed; old calibration manifest and approvals cannot cover the integrated runtime.",
+  "integrated_tickets": [
+    45,
+    47
+  ]
+}

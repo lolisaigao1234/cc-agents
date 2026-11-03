@@ -110,3 +110,63 @@ has any live grade or human approval. V2 has new input, runtime, protocol and
 preregistration hashes; approval cannot carry across. Public red logs trim only
 trailing whitespace; original failed-test bytes remain in the restricted local
 check artifacts.
+
+## Final retention and integration compatibility
+
+V2's immutable pre-integration preregistration is
+[`0762c55447ada38cd9bf1112c32850833b32b596`](https://github.com/lolisaigao1234/cc-agents/commit/0762c55447ada38cd9bf1112c32850833b32b596).
+Its archive is retained in the separate maintainer-access
+[draft release](https://github.com/lolisaigao1234/cc-agents/releases/tag/untagged-75380ca8da8af7850982),
+release ID **433276544**, asset ID **707288160**. The archive was downloaded
+again; its SHA256 and all **32 member hashes/sizes** match the public manifest.
+It remains a draft and requires existing maintainer access. V1 is also retained
+separately and marked superseded before live calls. Neither release may be
+published automatically because both contain raw answer keys.
+
+Retrieve v2 into a fresh private directory with:
+
+```bash
+gh release download cc-agents-46-calibration-preregistration-v2 --repo lolisaigao1234/cc-agents --pattern astra-calibration-v2.tar.gz --dir /absolute/private-download
+```
+
+Verify archive SHA256
+`f1a21df39e9eecfe9ed33293c670d7a7828d049a08040b504ba7a5ccee2c7972`
+and every member against the frozen public `private_files` inventory before use.
+Keep extraction outside git with directory mode 700. Offline `plan` at the frozen
+commit verifies this inventory without authentication. At the integrated head,
+the same command correctly stops on changed runtime bytes.
+
+There was no live execution before either integration merge. The ticket branch
+merged #47 first, then the current #45+#47 integration tip
+`7721d63ce7b2ba3b6e1a6736ecccf3a434886273`, producing merge head
+`fe3069416d77995f73c4f0b4630f42eef0c8cc97`. No migration or approval was applied
+to the frozen preregistration. [Compatibility inventory](codex-hillclimb-46/compatibility.json)
+records exact old/new judge-related byte hashes; the earlier
+[#47-only inventory](codex-hillclimb-46/compatibility-47.json) is retained too.
+
+The requested `CODEX_JUDGE` constant remains Astra/High/Fast, and `grade.mjs`
+remains byte-identical at SHA256
+`d1d8268d69763db5145e07fc12cc947f4c973bc93706ddb30aec3f7a0c894036`.
+Hooks and digest bytes also match. Configuration and Codex adapter bytes differ,
+and the combined protected harness is
+`ecd719b832effc148c15241f66b8133c6c8766a2dde4facd51679aa5a166a2f5`,
+**UNAPPROVED**. The historical verifier exits **2/HUMAN stop** at exactly that
+fingerprint. The calibration manifest independently exits **2** on the first
+changed registered runtime file, before authentication. The frozen manifest was
+preserved; no hashes were rewritten to accept integration.
+
+Two precise approval gaps remain: real approval of the new frozen calibration
+driver/protocol/input hashes, and approval of any newly manifested integrated
+runtime before using it for calibration/comparison. The integrated branch cannot
+execute the old calibration manifest. A later comparison must calibrate and grade
+both arms under the same approved runtime/protocol; existing pilot grades and a
+possible calibration on older runtime bytes cannot be pooled automatically.
+No live probes, presentation/repeat measurements or comparison rows are claimed.
+Selection stays **BLOCK**.
+
+After both merges, covering eval checks passed **70/70**, zero failures/skips,
+including actual no-model pinned CLI sandbox probes. Typecheck remains the same
+**55 existing diagnostics**, byte-identical to #44. The original 39 pilot files
+remain unchanged. All private archive/source hashes and public whitespace checks
+pass. No PR, tracker update, integration push, candidate tuning or approval
+override was performed by this ticket.
