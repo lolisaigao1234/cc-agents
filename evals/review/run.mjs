@@ -21,7 +21,7 @@
 //     completed, the billed model/usage (never in results.jsonl)
 
 import { randomBytes } from 'node:crypto';
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs';
+import { chmodSync, cpSync, mkdtempSync, readdirSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import * as GH from './lib/github.mjs';
@@ -33,7 +33,11 @@ import { grade } from './lib/grade.mjs';
 import { agentCost, apiUsage, costOf } from './lib/prices.mjs';
 import { readOAuth } from './lib/cli.mjs';
 import { selectCases } from './lib/cases.mjs';
+import { executionConfig } from './lib/config.mjs';
+import { lockCodexAuth, resolveCodex } from './lib/codex.mjs';
+import { runCodexAgent } from './lib/codex-agent.mjs';
 import { removeTree } from './lib/cleanup.mjs';
+import { retainAttempt } from './lib/attempt-evidence.mjs';
 import { createHash } from 'node:crypto';
 import { closeSync, constants as FS, existsSync, fstatSync, ftruncateSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -160,8 +164,14 @@ async function setup(ctx) {
   R.token = GH.readToken();
   R.gh = GH.client(R.token);
   await GH.assertScoped(R.gh, ORG, `${SOURCE.owner}/${SOURCE.repo}`);
-  try { R.oauth = readOAuth(); }
-  catch { throw new Error('no subscription token: run `claude setup-token` and save it to ~/.config/trace-eval/oauth-token'); }
+  if (ctx.agent === 'claude' || ctx.execution.judge.agent === 'claude') {
+    try { R.oauth = readOAuth(); }
+    catch { throw new Error('no subscription token: run `claude setup-token` and save it to ~/.config/trace-eval/oauth-token'); }
+  }
+  if (ctx.agent === 'codex' || ctx.execution.judge.agent === 'codex') {
+    R.codex = { bin: resolveCodex(ctx.execution.codexVersion), auth: lockCodexAuth() };
+    eprint(`[setup] Codex ${ctx.execution.codexVersion}; Fast mode; judge ${ctx.execution.judge.model}`);
+  }
   // Under Copilot the judge still runs in Claude Code; the agent's gh needs the token's login.
   if (ctx.agent === 'copilot') {
     eprint(`[setup] copilot ${resolveCopilot()}`);
@@ -190,7 +200,7 @@ async function setup(ctx) {
   R.pluginDirs = [trace, matt];
   R.variant = JSON.parse(readIfPresentAbs(join(HERE, 'variants', ctx.variant, 'variant.json')) ?? '{}');
   // The agent's effort, the human's own setting for Opus unless the arm says otherwise.
-  R.effort = R.variant.effort ?? 'high';
+  R.effort = ctx.execution.effort ?? R.variant.effort ?? 'high';
   if (!['low', 'medium', 'high', 'xhigh', 'max'].includes(R.effort)) throw new Error(`variant ${ctx.variant}: unknown effort '${R.effort}'`);
   // repo/ is laid over each replay's trees; repo-append/ is appended to the files it names.
   R.repoOverlay = { replace: join(HERE, 'variants', ctx.variant, 'repo'), append: join(HERE, 'variants', ctx.variant, 'repo-append') };
@@ -282,12 +292,29 @@ async function runCase(c, ctx) {
   // there, and a socket path past 108 bytes stops the sandbox from starting.
   const tmp = mkdtempSync(join(R.workRoot, 't-'));
   let replay = null;
-  try {
+  return retainAttempt({ root: ctx.evidenceRoot, label: 'agent',
+    request: { case: c, variant: ctx.variant, execution: ctx.execution, rep: ctx.rep }, homes: [home],
+    execute: async () => {
     replay = await buildReplay({ gh: R.gh, token: R.token, org: ORG, source: SOURCE, c, issue, work: R.work, name, overlay: R.repoOverlay });
     const before = testsPass(replay.dir);
     const limitS = ctx.timeoutS > 0 ? Math.max(60, ctx.timeoutS - 900) : 4 * 3600;
-    const copilot = ctx.agent === 'copilot';
-    const a = copilot
+    const copilot = ctx.agent === 'copilot', codex = ctx.agent === 'codex';
+    let cd = null;
+    if (codex) {
+      try {
+        cd = await runCodexAgent({
+          dir: replay.dir, home, tmp, variant: ctx.variant, variantIdentity: ctx.execution.variant, model: ctx.model, effort: R.effort, serviceTier: ctx.execution.serviceTier,
+          prompt: promptFor(replay), pluginDirs: R.pluginDirs, denyReadTool: R.denyReadTool,
+          limitS, ghToken: R.token, slug: replay.slug, auth: R.codex.auth, bin: R.codex.bin,
+          modelVerification: ctx.execution.modelVerification, leak: R.leak, seen: R.seen,
+        });
+      } catch (e) {
+        // Preserve raw failed/partial streams outside the replay cleanup.
+        e.transcript = [{ role: 'user', content: promptFor(replay) }, { role: 'codex_events', content: e.events ?? [] }];
+        throw e;
+      }
+    }
+    const a = codex ? null : copilot
       ? await runCopilot({
         dir: replay.dir, home, tmp, model: ctx.model, effort: R.effort, prompt: promptFor(replay), pluginDirs: R.pluginDirs,
         denyReadTool: R.denyReadTool, limitS, ghToken: R.token, ghUser: R.ghUser, slug: replay.slug,
@@ -298,20 +325,20 @@ async function runCase(c, ctx) {
         denyRead: R.denyRead, allowRead: [replay.dir, home, tmp, R.matt], denyReadTool: R.denyReadTool,
         limitS, budgetUsd: ctx.budgetUsd, oauth: R.oauth, ghToken: R.token, slug: replay.slug,
       });
-    const d = copilot
+    const d = codex ? cd : copilot
       ? copilotDigest(a.events, R.leak, R.seen, R.variant.round_workflows ?? [], { usage: a.usage })
       : digest(a.events, R.leak, R.seen, R.variant.round_workflows ?? []);
-    const res = d.result;
+    const res = codex ? { result: cd.output, subtype: 'success', num_turns: cd.provenance.calls.length } : d.result;
     const mu = res?.modelUsage ?? {};
     // modelUsage keys can carry a context suffix such as [1m].
     const mainKey = Object.keys(mu).find(k => k.startsWith(ctx.model));
-    const billed = { model: ctx.model, usage: mainKey ? apiUsage(mu[mainKey]) : undefined };
+    const billed = { model: codex ? cd.model : ctx.model, usage: codex ? cd.usage : mainKey ? apiUsage(mu[mainKey]) : undefined };
     // The transcript is kept (leaks/), so what the agent did there can be checked; it is never scored.
     if (d.leaks.length) throw fail('answer_key_leak', `agent reached for the answer key: ${d.leaks[0]}`,
       { ...billed, transcript: [{ role: 'user', content: promptFor(replay) }, ...d.turns] });
-    if (a.timedOut) throw fail('timeout', `agent ran past ${limitS}s`, billed);
+    if (a?.timedOut) throw fail('timeout', `agent ran past ${limitS}s`, billed);
     // With no sandbox, no command runs: the row would score an agent that never reviewed.
-    if (!copilot && a.events.some(e => e.type === 'user' && SANDBOX_DOWN.test(JSON.stringify(e.message?.content ?? ''))))
+    if (!codex && !copilot && a.events.some(e => e.type === 'user' && SANDBOX_DOWN.test(JSON.stringify(e.message?.content ?? ''))))
       throw fail('sandbox_unavailable', 'the sandbox failed to start, so no command ran', billed);
     if (!res) throw fail('harness', `${ctx.agent} exited ${a.code} with no result: ${a.stderr.slice(-500)}`);
     if (res.is_error && !/max_turns|max_budget/.test(res.subtype ?? '')) {
@@ -321,7 +348,7 @@ async function runCase(c, ctx) {
     const after = testsPass(replay.dir);
     sh('git', ['add', '-A', '--intent-to-add'], { cwd: replay.dir });
     const served = d.servedMain.map(m => m.replace(/\[.*\]$/, ''));
-    const model = served.find(m => !m.startsWith(ctx.model)) ?? served[0] ?? ctx.model;
+    const model = codex ? cd.model : served.find(m => !m.startsWith(ctx.model)) ?? served[0] ?? ctx.model;
     const material = [...d.material, ...(await gitHubMaterial(replay))].join('\n\n');
     return {
       name, model, usage: billed.usage, stop_reason: res.subtype, status: 'ok',
@@ -330,28 +357,30 @@ async function runCase(c, ctx) {
       issueText: `${issue.title}\n\n${issue.body}`,
       prDiff: diffOf(replay.dir, [replay.baseSha, replay.headSha]),
       changes: diffOf(replay.dir, [replay.headSha]),
-      material: clip(material, 400_000),
+      material: codex ? material : clip(material, 400_000),
       counts: d.counts, tests: { before, after },
-      model_usage: Object.fromEntries(Object.entries(mu).map(([k, v]) => [k, apiUsage(v)])),
-      turns: res.num_turns, budget_hit: /max_budget/.test(res.subtype ?? '') ? 1 : 0,
-      meta: { replay: name, agent: ctx.agent, premium_requests: res.premium_requests, nano_aiu: res.nano_aiu, model_usage: Object.fromEntries(Object.entries(mu).map(([k, v]) => [k, apiUsage(v)])), effort: R.effort, served_main: d.servedMain, segments: res.segments, cli_cost_usd: res.total_cost_usd, tests: { before, after } },
+      model_usage: codex ? { [ctx.model]: cd.usage } : Object.fromEntries(Object.entries(mu).map(([k, v]) => [k, apiUsage(v)])),
+      turns: res.num_turns, budget_hit: codex ? null : /max_budget/.test(res.subtype ?? '') ? 1 : 0,
+      meta: { replay: name, agent: ctx.agent, ...(codex ? { codex: cd.provenance, codex_events: cd.events } : {}), premium_requests: res.premium_requests, nano_aiu: res.nano_aiu, model_usage: codex ? { [ctx.model]: cd.usage } : Object.fromEntries(Object.entries(mu).map(([k, v]) => [k, apiUsage(v)])), effort: R.effort, served_main: d.servedMain, segments: res.segments, cli_cost_usd: res.total_cost_usd, tests: { before, after } },
     };
-  } finally {
+  }, cleanup: async () => {
     if (!ctx.keep) {
       if (replay?.slug) await deleteReplay(R.gh, replay).catch(e => eprint(`  could not delete ${replay.slug}: ${e.message}`));
       for (const p of [join(R.work, name), home, tmp]) removeTree(p, m => eprint(`  ${m}`));
     }
-  }
+  } });
 }
 
 async function gradeCase(c, run, ref, ctx) {
   const work = join(R.work, `judge-${run.name}`);
-  try {
-    return await grade({ oauth: R.oauth, work, c, bugs: R.bugs, issue: run.issueText, prDiff: run.prDiff,
-      changes: run.changes, material: run.material, counts: run.counts, tests: run.tests });
-  } finally {
+  return retainAttempt({ root: ctx.evidenceRoot, label: 'judge',
+    request: { c, issue: run.issueText, prDiff: run.prDiff, changes: run.changes, material: run.material,
+      counts: run.counts, tests: run.tests, execution: ctx.execution }, homes: [join(work, 'judge-home')],
+    execute: () => grade({ oauth: R.oauth, work, c, bugs: R.bugs, issue: run.issueText, prDiff: run.prDiff,
+      changes: run.changes, material: run.material, counts: run.counts, tests: run.tests,
+      judgeConfig: ctx.execution.judge, codex: R.codex, modelVerification: ctx.execution.modelVerification, deadline: ctx.deadline }), cleanup: () => {
     if (!ctx.keep) removeTree(work, m => eprint(`  ${m}`));
-  }
+  } });
 }
 
 function perfFrom(run, g) {
@@ -359,11 +388,12 @@ function perfFrom(run, g) {
   const { usd: agent_cost_usd, unpriced: unpriced_models } = agentCost(run.model_usage);
   const judge_cost_usd = costOf(g.judge_model, g.judge_usage);
   const all = Object.values(run.model_usage ?? {});
+  const usageKnown = all.length && all.every(u => u != null);
   return {
-    cost_usd: judge_cost_usd == null ? null : agent_cost_usd + judge_cost_usd,
-    agent_cost_usd, judge_cost_usd, unpriced_models,
-    in_tokens: all.reduce((a, u) => a + u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens, 0),
-    out_tokens: all.reduce((a, u) => a + u.output_tokens, 0),
+    cost_usd: judge_cost_usd == null || unpriced_models.length ? null : agent_cost_usd + judge_cost_usd,
+    agent_cost_usd: unpriced_models.length ? null : agent_cost_usd, judge_cost_usd, unpriced_models,
+    in_tokens: usageKnown ? all.reduce((a, u) => a + u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens, 0) : null,
+    out_tokens: usageKnown ? all.reduce((a, u) => a + u.output_tokens, 0) : null,
     tool_calls: run.counts.tool_calls, turns: run.turns,
     rounds: run.counts.bug_reviews, std_reviews: run.counts.std_reviews,
     findings: g.detail.findings.length, reviews_to_pass: g.detail.first_clean_round,
@@ -412,14 +442,15 @@ function parseArgs(argv) {
       || !Number.isInteger(a.reps) || a.reps < 1
       || !Number.isInteger(a.concurrency) || a.concurrency < 1
       || !(a.budgetUsd > 0)) { usage(); process.exit(2); }
-  if (!['claude', 'copilot'].includes(a.agent)) { eprint(`--agent must be 'claude' or 'copilot', got '${a.agent}'`); usage(); process.exit(2); }
-  if (!a.model) { eprint('--model is required (claude-opus-5-5 or claude-sonnet-5-5; under copilot, claude-opus-5.5)'); usage(); process.exit(2); }
+  if (!['claude', 'copilot', 'codex'].includes(a.agent)) { eprint(`--agent must be 'claude', 'copilot', or 'codex', got '${a.agent}'`); usage(); process.exit(2); }
+  if (!a.model) { eprint('--model is required (Codex: gpt-6.1-sol; Claude: claude-opus-5-5; Copilot: claude-opus-5.5)'); usage(); process.exit(2); }
   return a;
 }
 function usage() {
-  eprint('usage: node evals/review/run.mjs --flow DIR --variant ID --model ID [--agent claude|copilot] [--reps N] [--cases id,id] [--kinds bug,clean,convergence]');
+  eprint('usage: node evals/review/run.mjs --flow DIR --variant ID --model ID [--agent claude|copilot|codex] [--reps N] [--cases id,id] [--kinds bug,clean,convergence]');
   eprint('         [--concurrency N] [--timeout-s N (0 = no ceiling)] [--budget-usd N per case] [--keep] [--approve-harness]');
-  eprint('  --agent copilot runs the agent in GitHub Copilot CLI (autopilot, allow-all) under bwrap; the judge stays on Claude.');
+  eprint('  --agent codex supports baseline and v13 (evidence-before-fix v1); judge model and backend are frozen in the flow state.');
+  eprint('  --agent copilot runs GitHub Copilot CLI under bwrap; legacy flows retain their Claude judge.');
   eprint('  --keep leaves each replay repository and clone in place for inspection.');
   eprint('  --dry-run checks the setup and lists the (case, rep) pairs it would run, then exits.');
 }
@@ -527,6 +558,11 @@ async function withBackoff(fn, retry, deadline = Infinity, tries = 5) {
       throw e;
     }
     try { return await fn(); } catch (e) {
+      retry.failures ??= [];
+      retry.failures.push({ failure_class: e.failure_class, error: String(e.message),
+        model: e.model, requested_model: e.requested_model, usage: e.usage,
+        judge_model: e.judge_model, judge_requested_model: e.judge_requested_model, judge_usage: e.judge_usage });
+      if (e.events) { retry.evidence ??= []; retry.evidence.push(...e.events); }
       const status = e?.status ?? e?.response?.status;
       const transient = status === 429 || status === 529 || (status >= 500 && status < 600)
         || /overloaded|rate.?limit/i.test(String(e?.message ?? ''));
@@ -543,7 +579,8 @@ async function withBackoff(fn, retry, deadline = Infinity, tries = 5) {
 
 // Hard per-case wall-clock ceiling, independent of stream liveness - a hung
 // SSE stream can emit keepalives forever, defeating inactivity-based timers.
-// The underlying call may keep running; the case fails and the slot is freed.
+// A deadline rejects scoring; the worker still drains provider retention/cleanup
+// before freeing its slot. A late response cannot turn the timeout into a score.
 function withTimeout(promise, seconds, label) {
   if (!(seconds > 0)) return promise;
   let timer;
@@ -634,21 +671,33 @@ async function main() {
     try { st = JSON.parse(stateText) || {}; }
     catch { eprint(`${statePath} exists but is not valid JSON - fix it before spending a pass`); process.exit(2); }
   }
+  // Reject unsupported protocols before auth, setup, or any model call.
+  const execution = executionConfig(st, args);
   checkHarness(statePath, st, args.approveHarness);
   // A flow's rows compare only against runs of the same agent and model.
   for (const [k, want] of [['agent', st.agent ?? 'claude'], ['model', st.model]]) {
     if (want != null && args[k] !== want) { eprint(`${statePath} is a ${k} '${want}' flow; got --${k} '${args[k]}'`); process.exit(2); }
   }
-  const ctx = { ...args, state: st };
-  await setup(ctx);
-
+  const ctx = { ...args, state: st, execution };
   // Resume: which (id, rep) pairs already have a row?
   const resultsPath = join(vdir, 'results.jsonl');
   const done = new Set();
   for (const ln of (readIfPresent(resultsPath) ?? '').split('\n')) {
     if (!ln.trim()) continue;
-    try { const r = JSON.parse(ln); done.add(`${r.prompt_id}\0${r.rep}`); } catch {}
+    let r;
+    try { r = JSON.parse(ln); } catch { continue; }
+    if (r.meta?.execution_config && JSON.stringify(r.meta.execution_config) !== JSON.stringify(ctx.execution))
+      throw new Error('flow results use a different execution configuration; use a separate flow');
+    const priorJudge = r.meta?.judge_config ?? { agent: 'claude', model: 'claude-fable-5-1', effort: 'high', service_tier: null };
+    if (JSON.stringify(priorJudge) !== JSON.stringify(ctx.execution.judge))
+      throw new Error('flow results use a different judge configuration; use a separate flow');
+    if (args.agent === 'codex' && (r.meta?.codex?.effort !== ctx.execution.effort || r.meta?.codex?.service_tier !== ctx.execution.serviceTier))
+      throw new Error('flow results use a different Codex effort/tier; use a separate flow');
+    if (args.agent === 'codex' && JSON.stringify(r.meta?.codex?.variant) !== JSON.stringify(ctx.execution.variant))
+      throw new Error('flow results use a different Codex variant; use a separate flow');
+    done.add(`${r.prompt_id}\0${r.rep}`);
   }
+  await setup(ctx);
   // Rows key on the path-safe id (see pathSafeId), so resume must too.
 
   const cases = await loadCases();
@@ -706,17 +755,21 @@ async function main() {
     while (i < tasks.length) {
       const { c, rep } = tasks[i++];
       const safeId = pathSafeId(c.id);
+      const evidenceRoot = join(vdir, 'attempts', `${safeId}_rep${rep}`);
+      mkdirNoFollow(evidenceRoot);
+      chmodSync(evidenceRoot, 0o700);
       const t0 = Date.now();
       let lastRun = null;    // survives into the catch - billed spend on a failed attempt
+      let caseWork = null; // drain provider cleanup/retention even if the scoring deadline wins
       let rowWritten = false; // set once the results row lands - the attempt is scored
       const deadline = args.timeoutS > 0 ? t0 + args.timeoutS * 1000 : Infinity;
-      const appRetry = { count: 0 }, judgeRetry = { count: 0 };
+      const appRetry = { count: 0, failures: [], evidence: [] }, judgeRetry = { count: 0, failures: [], evidence: [] };
       try {
         // One ceiling over the whole case - app call, identity check, and grading - 
         // so a hung judge stream can't hold the slot either.
-        const { run, g, latency_s } = await withTimeout((async () => {
+        const { run, g, latency_s } = await withTimeout(caseWork = (async () => {
           let tAttempt = t0;
-          const run = await withBackoff(() => { tAttempt = Date.now(); return runCase(c, { ...ctx, rep }); },
+          const run = await withBackoff(() => { tAttempt = Date.now(); return runCase(c, { ...ctx, rep, deadline, evidenceRoot }); },
             appRetry, deadline);
           lastRun = run;
           // latency_s = the final app attempt only; backoff sleeps, failed
@@ -752,16 +805,18 @@ async function main() {
               catch (e) { if (e?.code !== 'ENOENT') throw e; }
             }
           }
-          const g = await withBackoff(() => gradeCase(c, run, ref, ctx), judgeRetry, deadline);
+          const g = await withBackoff(() => gradeCase(c, run, ref, { ...ctx, deadline, evidenceRoot }), judgeRetry, deadline);
           return { run, g, latency_s };
         })(), args.timeoutS, `${c.id} rep${rep}`);
+        const { codex_events: rawCodexEvents, ...rowMeta } = run.meta ?? {};
         const row = {
           prompt_id: safeId, rep, prompt: c.prompt ?? c.input ?? c.id,
           tags: c.tags, attachments: c.attachments,
-          meta: { ...(c.meta ?? {}), ...(run.meta ?? {}), grading: g.detail,
+          meta: { ...(c.meta ?? {}), ...rowMeta, grading: g.detail, judge_config: g.judge_config, judge_provenance: g.judge_provenance, execution_config: ctx.execution,
                   ...(safeId !== String(c.id) ? { original_id: String(c.id) } : {}),
                   ...(appRetry.count ? { retries: appRetry.count } : {}),
-                  ...(judgeRetry.count ? { judge_retries: judgeRetry.count } : {}) },
+                  ...(judgeRetry.count ? { judge_retries: judgeRetry.count } : {}),
+                  ...((appRetry.count || judgeRetry.count) ? { failed_attempts: [...appRetry.failures, ...judgeRetry.failures], usage_scope: 'final_attempt' } : {}) },
           model: run.model, usage: run.usage, stop_reason: run.stop_reason,
           // The report keys on `status`, not stop_reason: a clipped answer is
           // counted and shown but kept out of the means. runCase may set
@@ -774,6 +829,18 @@ async function main() {
         };
         appendFileNoFollow(resultsPath, JSON.stringify(row) + '\n');
         rowWritten = true; // past this point the attempt is scored - a later throw (trace write, ref freeze) must not also append an error row
+        if (appRetry.evidence.length || judgeRetry.evidence.length) {
+          mkdirNoFollow(join(vdir, 'codex-events'));
+          writeFileNoFollow(join(vdir, 'codex-events', `${safeId}_rep${rep}_retries.jsonl`), [...appRetry.evidence, ...judgeRetry.evidence].map(e => JSON.stringify(e)).join('\n') + '\n');
+        }
+        if (rawCodexEvents) {
+          mkdirNoFollow(join(vdir, 'codex-events'));
+          writeFileNoFollow(join(vdir, 'codex-events', `${safeId}_rep${rep}.jsonl`), rawCodexEvents.map(e => JSON.stringify(e)).join('\n') + '\n');
+        }
+        if (g.raw_events?.length) {
+          mkdirNoFollow(join(vdir, 'codex-events'));
+          writeFileNoFollow(join(vdir, 'codex-events', `${safeId}_rep${rep}_judge.jsonl`), g.raw_events.map(e => JSON.stringify(e)).join('\n') + '\n');
+        }
         if (run.transcript)
           writeFileNoFollow(join(vdir, 'traces', `${safeId}_rep${rep}.json`),
             JSON.stringify(run.transcript, null, 2));
@@ -792,6 +859,10 @@ async function main() {
         }
         ok++;
       } catch (e) {
+        // A wall-clock rejection does not cancel the provider promise. Drain it
+        // before the next case or global cleanup so evidence survives and
+        // subscription concurrency stays one. Its late success is never scored.
+        await caseWork?.catch(() => {});
         fail++;
         if (rowWritten) {
           // The attempt scored; only a post-row write (trace, ref) failed. An error
@@ -805,16 +876,19 @@ async function main() {
           prompt_id: safeId, rep,
           ...(safeId !== String(c.id) ? { original_id: String(c.id) } : {}),
           failure_class: e?.failure_class ?? 'error',
+          evidence_directory: relative(vdir, evidenceRoot),
           error: String(e?.message || e),
-          retries: appRetry.count, judge_retries: judgeRetry.count,
+          retries: appRetry.count, judge_retries: judgeRetry.count, failed_attempts: [...appRetry.failures, ...judgeRetry.failures],
           // Billed-but-failed spend stays countable: when the app call completed
           // before the failure (e.g. a served-model mismatch, a judge-stage
           // ceiling), carry its identity and usage on the error row.
+          requested_model: ctx.model, judge_requested_model: ctx.execution.judge.model,
           model: lastRun?.model ?? e?.model, usage: lastRun?.usage ?? e?.usage,
           judge_model: e?.judge_model ?? lastRun?.judge_model,
           judge_usage: e?.judge_usage ?? lastRun?.judge_usage,
           latency_s: (Date.now() - t0) / 1000,
         }) + '\n');
+        if (appRetry.evidence.length || judgeRetry.evidence.length) e.transcript = [...(e.transcript ?? []), { role: 'codex_events', content: [...appRetry.evidence, ...judgeRetry.evidence] }];
         if (e?.transcript) {
           try {
             mkdirNoFollow(join(vdir, 'leaks'));

@@ -1,0 +1,12 @@
+✔ a search reaches the archive of the repository it searches, wherever the agent is (231.162444ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 396.706855
+ls: cannot access '/tmp/cc-agents-43/ticket-45-evidence/replay-v2/pr16-r1/temp/.git': No such file or directory
+fatal: not a git repository (or any parent up to mount point /tmp/cc-agents-43/ticket-45-evidence/replay-v2/pr16-r1)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).

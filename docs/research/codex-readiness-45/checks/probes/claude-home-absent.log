@@ -1,0 +1,32 @@
+✖ the guard allows everything else, including text that mentions destructive commands (30.169195ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 213.479706
+
+✖ failing tests:
+
+test at test/guard.test.mjs:230:1
+✖ the guard allows everything else, including text that mentions destructive commands (30.169195ms)
+  AssertionError [ERR_ASSERTION]: mv notes.md ~/.claude/
+  + actual - expected
+  
+  + "`mv` moves /tmp/cc-agents-43/ticket-45-evidence/probe-fixture/home/.claude, which holds Claude Code's settings or plugins, which can switch the hooks off; only the human changes it, by hand; a settings change other than env, disableAllHooks, enabledPlugins or hooks can be made with the Edit tool"
+  - null
+  
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/probe-fixture/replay/test/guard.test.mjs:231:35)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: "`mv` moves /tmp/cc-agents-43/ticket-45-evidence/probe-fixture/home/.claude, which holds Claude Code's settings or plugins, which can switch the hooks off; only the human changes it, by hand; a settings change other than env, disableAllHooks, enabledPlugins or hooks can be made with the Edit tool",
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

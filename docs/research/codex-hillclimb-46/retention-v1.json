@@ -1,0 +1,28 @@
+{
+  "archive": "/home/ubuntu/cc-agents-artifacts/issue-46/astra-calibration-v1.tar.gz",
+  "sha256": "21357f7b9d9a5941cc312b87b2c5e7fa1e3236a41b3d7fd048c5edc06e2f5df5",
+  "bytes": 183365,
+  "files": 32,
+  "credential_pattern_matches": 0,
+  "raw_answer_keys": "restricted outside public git",
+  "private_directory": "/home/ubuntu/cc-agents-artifacts/issue-46/preregistration-v1",
+  "archive_members": 32,
+  "remote": {
+    "release_id": 433274641,
+    "draft": true,
+    "url": "https://github.com/lolisaigao1234/cc-agents/releases/tag/untagged-7d17dc6c563fafb0eb3d",
+    "tag": "cc-agents-46-calibration-preregistration-v1",
+    "assets": [
+      {
+        "id": 707281302,
+        "name": "astra-calibration-v1.tar.gz",
+        "bytes": 183365,
+        "digest": "sha256:21357f7b9d9a5941cc312b87b2c5e7fa1e3236a41b3d7fd048c5edc06e2f5df5"
+      }
+    ],
+    "remote_download_verified": true,
+    "verified_members": 32,
+    "status": "superseded before live calls by v2; preserved immutable"
+  },
+  "retention": "Keep restricted; do not publish raw answer keys. Retain until #43 and comparison finish and a replacement is verified."
+}

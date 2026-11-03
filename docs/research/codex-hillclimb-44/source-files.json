@@ -1,0 +1,58 @@
+{
+  "source_checkout": "/home/ubuntu/GitHub/cc-agents-eval39",
+  "source_revision": "34dc07b8879dfa175296ddcb84ee4a9296aefa65",
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "f9b34fdbc09f7233eac1707564af573617ae9638d7471f8a02dbe135e43ed32b"
+    },
+    {
+      "path": "evals/review/README.md",
+      "sha256": "bbadc212ae9512b70ad9fbd85d2e8e807fd55bb4d1fb7a911af50646bcb664ba"
+    },
+    {
+      "path": "evals/review/lib/grade.mjs",
+      "sha256": "d1d8268d69763db5145e07fc12cc947f4c973bc93706ddb30aec3f7a0c894036"
+    },
+    {
+      "path": "evals/review/run.mjs",
+      "sha256": "8b1f2da0b564f7c820eeff51f4d32fca52df555b0e410b15b0f11811d417bd44"
+    },
+    {
+      "path": "evals/review/selftest.mjs",
+      "sha256": "94df45883421bda115c0cf3c772665c19e79b093d7ffed7c1c0041ac88d04680"
+    },
+    {
+      "path": "test/eval-codex.test.mjs",
+      "sha256": "efb8f8db1a880abb53e993eee1d1496f37ba4a975a88ac28ce9a81f56e6b5dea"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-integration.md",
+      "sha256": "7d8593c8e75af7b597a477da837bac8124728786b3db4b4d87fb1525436b6541"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-pilot-2026-11-03.md",
+      "sha256": "c28d5df33db67a23802cba4eda39d3fbac1bdce015864bcc47285edd55d30115"
+    },
+    {
+      "path": "evals/review/lib/codex-agent.mjs",
+      "sha256": "762ef96f6653eee38b3bef9013775e789ed282806bd581cda73c04227c32728e"
+    },
+    {
+      "path": "evals/review/lib/codex-digest.mjs",
+      "sha256": "0582aa34c6c8f507f6c0dfd6552ec2af8c9629c29924e8a9f0bb1fed3f9f2d84"
+    },
+    {
+      "path": "evals/review/lib/codex-hooks.mjs",
+      "sha256": "262ffdcd6145a4745d10ed2c1f64af8d3a32c39bbf7ef4232bf584f136dcf6ed"
+    },
+    {
+      "path": "evals/review/lib/codex.mjs",
+      "sha256": "9e8466882920a70d7d47174c3203fd538794e4e1dae214f21e7de86dd5beba73"
+    },
+    {
+      "path": "evals/review/lib/config.mjs",
+      "sha256": "f088b6bafe5f940fa0d6d3dbe3b2af6cbceeb97b301aa422ead730cd4168aff4"
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+{
+  "node": "v24.22.2",
+  "codex": "0.166.0",
+  "records": [
+    {
+      "id": "pr16-r1",
+      "kind": "bug",
+      "head": "8b2a99f55f1ba27e0250a8b05c9d3db703696763",
+      "mode": "host",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 29,
+        "pass": 28,
+        "fail": 1,
+        "skipped": 0
+      },
+      "failures": [],
+      "log": "pr16-r1/host.log",
+      "log_sha256": "8702dbe078d929316210be542686a4281c114d3c88258780c82a49e716487e72"
+    },
+    {
+      "id": "pr16-r1",
+      "kind": "bug",
+      "head": "8b2a99f55f1ba27e0250a8b05c9d3db703696763",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {},
+      "failures": [],
+      "log": "pr16-r1/sandbox.log",
+      "log_sha256": "fc355728acbf99045becbe1d6fde0e240fa344a436bf4d87ee0d425d3fcb357b"
+    },
+    {
+      "id": "pr24",
+      "kind": "bug",
+      "head": "0ad0f2d1f99c258cff0805a4074a344225842918",
+      "mode": "host",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 91,
+        "pass": 88,
+        "fail": 3,
+        "skipped": 0
+      },
+      "failures": [],
+      "log": "pr24/host.log",
+      "log_sha256": "a156961f7189d730d098a19d1e86113ffeb6e6941e42c9f74b3eae122a4becb6"
+    },
+    {
+      "id": "pr24",
+      "kind": "bug",
+      "head": "0ad0f2d1f99c258cff0805a4074a344225842918",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {},
+      "failures": [],
+      "log": "pr24/sandbox.log",
+      "log_sha256": "fc355728acbf99045becbe1d6fde0e240fa344a436bf4d87ee0d425d3fcb357b"
+    },
+    {
+      "id": "pr35-r0",
+      "kind": "bug",
+      "head": "52c688fe770563a318633200c26fac95f4b2db40",
+      "mode": "host",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 96,
+        "pass": 92,
+        "fail": 2,
+        "skipped": 2
+      },
+      "failures": [],
+      "log": "pr35-r0/host.log",
+      "log_sha256": "22fe5c2e08e23680ff04dae29f91a8a3774821b9da2c6839c3c6e9b8593f1462"
+    },
+    {
+      "id": "pr35-r0",
+      "kind": "bug",
+      "head": "52c688fe770563a318633200c26fac95f4b2db40",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {},
+      "failures": [],
+      "log": "pr35-r0/sandbox.log",
+      "log_sha256": "fc355728acbf99045becbe1d6fde0e240fa344a436bf4d87ee0d425d3fcb357b"
+    },
+    {
+      "id": "clean-pr33",
+      "kind": "clean",
+      "head": "8eddafd170613a6f8524d5fc3ea72cc32eeb256d",
+      "mode": "host",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 95,
+        "pass": 91,
+        "fail": 2,
+        "skipped": 2
+      },
+      "failures": [],
+      "log": "clean-pr33/host.log",
+      "log_sha256": "0366ab2ea433140b9f5529afef3b4e8b3b7f8cc3682803b6efcad812186ad023"
+    },
+    {
+      "id": "clean-pr33",
+      "kind": "clean",
+      "head": "8eddafd170613a6f8524d5fc3ea72cc32eeb256d",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {},
+      "failures": [],
+      "log": "clean-pr33/sandbox.log",
+      "log_sha256": "fc355728acbf99045becbe1d6fde0e240fa344a436bf4d87ee0d425d3fcb357b"
+    },
+    {
+      "id": "conv-pr33",
+      "kind": "convergence",
+      "head": "195172b212f85c6594c88739604435b310fd3a68",
+      "mode": "host",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 95,
+        "pass": 91,
+        "fail": 2,
+        "skipped": 2
+      },
+      "failures": [],
+      "log": "conv-pr33/host.log",
+      "log_sha256": "0f5e75108fe074b88f0b4c300187385e85ac20b3f5c5ad9034f82140fab1715d"
+    },
+    {
+      "id": "conv-pr33",
+      "kind": "convergence",
+      "head": "195172b212f85c6594c88739604435b310fd3a68",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {},
+      "failures": [],
+      "log": "conv-pr33/sandbox.log",
+      "log_sha256": "fc355728acbf99045becbe1d6fde0e240fa344a436bf4d87ee0d425d3fcb357b"
+    }
+  ]
+}

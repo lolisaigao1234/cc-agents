@@ -1,0 +1,114 @@
+{
+  "node": "v24.22.2",
+  "codex": "0.166.0",
+  "records": [
+    {
+      "id": "pr16-r1",
+      "kind": "bug",
+      "head": "8b2a99f55f1ba27e0250a8b05c9d3db703696763",
+      "mode": "sandbox",
+      "exit": 0,
+      "signal": null,
+      "counts": {
+        "tests": 29,
+        "pass": 29,
+        "fail": 0,
+        "skipped": 0
+      },
+      "failures": [],
+      "log": "pr16-r1/sandbox.log",
+      "log_sha256": "44e19b5aa24108e0f4946c248f67b17735e215916b9bc43945af57a0c03eb9aa"
+    },
+    {
+      "id": "pr24",
+      "kind": "bug",
+      "head": "0ad0f2d1f99c258cff0805a4074a344225842918",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 91,
+        "pass": 86,
+        "fail": 5,
+        "skipped": 0
+      },
+      "failures": [
+        "the guard allows everything else, including text that mentions destructive commands",
+        "the hook says nothing about allowed commands and other tools",
+        "the hook counts an agent's own full reads only, and only while the docs are unchanged",
+        "the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction",
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "pr24/sandbox.log",
+      "log_sha256": "568c5c2fa0586fe8c0a837075582aefc834a4e309c972f2dc73e24c15238964b"
+    },
+    {
+      "id": "pr35-r0",
+      "kind": "bug",
+      "head": "52c688fe770563a318633200c26fac95f4b2db40",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 96,
+        "pass": 90,
+        "fail": 4,
+        "skipped": 2
+      },
+      "failures": [
+        "the guard allows everything else, including text that mentions destructive commands",
+        "the hook counts an agent's own full reads only, and only while the docs are unchanged",
+        "the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction",
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "pr35-r0/sandbox.log",
+      "log_sha256": "bab413d5c2320239a9483279aa0c31beb089b307e9cbf692af3342430cb828f1"
+    },
+    {
+      "id": "clean-pr33",
+      "kind": "clean",
+      "head": "8eddafd170613a6f8524d5fc3ea72cc32eeb256d",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 95,
+        "pass": 89,
+        "fail": 4,
+        "skipped": 2
+      },
+      "failures": [
+        "the guard allows everything else, including text that mentions destructive commands",
+        "the hook counts an agent's own full reads only, and only while the docs are unchanged",
+        "the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction",
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "clean-pr33/sandbox.log",
+      "log_sha256": "cecb138f5c47f6e09aca49d15c817b0e8d4aca145a34eaf83bd7b58480dbdf8e"
+    },
+    {
+      "id": "conv-pr33",
+      "kind": "convergence",
+      "head": "195172b212f85c6594c88739604435b310fd3a68",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 95,
+        "pass": 89,
+        "fail": 4,
+        "skipped": 2
+      },
+      "failures": [
+        "the guard allows everything else, including text that mentions destructive commands",
+        "the hook counts an agent's own full reads only, and only while the docs are unchanged",
+        "the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction",
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "conv-pr33/sandbox.log",
+      "log_sha256": "d517cdaf9bcad93b1a8195ff600fc98dd690810cdbd9b1ba062a2d153a2f9085"
+    }
+  ],
+  "protocol": "offline-readiness-45-v1",
+  "policy": "b9f15bbf-ticket-45"
+}

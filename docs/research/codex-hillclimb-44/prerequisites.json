@@ -1,0 +1,24 @@
+{
+  "node": "v24.22.2",
+  "git": "git version 2.43.0",
+  "gh": "gh version 2.45.0 (2025-07-18 Ubuntu 2.45.0-1ubuntu0.3)",
+  "bubblewrap": "bubblewrap 0.9.0",
+  "codex": "codex-cli 0.166.0",
+  "codex_runtime_files": [
+    {
+      "name": "codex",
+      "sha256": "f2e6c980c937e734644bed1b4a9a018d3e63a0ccbe71aafc85c86a8c6e4b462a"
+    },
+    {
+      "name": "codex-code-mode-host",
+      "sha256": "587436a943a59c18cabdbe83f07800d237b60ddd2e0f54d05b23d8b37a0b36f4"
+    },
+    {
+      "name": "codex-exec-server",
+      "sha256": "58625693605c66abb56a17a47b9ae880b66d15fe994d115bc1249b9301ba2070"
+    }
+  ],
+  "platform": "Linux aarch64",
+  "mattpocock_skills": "1.3.2 (pilot; runner selects newest installed cache: freeze it)",
+  "claude": "2.1.317 installed during #44 verification; vendored declarations are 2.1.312; no Claude model calls"
+}

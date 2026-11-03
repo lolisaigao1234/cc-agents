@@ -7,3 +7,5 @@ node_modules/
 /.claude/hillclimb/*/report.html
 /.claude/hillclimb/*/*/judge-inputs/
 /.claude/hillclimb/*/*/leaks/
+/.claude/hillclimb/*/*/codex-events/
+/.claude/hillclimb/*/*/attempts/

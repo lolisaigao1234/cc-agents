@@ -1,0 +1,146 @@
+✔ file tools are denied inside the archive (13.552865ms)
+✔ file tools are allowed outside the archive, look-alikes included (9.415674ms)
+✔ Bash commands that reach into the archive are denied (110.956386ms)
+✔ Bash commands that stay out of the archive, or move files into it, are allowed (49.088463ms)
+✔ a root .ignore that lists the archive lets rg, fd and Grep search the repository (35.642478ms)
+✔ a search reaches the archive of the repository it searches, wherever the agent is (305.626944ms)
+✔ an ignore file that takes the archive back voids the .ignore exemption (33.434141ms)
+✔ an archive anywhere but a repository root is not the archive (1.067769ms)
+✔ the hook denies a Read of the archive, and lets other reads through (238.105258ms)
+✔ the context names the linked issue, its acceptance criteria, its latest progress comment and the related docs, quoting the issue's text (8.138344ms)
+✔ the acceptance criteria run to the next heading of their level, past code fences, and an empty section falls back to the body (5.786605ms)
+✔ an issue's text cannot pass for the hook's own lines (3.90047ms)
+✔ an issue without acceptance criteria or comments shows its body, and a long part is cut with how to read it all (1.438811ms)
+✔ off an issue branch the context names the step to go back to; untraced, bypassed or unreachable, it says what it can (1.047048ms)
+✔ stopping after a push newer than the last comment is blocked once, then let through (1.357771ms)
+✔ an agent that has read nothing is refused, with every related doc and how to read it (8.366305ms)
+✔ an agent that has read every related doc in full may edit (14.340912ms)
+✔ reads in chunks add up to a full read; a part of the file does not (31.355204ms)
+✔ a Read that returned other text than the file holds is no read; a file that is no doc is not read back (35.929161ms)
+✔ a read goes stale when the file changes, until it is read again (20.737521ms)
+✔ docs read through a symlink, with CRLF, a lone CR, a BOM or in UTF-16 count once read (41.042241ms)
+✔ an ADR scoped by applies-to is related only to edits of matching paths; an inactive one to none (32.02333ms)
+✔ files under docs/ that the issue body links are related docs; binary or missing ones are not (21.672689ms)
+✔ the issue's comments are read too, as printed, as JSON, or as posted, and an edited one is unread again (17.572777ms)
+✔ output too long to show counts only for its preview (2.159897ms)
+✔ a doc moved, emptied, re-marked or made unreadable in the working tree is still related (13.262623ms)
+✔ an issue part or a doc in HEAD too long to show counts once saved to a file and Read, and a renamed doc once read under its new name (42.437971ms)
+✔ a notebook, or a file too large to Read, that the issue body links is not a related doc (25.275118ms)
+✔ the agent's own edits and writes keep its reads of a doc current (14.17955ms)
+✔ when the agent cannot be told apart, or GitHub cannot say what the issue says, the change is refused (10.063398ms)
+✔ a repository with no related docs and an empty issue needs no reads (0.747526ms)
+✔ a commit, or any git command that makes or moves commits, waits for every active ADR (38.584621ms)
+✔ the guard denies commands that destroy work or history (33.963145ms)
+✖ the guard allows everything else, including text that mentions destructive commands (8.205184ms)
+✔ the guard names what it refuses (1.042528ms)
+✔ the hook denies a destructive Bash command, giving the reason (79.785902ms)
+✔ the hook denies a write to Claude Code's settings named from where the command runs (158.527277ms)
+✔ the hook denies an interpreter's in-place write to an installed plugin under CLAUDE_CONFIG_DIR (158.238435ms)
+✔ the hook says nothing about allowed commands and other tools (242.838974ms)
+✔ the hook ignores input it cannot parse (69.311941ms)
+✔ outside a traced repository, or under the bypass, there is no status (4.134832ms)
+✔ off an issue branch, the step is the one the gates name (2.141576ms)
+✔ on an open issue whose docs are unread, the step is Read, with what is unread (4.841078ms)
+✔ the step moves on as each one completes, up to Close (9.878037ms)
+✔ the PR's CI is failing on any failed check, pending on any unfinished one, and none without checks (2.902783ms)
+✔ when GitHub cannot say, the status says so instead of guessing (2.011576ms)
+✔ a repository that has not opted in is never gated (2.975624ms)
+✔ an edit on the default branch is refused, naming the Branch step (0.487284ms)
+✔ an edit on a branch that names no issue is refused, naming the Track step (0.753005ms)
+✔ an edit on an open issue's branch is allowed (1.774254ms)
+✔ an edit on a closed or missing issue's branch is refused, naming the Track step (0.490323ms)
+✔ when GitHub cannot be asked, the edit is refused, naming the step and the bypass (0.847487ms)
+✔ a detached HEAD where no default branch is known is refused, naming the Track step (0.451843ms)
+✔ a repository nested in a traced one, and not traced itself, is gated by the outer one (0.566444ms)
+✔ the bypass, set at launch, turns the trace off (0.286162ms)
+✔ edits outside the repository are never gated, and its .git directory is (0.448644ms)
+✔ the hook refuses an edit on the default branch of a traced repository, in a subagent too (795.465566ms)
+✔ the hook lets edits through in an untraced repository, outside it, and under the bypass (335.81846ms)
+✔ the hook asks origin's repository about the issue, and refuses a pull request's number (328.687204ms)
+✔ the hook counts an agent's own full reads only, and only while the docs are unchanged (2263.4907ms)
+✔ during a rebase, the branch being rebased is the one the trace reads (194.727279ms)
+✔ the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction (3706.57892ms)
+✔ the status event reports the trace from real git and gh: the commits, the PR and its checks (976.922543ms)
+✔ the hook refuses tools that would touch the trace's read records, and only those (510.779346ms)
+✔ the hook resolves symlinks and ~ before deciding (177.833467ms)
+✔ the hook refuses a settings change that would switch the hooks or the trace off (1183.514034ms)
+✔ the hook refuses edits to a traced repository's git directory, even on an open issue's branch (240.813399ms)
+✔ the hook reads origin's GitHub repository from every URL form, and only from GitHub (880.51079ms)
+✔ a git that cannot run refuses edits only where the marker says the repository is traced (209.429754ms)
+✔ the hook expands only ~ and ~/, as the edit tools do (105.817625ms)
+✔ the hook refuses settings changes it cannot read, wherever the settings live (581.356736ms)
+✔ a commit whose message references the linked issue is allowed, in any message form (8.600667ms)
+✔ a commit whose message does not reference the linked issue is refused, naming the issue and the text to add (2.270818ms)
+✔ an amend that keeps the message is judged by the commit it rewrites (1.480891ms)
+✔ a commit whose message cannot be told from the command is refused with a reason (2.165257ms)
+✔ a commit through a git alias is judged as the command it runs (1.122089ms)
+✔ the commit gate follows the branch rules and the trace switches of the edit gate (0.643525ms)
+✔ a PR whose body closes the linked issue is allowed (2.104576ms)
+✔ a PR whose body does not close the linked issue is refused, naming the issue and the text to add (1.587213ms)
+✔ a PR whose body cannot be told from the command is refused with a reason (1.22321ms)
+✔ a commit message is judged as git records it: fixups, trailers, cleanup and comment lines (1.785654ms)
+✔ a commit an editor, an unknown option or a computed source decides is refused with a reason (3.561948ms)
+✔ a commit or PR is gated wherever a cd may leave it, and refused where that cannot be told (0.981768ms)
+✔ an alias that git or gh runs through a shell is refused, naming the issue and the fix (0.342803ms)
+✔ a PR is read as gh reads it: last option wins, values stay values, -R anywhere (2.638301ms)
+✔ a long or late-defined git alias, or one the environment may set, is refused with a reason (1.650293ms)
+✔ a file written earlier on the line in any form is not read as it was (1.236249ms)
+✔ a PR is read as gh reads it: pflag values, booleans, the body file, the base repository (3.82887ms)
+✖ the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds (0.915807ms)
+✔ ordinary commands that reference the linked issue, or create nothing, are allowed (2.668301ms)
+✔ the hook refuses an unreferenced commit or PR in a traced repository, in a subagent too, reading files from cwd (2911.794239ms)
+✔ the mod's typecheck reads only committed files and node_modules (547.156189ms)
+﹣ the vendored declarations come from the installed Claude Code (2.274378ms) # claude is not on PATH
+﹣ the vendored declarations match the ones Claude Code last wrote (0.307762ms) # no interactive session has loaded the mod from this checkout
+✔ the mod's typecheck writes nothing (106.030947ms)
+ℹ tests 95
+ℹ suites 0
+ℹ pass 91
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 2
+ℹ todo 0
+ℹ duration_ms 16257.951731
+
+✖ failing tests:
+
+test at test/guard.test.mjs:230:1
+✖ the guard allows everything else, including text that mentions destructive commands (8.205184ms)
+  AssertionError [ERR_ASSERTION]: mv notes.md ~/.claude/
+  + actual - expected
+  
+  + "`mv` moves /tmp/cc-agents-43/ticket-45-evidence/replay-v1/clean-pr33/home/.claude, which holds Claude Code's settings or plugins, which can switch the hooks off; only the human changes it, by hand; a settings change other than env, disableAllHooks, enabledPlugins or hooks can be made with the Edit tool"
+  - null
+  
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/replay-v1/clean-pr33/replay/test/guard.test.mjs:231:35)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: "`mv` moves /tmp/cc-agents-43/ticket-45-evidence/replay-v1/clean-pr33/home/.claude, which holds Claude Code's settings or plugins, which can switch the hooks off; only the human changes it, by hand; a settings change other than env, disableAllHooks, enabledPlugins or hooks can be made with the Edit tool",
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/trace.test.mjs:703:1
+✖ the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds (0.915807ms)
+  AssertionError [ERR_ASSERTION]: GH pr create -t t -b x
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/replay-v1/clean-pr33/replay/test/trace.test.mjs:705:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'null',
+    expected: /does not close #7/,
+    operator: 'match',
+    diff: 'simple'
+  }
