@@ -4,14 +4,14 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sha, schedule } from './calibrate.mjs';
+import { schedule } from './calibrate.mjs';
+import { sha, stable } from './utils.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const privateRoot = realpathSync(process.argv[2]);
 assert.equal(statSync(privateRoot).mode & 0o077, 0, 'private bundle requires mode 700');
 assert.ok(!privateRoot.startsWith(root + '/') && privateRoot !== root);
 const json = (/** @type {string} */ p) => JSON.parse(readFileSync(p, 'utf8'));
-const stable = (/** @type {any} */ v) => JSON.stringify(v, (_, x) => x && !Array.isArray(x) && typeof x === 'object' ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
 const original = json(join(root, 'docs/research/codex-hillclimb-44/harness-files.json'));
 const prerequisites = json(join(root, 'docs/research/codex-hillclimb-44/prerequisites.json'));
 const bundle = json(join(privateRoot, 'bundle.json'));

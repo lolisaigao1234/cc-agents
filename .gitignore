@@ -8,3 +8,4 @@ node_modules/
 /.claude/hillclimb/*/*/judge-inputs/
 /.claude/hillclimb/*/*/leaks/
 /.claude/hillclimb/*/*/codex-events/
+/.claude/hillclimb/*/*/attempts/

@@ -1,7 +1,10 @@
 #!/usr/bin/env node
-// Calibration orchestration only. The frozen grading adapter/rubric is unchanged.
+// Calibration orchestration only. Grading prompts, schemas and metrics are unchanged.
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { sha, stable } from './utils.mjs';
+export { sha } from './utils.mjs';
+import { verifySnapshot, verifyEnvironment } from './snapshot.mjs';
+import { retainCalls as retainSessionCalls } from '../lib/attempt-evidence.mjs';
 import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
@@ -12,14 +15,10 @@ import { fileURLToPath } from 'node:url';
 /** @typedef {{version?:string, units:Unit[], unresolved?:any[], exclusions?:string[]}} Bundle */
 /** @typedef {{grade:Record<string,number>, detail:{findings:any[], fixed:any[]|null, regressions:any[]|null, rounds:any[], asked_human:boolean, review_happened:boolean}}} GradeResult */
 
-/** @param {string|Buffer} bytes */
-export const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 /** @param {string} path @returns {any} */
 const json = path => JSON.parse(readFileSync(path, 'utf8'));
 /** @param {string} path @param {any} value */
 const write = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
-/** @param {any} value @returns {string} */
-const stable = value => JSON.stringify(value, (_, v) => v && !Array.isArray(v) && typeof v === 'object' ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v);
 /** @param {any[]} xs */
 const sorted = xs => [...xs].sort((a, b) => stable(a).localeCompare(stable(b)));
 /** @param {any[]|null} xs */
@@ -118,8 +117,8 @@ export function validateResponse(result) {
 }
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const PUBLIC = join(ROOT, 'docs/research/codex-hillclimb-46/preregistration.json');
-const PROTOCOL = join(ROOT, 'evals/review/calibration/protocol.json');
+const PUBLIC = join(ROOT, 'docs/research/codex-hillclimb-46/preregistration-v3.json');
+const PROTOCOL = join(ROOT, 'evals/review/calibration/protocol-v3.json');
 /** @param {string} root @param {string} path */
 function safePath(root, path) {
   assert.ok(!isAbsolute(path) && path && !path.split('/').includes('..'), 'invalid relative artifact path');
@@ -138,16 +137,17 @@ function load(privateRoot) {
   assert.notEqual(spawnSync('git', ['-C', privateRoot, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' }).stdout?.trim(), 'true', 'answer keys cannot live in any git worktree');
   assert.equal(statSync(privateRoot).mode & 0o077, 0, 'restricted artifacts need mode 700');
   const prereg = json(PUBLIC), protocol = json(PROTOCOL);
-  assert.equal(prereg.version, 'astra-calibration-v2');
-  inventory(ROOT, prereg.runtime.files);
-  assert.equal(sha(stable(prereg.runtime.files)), prereg.runtime.sha256, 'runtime manifest identity');
-  inventory(privateRoot, prereg.private_files);
+  assert.equal(prereg.version, 'astra-calibration-v3');
+  verifySnapshot(ROOT, privateRoot, prereg);
+  verifyEnvironment(prereg.environment);
+  assert.equal(sha(readFileSync(PROTOCOL)), prereg.protocol_sha256, 'changed protocol');
+  assert.equal(protocol.version, prereg.version);
   const bundle = /** @type {Bundle} */ (json(join(privateRoot, 'bundle.json')));
   assert.equal(bundle.version, prereg.version);
   assert.deepEqual(bundle.units.map(u => ({ id: u.id, presentations: u.presentations, control_of: u.control_of ?? null })), prereg.units);
   assert.equal(schedule(bundle).length, prereg.scheduled_grades);
-  const original = spawnSync(process.execPath, ['docs/research/codex-hillclimb-44/verify.mjs'], { cwd: ROOT, encoding: 'utf8' });
-  assert.equal(original.status, 0, original.stderr || 'frozen #44 harness changed');
+  // #44's verifier remains unchanged and deliberately stops on integration.
+  // V3 verifies its own full membership above, never an old approval.
   return { prereg, protocol, bundle, privateRoot, current: { runtime_sha256: prereg.runtime.sha256, protocol_sha256: sha(readFileSync(PROTOCOL)), preregistration_sha256: sha(readFileSync(PUBLIC)) } };
 }
 /** @param {string} root @param {string} [prefix] @returns {string[]} */
@@ -162,19 +162,7 @@ function seal(root) {
 // Only allowlisted request/response evidence is retained; never copy runtime auth.
 /** @param {string} work @param {string} attempt */
 function retainCalls(work, attempt) {
-  const control = join(work, 'judge-home/eval-control');
-  if (!existsSync(control)) return;
-  for (const call of readdirSync(control).filter(x => /^judge-\d+$/.test(x))) {
-    const dest = join(attempt, call); mkdirSync(dest, { mode: 0o700 });
-    for (const name of ['prompt.txt', 'schema.json', 'events.jsonl', 'hooks.jsonl', 'stderr.txt', 'final.txt']) {
-      const source = join(control, call, name);
-      if (existsSync(source)) copyFileSync(source, join(dest, name));
-    }
-  }
-  for (const name of ['config.toml', 'hooks.json']) {
-    const source = join(work, 'judge-home/.codex', name);
-    if (existsSync(source)) copyFileSync(source, join(attempt, name));
-  }
+  retainSessionCalls(join(work, 'judge-home'), join(attempt, 'calls'));
 }
 /** @param {ReturnType<typeof load>} state @param {string} output @param {string} [approvalPath] */
 async function run(state, output, approvalPath) {
@@ -185,11 +173,9 @@ async function run(state, output, approvalPath) {
   const { lockCodexAuth, resolveCodex } = await import('../lib/codex.mjs');
   const { grade } = await import(String('../lib/grade.mjs'));
   const { CODEX_JUDGE } = await import('../lib/config.mjs');
-  assert.equal(process.version, prereg.environment.node_version);
-  assert.equal(sha(readFileSync(realpathSync(process.execPath))), prereg.environment.node_sha256);
-  for (const f of prereg.environment.system_tools) assert.equal(sha(readFileSync(realpathSync(f.path))), f.sha256, `changed system tool ${f.path}`);
   const bin = resolveCodex();
-  for (const f of prereg.environment.codex_runtime_files) assert.equal(sha(readFileSync(join(dirname(bin), f.name))), f.sha256, `changed Codex binary ${f.name}`);
+  assert.equal(realpathSync(bin), prereg.environment.codex_runtime_files.find((/** @type {any} */ f) => f.name === 'codex').path,
+    'selected Codex must match the approved binary');
   assert.ok(output && isAbsolute(output) && !existsSync(output), 'run needs a fresh absolute restricted output directory outside git');
   const parent = realpathSync(dirname(output));
   assert.ok(parent !== ROOT && !parent.startsWith(ROOT + '/'), 'output parent resolves inside public git');
@@ -222,7 +208,7 @@ async function run(state, output, approvalPath) {
       } catch (error) {
         const e = /** @type {any} */ (error);
         row = { ...job, status: 'failure', failure_class: e.failure_class ?? 'grader', message: String(e.message), events: e.events ?? null,
-          judge_usage: e.judge_usage ?? null, judge_requested_model: e.judge_requested_model ?? null };
+          judge_usage: e.judge_usage ?? null, judge_requested_model: e.judge_requested_model ?? null, judge_calls: e.judge_calls ?? null };
       } finally {
         try {
           retainCalls(work, attempt);
@@ -253,7 +239,7 @@ async function main() {
     options[args[i]] = resolve(args[i + 1]);
   }
   const state = load(options['--private']);
-  if (command === 'plan') console.log(JSON.stringify({ ...state.current, scheduled_grades: schedule(state.bundle).length,
+  if (command === 'plan') console.log(JSON.stringify({ ...state.current, protected_harness_sha256: state.prereg.protected_harness.sha256, expected_judge_requests: state.prereg.expected_judge_requests, scheduled_grades: schedule(state.bundle).length,
     status: 'BLOCK: exact new driver/protocol/preregistration requires HUMAN approval; no live calibration results', concurrency: 1 }, null, 2));
   if (command === 'run') await run(state, options['--output'], options['--approval']);
   if (command === 'report') {

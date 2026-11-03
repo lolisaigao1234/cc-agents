@@ -1,0 +1,37 @@
+{
+  "implementation_commit": "c19f5c6e15cf1e4acd1e06afc64c60261a5a5e6c",
+  "branch": "t3/implement-review-fixes",
+  "integration_tip": "1cc777149937bedcc94d6c2cc68224aab184ba88",
+  "covering": {
+    "passed": 83,
+    "failed": 0,
+    "skipped": 0
+  },
+  "full_suite": {
+    "passed": 194,
+    "failed_preexisting": 2,
+    "skipped": 5
+  },
+  "typecheck": {
+    "preexisting_diagnostics": 55,
+    "byte_identical_to_issue44": true
+  },
+  "historical_verifier": {
+    "exit": 2,
+    "human_stop": true
+  },
+  "plan": {
+    "runtime_sha256": "169290c887c5657ce643c019d0962f75dadc88e718134fbd464219c5767befe4",
+    "protocol_sha256": "28128a0fa40ef15b19c45844d21b2025f581ffe4dcafdd2def9465da90e3f06b",
+    "preregistration_sha256": "ac64a64239e0c4fc69b62d2c1fcab2deb2ba7ec200026f9e7bf22ca15dc3c6b7",
+    "protected_harness_sha256": "096843db6d49f6687401ae74208e5703e04a7253f47b917a3932094dce3af62e",
+    "expected_judge_requests": 138,
+    "scheduled_grades": 75,
+    "status": "BLOCK: exact new driver/protocol/preregistration requires HUMAN approval; no live calibration results",
+    "concurrency": 1
+  },
+  "real_approval_records_written": 0,
+  "live_model_calls": 0,
+  "readiness_hash_checks": 71,
+  "whitespace_scope": "All current staged changes pass. Full branch diff from 34dc07b excluding **/*.log passes. Historical raw readiness logs retain trailing whitespace and original SHA256s."
+}

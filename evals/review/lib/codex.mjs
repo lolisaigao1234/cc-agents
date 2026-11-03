@@ -140,6 +140,8 @@ export async function codexExec(runtime, { model, effort = 'high', serviceTier =
   if (schema) { writeFileSync(join(call, 'schema.json'), JSON.stringify(schema)); args.push('--output-schema', join(call, 'schema.json')); }
   args.push('-');
   writeFileSync(join(call, 'prompt.txt'), prompt);
+  // Never retain ghToken, auth or inherited environment in a request artifact.
+  writeFileSync(join(call, 'request.json'), JSON.stringify({ model, effort, serviceTier, prompt, schema, developerInstructions, role, phase, modelVerification }));
   const env = { HOME: home, CODEX_HOME: join(home, '.codex'), TMPDIR: tmp,
     PATH: '/usr/local/bin:/usr/bin:/bin', LANG: 'C.UTF-8', TERM: 'dumb', GH_PROMPT_DISABLED: '1', GIT_TERMINAL_PROMPT: '0',
     ...(ghToken ? { GH_TOKEN: ghToken, GH_CONFIG_DIR: join(home, '.config/gh') } : {}) };

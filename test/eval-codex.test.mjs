@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -566,4 +566,45 @@ test('variant preserves reviewer human gates and refuses Update clearing them', 
     await assert.rejects(runCodexAgent({ ...args, variant: 'v13', variantIdentity: { id: 'baseline' }, runtime: {}, dir: f.dir, limitS: 60 }, async () => { calls++; }), /identity changed/);
     assert.equal(calls, 0);
   } finally { rmSync(f.dir, { recursive: true, force: true }); }
+});
+
+test('a later judge failure retains the successful findings request and raw response', async () => {
+  const { grade } = await import(String('../evals/review/lib/grade.mjs'));
+  const { retainAttempt } = await import('../evals/review/lib/attempt-evidence.mjs');
+  const f = fakeRuntime();
+  const work = join(f.root, 'grading');
+  const evidence = join(f.root, 'evidence'); mkdirSync(evidence);
+  try {
+    await assert.rejects(retainAttempt({ root: evidence, label: 'judge', request: { case: 'synthetic' }, homes: [join(work, 'judge-home')],
+      cleanup: () => rmSync(work, { recursive: true, force: true }), execute: () => grade({ work, c: { bug_ids: ['b1'], pre_existing_bugs: [] },
+      bugs: new Map([['b1', { id: 'b1', title: 'broken path', location: 'a:1', description: 'same failure' }]]),
+      issue: 'fix path', prDiff: 'a', changes: 'TRY_TOOL', material: 'finding', counts: { bug_reviews: 2 }, tests: { before: true, after: true },
+      judgeConfig: CODEX_JUDGE, codex: { auth: f.auth, bin: f.bin }, modelVerification: 'configured_only' }) }), /** @param {any} e */ e => {
+      assert.match(e.message, /attempted a tool call/);
+      assert.equal(e.judge_calls.length, 2);
+      assert.equal(e.judge_calls[0].status, 'ok');
+      assert.match(e.judge_calls[0].request.prompt, /Grade what its review found/);
+      assert.match(e.judge_calls[0].request.developerInstructions, /You grade one case/);
+      assert.equal(e.judge_calls[0].output.findings[0].bug_id, 'b1');
+      assert.ok(e.judge_calls[0].events.some((/** @type {any} */ event) => event.type === 'turn.completed'));
+      assert.equal(e.judge_calls[1].status, 'failure');
+      assert.ok(e.judge_calls[1].audit.some((/** @type {any} */ event) => event.event === 'PreToolUse'));
+      assert.equal(e.judge_usage.output_tokens, 40);
+      assert.equal(e.grade, undefined);
+      return true;
+    });
+    assert.equal(existsSync(work), false);
+    const attempt = join(evidence, readdirSync(evidence)[0]);
+    const calls = join(attempt, 'calls/0');
+    assert.equal(readdirSync(calls).length, 2);
+    for (const call of readdirSync(calls)) {
+      assert.match(readFileSync(join(calls, call, 'events.jsonl'), 'utf8'), /turn.completed/);
+      const request = JSON.parse(readFileSync(join(calls, call, 'request.json'), 'utf8'));
+      assert.match(request.developerInstructions, /You grade one case/);
+      assert.equal(request.ghToken, undefined);
+    }
+    const failed = JSON.parse(readFileSync(join(attempt, 'failure.json'), 'utf8'));
+    assert.equal(failed.judge_calls[0].output.findings[0].bug_id, 'b1');
+    assert.equal(existsSync(join(attempt, 'result.json')), false);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
