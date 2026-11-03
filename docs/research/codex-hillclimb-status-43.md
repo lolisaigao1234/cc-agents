@@ -11,6 +11,8 @@ Integration [PR #50](https://github.com/lolisaigao1234/cc-agents/pull/50) merged
 | #48 frozen repeated baseline | Not started; blocked by #46 | Requires passing calibration, its own preregistered screening/holdout protocol and final baseline freeze/approval. |
 | #49 paired experiment and decision | Not started; blocked by #46/#48 | No candidate, paired or held-out result exists; selection remains blocked. |
 
+A [v4 correction is prepared](codex-calibration-correction-v4.md) for parent review and exact human approval: explicit tool-free instruction and existing frozen issue/PR-diff context in changes grading. It has no live calls or approval; the v3 result remains BLOCK / INCONCLUSIVE. All 30 input/source files, substantive expectations and the 75-grade/138-request schedule are unchanged. A whole fresh calibration is required.
+
 The native dependency frontier is #46. Closed prerequisites #44/#45/#47 do not approve changed runtime bytes or waive legitimate human decisions. #43 stays open until the remaining children deliver their evidence and the final decision is recorded. The source issue #39 remains open and unchanged.
 
 ## Review and historical verification
