@@ -1,0 +1,38 @@
+{
+  "version": "astra-calibration-v3",
+  "access": "Maintainer-only draft release. Contains raw expected-label evidence/inputs; never publish automatically. Preserve v1/v2 releases.",
+  "release": {
+    "id": 433290736,
+    "tag_name": "cc-agents-46-calibration-preregistration-v3",
+    "draft": true,
+    "target_commitish": "c19f5c6e15cf1e4acd1e06afc64c60261a5a5e6c",
+    "html_url": "https://github.com/lolisaigao1234/cc-agents/releases/tag/untagged-bf89d6e59d3411d4054e"
+  },
+  "assets": [
+    {
+      "digest": "sha256:87d6f50e0a1ee26eab8011d7045faec5bbbf79c6f5c1f3e2765800ff54c8840a",
+      "id": 707336670,
+      "name": "astra-calibration-v3.tar.gz",
+      "size": 183366,
+      "url": "https://api.github.com/repos/lolisaigao1234/cc-agents/releases/assets/707336670",
+      "sha256": "87d6f50e0a1ee26eab8011d7045faec5bbbf79c6f5c1f3e2765800ff54c8840a",
+      "download_verified": true
+    },
+    {
+      "digest": "sha256:daea34b9ae1ec746b9701e7930ef4666cbad6333aa6d81f2a9d605b649fa513a",
+      "id": 707336671,
+      "name": "review-fixes-checks.tar.gz",
+      "size": 14631,
+      "url": "https://api.github.com/repos/lolisaigao1234/cc-agents/releases/assets/707336671",
+      "sha256": "daea34b9ae1ec746b9701e7930ef4666cbad6333aa6d81f2a9d605b649fa513a",
+      "download_verified": true
+    }
+  ],
+  "private_members_verified": 32,
+  "byte_identical_v2_input_source_files": 30,
+  "metadata_only_changed_files": 2,
+  "credential_pattern_matches": 0,
+  "local_private_bundle": "/home/ubuntu/cc-agents-artifacts/issue-46/preregistration-v3",
+  "local_checks": "/home/ubuntu/cc-agents-artifacts/issue-43/review-fixes/checks",
+  "retention_rule": "Keep original releases and immutable code refs through #43 and until a maintainer confirms a verified replacement. Download into a fresh private directory; verify archive and all preregistered member hashes before use."
+}
