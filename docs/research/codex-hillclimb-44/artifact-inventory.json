@@ -1,0 +1,424 @@
+{
+  "schema_version": 1,
+  "source_base_revision": "34dc07b8879dfa175296ddcb84ee4a9296aefa65",
+  "pilot_harness_sha": "e2c423eb214f4e68d95cc36f9903edfcb74e6c1d4d70bfed8637ed980747c612",
+  "deferred_opus_harness_sha": "e2c423eb214f4e68d95cc36f9903edfcb74e6c1d4d70bfed8637ed980747c612",
+  "hash_algorithm": "sha256",
+  "row_hash_convention": "exact UTF-8 JSONL line including trailing LF",
+  "sanitization": {
+    "policy": "allowlist only; no auth, personal configuration, runtime homes, unrelated flows, progress files or tstack; retained files are byte-identical to originals",
+    "credential_pattern_matches": 0,
+    "credential_pattern_classes": [
+      "jwt",
+      "github",
+      "api_key",
+      "bearer",
+      "private_key",
+      "url_auth",
+      "assignment"
+    ],
+    "manual_review": "Authorization occurrences are the word human authorization in PR text; no token fields, auth.json contents, printenv or /proc paths in the pilot evidence. No credential files were opened."
+  },
+  "scored": [
+    {
+      "case": "pr16-r1",
+      "rep": 0,
+      "status": "ok",
+      "results_line": 1,
+      "line_sha256": "70e645219da86f0b93ddab98b3ae92fd3882749893659b02db4a01674ddd6c48",
+      "artifacts": [
+        "review-codex-sol-astra/baseline/codex-events/pr16-r1_rep0.jsonl",
+        "review-codex-sol-astra/baseline/codex-events/pr16-r1_rep0_judge.jsonl",
+        "review-codex-sol-astra/baseline/traces/pr16-r1_rep0.json",
+        "review-codex-sol-astra/baseline/judge-inputs/pr16-r1_rep0.json"
+      ],
+      "grade": {
+        "recall": 0.125,
+        "fixed": 0,
+        "harmful": 1,
+        "noise": 1,
+        "precision": 0.6666666666666666,
+        "passed": 0,
+        "reviews": 1,
+        "five_plus": 0,
+        "broke_tests": 0
+      }
+    },
+    {
+      "case": "pr24",
+      "rep": 0,
+      "status": "ok",
+      "results_line": 2,
+      "line_sha256": "575415d27ceacac54b81f46dc98fe39cebc8686fc8333096a513320cc466e0c1",
+      "artifacts": [
+        "review-codex-sol-astra/baseline/codex-events/pr24_rep0.jsonl",
+        "review-codex-sol-astra/baseline/codex-events/pr24_rep0_judge.jsonl",
+        "review-codex-sol-astra/baseline/traces/pr24_rep0.json",
+        "review-codex-sol-astra/baseline/judge-inputs/pr24_rep0.json"
+      ],
+      "grade": {
+        "recall": 0,
+        "fixed": 0,
+        "harmful": 0,
+        "noise": 1,
+        "precision": 0.6666666666666666,
+        "passed": 1,
+        "reviews": 2,
+        "five_plus": 0
+      }
+    },
+    {
+      "case": "clean-pr33",
+      "rep": 0,
+      "status": "ok",
+      "results_line": 3,
+      "line_sha256": "651ba0d47048b5803888fbe106a585b0c393f0fc16e3e0af3535bbca39576ac0",
+      "artifacts": [
+        "review-codex-sol-astra/baseline/codex-events/clean-pr33_rep0.jsonl",
+        "review-codex-sol-astra/baseline/codex-events/clean-pr33_rep0_judge.jsonl",
+        "review-codex-sol-astra/baseline/traces/clean-pr33_rep0.json",
+        "review-codex-sol-astra/baseline/judge-inputs/clean-pr33_rep0.json"
+      ],
+      "grade": {
+        "harmful": 1,
+        "noise": 1,
+        "precision": 0,
+        "passed": 1,
+        "reviews": 2,
+        "five_plus": 0
+      }
+    },
+    {
+      "case": "pr35-r0",
+      "rep": 0,
+      "status": "ok",
+      "results_line": 4,
+      "line_sha256": "6426c5a737601d2d974823f3c8a137b3862116f7985f51d338a1ab4810e16069",
+      "artifacts": [
+        "review-codex-sol-astra/baseline/codex-events/pr35-r0_rep0.jsonl",
+        "review-codex-sol-astra/baseline/codex-events/pr35-r0_rep0_judge.jsonl",
+        "review-codex-sol-astra/baseline/traces/pr35-r0_rep0.json",
+        "review-codex-sol-astra/baseline/judge-inputs/pr35-r0_rep0.json"
+      ],
+      "grade": {
+        "recall": 0,
+        "fixed": 0,
+        "harmful": 0,
+        "noise": 0,
+        "precision": 1,
+        "passed": 0,
+        "reviews": 1,
+        "five_plus": 0
+      }
+    },
+    {
+      "case": "conv-pr33",
+      "rep": 0,
+      "status": "ok",
+      "results_line": 5,
+      "line_sha256": "352a9fbc886b2d9ea1f08462223020a8219be2bc6571eadc5be2004d239be2be",
+      "artifacts": [
+        "review-codex-sol-astra/baseline/codex-events/conv-pr33_rep0.jsonl",
+        "review-codex-sol-astra/baseline/codex-events/conv-pr33_rep0_judge.jsonl",
+        "review-codex-sol-astra/baseline/traces/conv-pr33_rep0.json",
+        "review-codex-sol-astra/baseline/judge-inputs/conv-pr33_rep0.json"
+      ],
+      "grade": {
+        "reintroduced": 0,
+        "harmful": 0,
+        "noise": 6,
+        "precision": 0.3333333333333333,
+        "passed": 1,
+        "reviews": 3,
+        "five_plus": 0
+      }
+    }
+  ],
+  "failed_attempts": [
+    {
+      "attempt": 1,
+      "case": "pr16-r1",
+      "rep": 0,
+      "errors_line": 1,
+      "line_sha256": "a2f77656f1e485b26c117395d2d32187770506e2df1c6925f3ce2da72df3b163",
+      "recorded_failure_class": "answer_key_leak",
+      "interpretation": "nested sandbox bootstrap failure (historically answer_key_leak)",
+      "artifact": "review-codex-sol-astra/baseline/leaks/pr16-r1_rep0_1793734440762.json",
+      "artifact_format": "JSON codex_events records; all original bytes retained"
+    },
+    {
+      "attempt": 2,
+      "case": "pr24",
+      "rep": 0,
+      "errors_line": 2,
+      "line_sha256": "8536f5984d1ff05f37d4e937ce52259842a229856195bf6c0f96d73c4029b57e",
+      "recorded_failure_class": "answer_key_leak",
+      "interpretation": "nested sandbox bootstrap failure (historically answer_key_leak)",
+      "artifact": "review-codex-sol-astra/baseline/leaks/pr24_rep0_1793734517508.json",
+      "artifact_format": "JSON codex_events records; all original bytes retained"
+    },
+    {
+      "attempt": 3,
+      "case": "pr35-r0",
+      "rep": 0,
+      "errors_line": 3,
+      "line_sha256": "5b1d15563db07a9e107de96ed7bf9609dd63466d266a8b1cdf3891f8ec576637",
+      "recorded_failure_class": "answer_key_leak",
+      "interpretation": "nested sandbox bootstrap failure (historically answer_key_leak)",
+      "artifact": "review-codex-sol-astra/baseline/leaks/pr35-r0_rep0_1793734601875.json",
+      "artifact_format": "JSON codex_events records; all original bytes retained"
+    },
+    {
+      "attempt": 4,
+      "case": "clean-pr33",
+      "rep": 0,
+      "errors_line": 4,
+      "line_sha256": "3bfbfe79044083a54bb8678596dc59e7bdd6d3ae7f21bd23ca5e81b1c8b4802f",
+      "recorded_failure_class": "answer_key_leak",
+      "interpretation": "nested sandbox bootstrap failure (historically answer_key_leak)",
+      "artifact": "review-codex-sol-astra/baseline/leaks/clean-pr33_rep0_1793734689386.json",
+      "artifact_format": "JSON codex_events records; all original bytes retained"
+    },
+    {
+      "attempt": 5,
+      "case": "conv-pr33",
+      "rep": 0,
+      "errors_line": 5,
+      "line_sha256": "3467ba0556ebba8a5e5d2d82be5c18bad122f0064cdfa3756d52a5ff9c6978c3",
+      "recorded_failure_class": "answer_key_leak",
+      "interpretation": "nested sandbox bootstrap failure (historically answer_key_leak)",
+      "artifact": "review-codex-sol-astra/baseline/leaks/conv-pr33_rep0_1793734771449.json",
+      "artifact_format": "JSON codex_events records; all original bytes retained"
+    },
+    {
+      "attempt": 6,
+      "case": "pr16-r1",
+      "rep": 0,
+      "errors_line": 6,
+      "line_sha256": "09ab33a00822e1aa3aa8ce969718f36bdbf6d5469106de2fe0c29e9851d6ed7d",
+      "recorded_failure_class": "answer_key_leak",
+      "interpretation": "replay author false positive",
+      "artifact": "review-codex-sol-astra/baseline/leaks/pr16-r1_rep0_1793735581922.json",
+      "artifact_format": "JSON codex_events records; all original bytes retained"
+    },
+    {
+      "attempt": 7,
+      "case": "pr35-r0",
+      "rep": 0,
+      "errors_line": 7,
+      "line_sha256": "9e13a04dc847fca18eba7d50475c32b737d4619611d56fb18397b25fd7c00ccf",
+      "recorded_failure_class": "grader",
+      "interpretation": "judge attempted tool; guard rejected",
+      "artifact": "review-codex-sol-astra/baseline/leaks/pr35-r0_rep0_1793737463400.json",
+      "artifact_format": "JSON codex_events records; all original bytes retained"
+    },
+    {
+      "attempt": 8,
+      "case": "conv-pr33",
+      "rep": 0,
+      "errors_line": 8,
+      "line_sha256": "ccaaebd8c6e494f69b0e19540363759c7d395ab2b8e692a9591df9c5d3e125a1",
+      "recorded_failure_class": "grader",
+      "interpretation": "judge attempted tool; guard rejected",
+      "artifact": "review-codex-sol-astra/baseline/leaks/conv-pr33_rep0_1793739221484.json",
+      "artifact_format": "JSON codex_events records; all original bytes retained"
+    }
+  ],
+  "files": [
+    {
+      "path": "review-codex-sol-astra/_state.json",
+      "bytes": 4004,
+      "sha256": "51265dadd9ecc92b64c6684c97399a1f2fbb2b5c6b2a07ddc9c1f03493adfabe"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/codex-events/clean-pr33_rep0.jsonl",
+      "bytes": 1802948,
+      "sha256": "91b434f00d6f70d288d27bb798911cc3557871ef6860df9a2f044831cf484b89"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/codex-events/clean-pr33_rep0_judge.jsonl",
+      "bytes": 1837,
+      "sha256": "edbabde77a5385b44fa5579f46d351c3c664004bf7480981c395bf81072bca98"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/codex-events/conv-pr33_rep0.jsonl",
+      "bytes": 3773748,
+      "sha256": "61c1145f6a029bd4c3169f62a702f02f2aa2e06873f1eefab45b6a192bf39cfd"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/codex-events/conv-pr33_rep0_judge.jsonl",
+      "bytes": 6449,
+      "sha256": "f11f38a5c13344186cd491b22512989d357b08fb60b89de828e51ac9b04f5d53"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/codex-events/pr16-r1_rep0.jsonl",
+      "bytes": 1144227,
+      "sha256": "0fac93d0fa1fda7b08f22a626174ada980359e344528d8c952c616c2654a9608"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/codex-events/pr16-r1_rep0_judge.jsonl",
+      "bytes": 3828,
+      "sha256": "9f79ac37194fbefb776a7c6aa31c2287686f65675bdb9ff2ffb2fa79a5e40ec6"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/codex-events/pr24_rep0.jsonl",
+      "bytes": 1117287,
+      "sha256": "f1c02b33c30909f99bd7209dd2e458b08cda064a4cf8140309b34c275d2b2e6f"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/codex-events/pr24_rep0_judge.jsonl",
+      "bytes": 3435,
+      "sha256": "6ce236bdd335c63cb41b869ed0e12d780d961c07c3f926b86c541e882abe7280"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/codex-events/pr35-r0_rep0.jsonl",
+      "bytes": 2133818,
+      "sha256": "0e2758d431649be7b2032053a14853a49ce78215ae15c39da5e0cad4a220f13b"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/codex-events/pr35-r0_rep0_judge.jsonl",
+      "bytes": 1380,
+      "sha256": "d3a96f591a1b3a5d7171a876ef052830965c53a1d21c88b35631f949f526a164"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/errors.jsonl",
+      "bytes": 10386,
+      "sha256": "1f2f42407ae87474d600e525db93f8c669a25df612050e9d90b8421590aee1ff"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/judge-inputs/clean-pr33_rep0.json",
+      "bytes": 26942,
+      "sha256": "9e3bd5aaf04efb61fe8451f9da080aa59df7eb338b92a8903b2871a9de269cc1"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/judge-inputs/conv-pr33_rep0.json",
+      "bytes": 51295,
+      "sha256": "45d175cb3fb4e2a7daf930747c462a776995e6a4b46be58724e0e003fa9c2b9f"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/judge-inputs/pr16-r1_rep0.json",
+      "bytes": 44688,
+      "sha256": "9c1e10e24a25cade935095443f1f5576e70244818e1edfdf2a107f643c96dd49"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/judge-inputs/pr24_rep0.json",
+      "bytes": 20165,
+      "sha256": "ec56889296e8422eb1aa7986c406d7a7e6dd2a7c6e52307eb18f4a759e7e3796"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/judge-inputs/pr35-r0_rep0.json",
+      "bytes": 16756,
+      "sha256": "976f9de568dbfade10d56a68d2e921bc3d8490e5a31b51b3bbc4329dc51d0a83"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/leaks/clean-pr33_rep0_1793734689386.json",
+      "bytes": 36796,
+      "sha256": "00a807b92bdd36c2ca51b9b22eee6a2c51e8850eecb3583c4583e03d4ffa136b"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/leaks/conv-pr33_rep0_1793734771449.json",
+      "bytes": 35883,
+      "sha256": "de71427c19ae4442bdf4435486d723c6518e10efbcabdb0def732b203da15dea"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/leaks/conv-pr33_rep0_1793739221484.json",
+      "bytes": 3741,
+      "sha256": "102887801f1d72d4bae33389d905204293ea5b986e9f51f492904b45c86d5427"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/leaks/pr16-r1_rep0_1793734440762.json",
+      "bytes": 36933,
+      "sha256": "92cab873998e8abdbe835c7d34fe37bfd3ffa22483cd108e324823b75648f3f7"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/leaks/pr16-r1_rep0_1793735581922.json",
+      "bytes": 2159137,
+      "sha256": "0b69540b89928eb288a44e03c164387418194ce795a6dd9de34b477e79eee425"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/leaks/pr24_rep0_1793734517508.json",
+      "bytes": 31781,
+      "sha256": "4f5123b8ae30f609145322370009e5745dc3a1925fdcfbb127aca72432007bea"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/leaks/pr35-r0_rep0_1793734601875.json",
+      "bytes": 34858,
+      "sha256": "33486ee492619bcff5d7c9f1676d0f6338513732784b0c3dd3909973b2dea889"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/leaks/pr35-r0_rep0_1793737463400.json",
+      "bytes": 1665,
+      "sha256": "94078d0c352d57ec3002ca2c8fc309006ab9218b0b71083e7e4fe580917c4b92"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/ref/clean-pr33",
+      "bytes": 313,
+      "sha256": "4ac1c20930c9eef35a10ab5aca776fedea255118573b48f3af0d60363078dcc1"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/ref/conv-pr33",
+      "bytes": 285,
+      "sha256": "77a75739222748dd53c790f8621cc1de4079fe1cecc3303a4957a7e92ae57e37"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/ref/pr16-r1",
+      "bytes": 345,
+      "sha256": "22e572102ea21906bdc0951b8d5986fa9a160f31de7ce7a44c4999c13e6a9b72"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/ref/pr24",
+      "bytes": 324,
+      "sha256": "b37075ab2659225cca8a4d4d0c658907faba97c3d038e831ed004500f111efc6"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/ref/pr35-r0",
+      "bytes": 327,
+      "sha256": "948998198ff9e52b2b489634c3ba406e0f88571e9c44554016ee98fdc2dfc918"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/results.jsonl",
+      "bytes": 4959213,
+      "sha256": "856338e0ded281df5ca2cffe9a7a6b17bcad075631976cdd48a327e94a2af549"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/traces/clean-pr33_rep0.json",
+      "bytes": 911589,
+      "sha256": "a16c65a37b09af4c18ddec39ac8c4d6025cdf11321a81c37e764b1a80fe61445"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/traces/conv-pr33_rep0.json",
+      "bytes": 1915343,
+      "sha256": "b77ad6193a61467afe8eabf465acdee9e8b02271e67edbc37947ea72e3dafdc5"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/traces/pr16-r1_rep0.json",
+      "bytes": 573187,
+      "sha256": "6c6206db378844faecdd8bbb485c77725d52a92f78c0048832712d02dbf2c780"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/traces/pr24_rep0.json",
+      "bytes": 549152,
+      "sha256": "90108db0ad27f1eca99604c371fff8328c108831c2193c0fd34731d3088d66e8"
+    },
+    {
+      "path": "review-codex-sol-astra/baseline/traces/pr35-r0_rep0.json",
+      "bytes": 1126448,
+      "sha256": "09c7df223a3f9c3a0fd4bb8b89f01678339946e93e392e848008b9cdf42de132"
+    },
+    {
+      "path": "review-codex-sol-astra/metrics.md",
+      "bytes": 2251,
+      "sha256": "14e355e470af053c7094a97623939b5429f4c8b7bae4805f22f479e0169fc61b"
+    },
+    {
+      "path": "review-opus-astra/_state.json",
+      "bytes": 4002,
+      "sha256": "96f400823a7f4651a2d05719f08840d2748d98ccacbe48df87fa9f7c1089cc6e"
+    },
+    {
+      "path": "review-opus-astra/metrics.md",
+      "bytes": 2251,
+      "sha256": "14e355e470af053c7094a97623939b5429f4c8b7bae4805f22f479e0169fc61b"
+    }
+  ]
+}

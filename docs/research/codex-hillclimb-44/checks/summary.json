@@ -1,0 +1,76 @@
+{
+  "base_revision": "34dc07b8879dfa175296ddcb84ee4a9296aefa65",
+  "covering_command": "CODEX_SANDBOX_TEST=1 node --test test/eval-*.test.mjs",
+  "covering": {
+    "pass": 47,
+    "fail": 0,
+    "skipped": 0
+  },
+  "full_suite": {
+    "full-tests": {
+      "tests": 173,
+      "pass": 168,
+      "fail": 2,
+      "skipped": 3
+    },
+    "baseline-tests": {
+      "tests": 155,
+      "pass": 152,
+      "fail": 2,
+      "skipped": 1
+    }
+  },
+  "typecheck": {
+    "diagnostics": 55,
+    "identical_to_base": true,
+    "exit_code": 2
+  },
+  "npm_run_check": {
+    "exit_code": 2,
+    "stopped_at": "pre-existing typecheck diagnostics"
+  },
+  "no_model_calls": true,
+  "logs": [
+    {
+      "path": "artifact-verification.log",
+      "sha256": "3760c2fee37f5e05f1bcb791ab9d9ddc11160202af3a38852f2b4dc09f3925dc"
+    },
+    {
+      "path": "baseline-tests.log",
+      "sha256": "02a424c69f80481f7aa9eb59b125f0955281e4a8fef2253fd2ddfb46a6c966a2"
+    },
+    {
+      "path": "baseline-typecheck.log",
+      "sha256": "2cf90124f04c2f482f9025169c7df656047db4c64278fbd62cdbad94fdaf53ae"
+    },
+    {
+      "path": "changed-fingerprint.log",
+      "sha256": "2ec270f5b0d71ab0a9ca6b48fa522fe22a97607c17e01c605e6129df16da8609"
+    },
+    {
+      "path": "check.log",
+      "sha256": "3d8e7424f91c4db4c0f2954d8b45ca6eb48c1902d00914b042e837da3c7d8517"
+    },
+    {
+      "path": "eval-checks.log",
+      "sha256": "16a29fec811ec73250ab501b38bee4971fdb0147b478942814443940a3572dc3"
+    },
+    {
+      "path": "full-tests.log",
+      "sha256": "1b3e5ac524e5969b8252af88ecd4d02d70ea414e191df5d6300e71eb39fcbb20"
+    },
+    {
+      "path": "npm-ci.log",
+      "sha256": "ce6dcd66fa73e297e30ecfa7938d797a1c94c198b4e9d94333c48715034587da"
+    },
+    {
+      "path": "typecheck-diff.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "typecheck.log",
+      "sha256": "2cf90124f04c2f482f9025169c7df656047db4c64278fbd62cdbad94fdaf53ae"
+    }
+  ],
+  "log_normalization": "Trailing horizontal whitespace removed from committed check logs; original pilot artifacts remain byte-identical."
+}

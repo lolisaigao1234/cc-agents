@@ -15,6 +15,8 @@ import { readOAuth } from './lib/cli.mjs';
 import { removeTree } from './lib/cleanup.mjs';
 import { grade } from './lib/grade.mjs';
 import { costOf } from './lib/prices.mjs';
+import { CODEX_JUDGE, LEGACY_JUDGE } from './lib/config.mjs';
+import { lockCodexAuth, resolveCodex } from './lib/codex.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -38,14 +40,18 @@ const probes = [
   { name: 'wrong target', want: 0, material: round(1, asFindings(other.bug_ids)) },
 ];
 
-const oauth = readOAuth();
-let failed = 0, spend = 0;
+const codexJudge = process.argv.includes('--judge-codex');
+const judgeConfig = codexJudge ? CODEX_JUDGE : LEGACY_JUDGE;
+const codex = codexJudge ? { auth: lockCodexAuth(), bin: resolveCodex() } : undefined;
+const oauth = codexJudge ? undefined : readOAuth();
+let failed = 0, spend = 0, spendKnown = true;
 for (const p of probes) {
   const work = mkdtempSync(join(tmpdir(), 'review-selftest-'));
   try {
     const g = await grade({ oauth, work, c, bugs, issue, prDiff, changes: '', material: p.material,
-      counts: { bug_reviews: 0 }, tests: { before: null, after: null } });
-    spend += costOf(g.judge_model, g.judge_usage) ?? 0;
+      judgeConfig, codex, modelVerification: 'configured_only', counts: { bug_reviews: 0 }, tests: { before: null, after: null } });
+    const cost = costOf(g.judge_model, g.judge_usage);
+    if (cost == null) spendKnown = false; else spend += cost;
     const ok = Math.abs(g.grade.recall - p.want) <= 0.15;
     if (!ok) failed++;
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${p.name}: recall ${g.grade.recall.toFixed(2)} (want ${p.want}); ${g.explanation.recall}; findings ${g.detail.findings.map(f => f.category).join(',') || 'none'}`);
@@ -53,5 +59,5 @@ for (const p of probes) {
     removeTree(work, m => console.error(m));
   }
 }
-console.log(`judge spend at API prices: $${spend.toFixed(2)}`);
+console.log(spendKnown ? `judge spend at API prices: $${spend.toFixed(2)}` : 'judge spend at API prices: unknown (unpriced model or incomplete usage)');
 process.exit(failed ? 1 : 0);
