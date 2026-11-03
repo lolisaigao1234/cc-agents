@@ -149,7 +149,7 @@ export async function codexExec(runtime, { model, effort = 'high', serviceTier =
   copyFileSync(join(home, '.codex/auth.json'), refreshed); renameSync(refreshed, auth.auth);
   const d = codexDigest(events);
   const records = existsSync(ledger) ? readFileSync(ledger, 'utf8').trim().split('\n').filter(Boolean).map(s => JSON.parse(s)) : [];
-  const billed = { model: null, requested_model: model, usage: d.usage, events, artifacts: call };
+  const billed = { model: null, requested_model: model, usage: d.usage, events, artifacts: call, raw_usage: d.raw_usage, audit: records };
   if (r.timedOut) throw fail('timeout', `Codex ${phase} exceeded ${limitS}s`, billed);
   if (/bwrap:|sandbox.*(?:unavailable|failed)|managed network proxy|Failed to execvp|(?:namespace|seccomp).*(?:denied|permitted)/i.test(r.stderr))
     throw fail('sandbox_unavailable', `Codex sandbox unavailable: ${r.stderr.slice(-400)}`, billed);
