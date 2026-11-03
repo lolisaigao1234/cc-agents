@@ -21,7 +21,7 @@
 //     completed, the billed model/usage (never in results.jsonl)
 
 import { randomBytes } from 'node:crypto';
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs';
+import { chmodSync, cpSync, mkdtempSync, readdirSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import * as GH from './lib/github.mjs';
@@ -37,6 +37,7 @@ import { executionConfig } from './lib/config.mjs';
 import { lockCodexAuth, resolveCodex } from './lib/codex.mjs';
 import { runCodexAgent } from './lib/codex-agent.mjs';
 import { removeTree } from './lib/cleanup.mjs';
+import { retainAttempt } from './lib/attempt-evidence.mjs';
 import { createHash } from 'node:crypto';
 import { closeSync, constants as FS, existsSync, fstatSync, ftruncateSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -291,7 +292,9 @@ async function runCase(c, ctx) {
   // there, and a socket path past 108 bytes stops the sandbox from starting.
   const tmp = mkdtempSync(join(R.workRoot, 't-'));
   let replay = null;
-  try {
+  return retainAttempt({ root: ctx.evidenceRoot, label: 'agent',
+    request: { case: c, variant: ctx.variant, execution: ctx.execution, rep: ctx.rep }, homes: [home],
+    execute: async () => {
     replay = await buildReplay({ gh: R.gh, token: R.token, org: ORG, source: SOURCE, c, issue, work: R.work, name, overlay: R.repoOverlay });
     const before = testsPass(replay.dir);
     const limitS = ctx.timeoutS > 0 ? Math.max(60, ctx.timeoutS - 900) : 4 * 3600;
@@ -360,23 +363,24 @@ async function runCase(c, ctx) {
       turns: res.num_turns, budget_hit: codex ? null : /max_budget/.test(res.subtype ?? '') ? 1 : 0,
       meta: { replay: name, agent: ctx.agent, ...(codex ? { codex: cd.provenance, codex_events: cd.events } : {}), premium_requests: res.premium_requests, nano_aiu: res.nano_aiu, model_usage: codex ? { [ctx.model]: cd.usage } : Object.fromEntries(Object.entries(mu).map(([k, v]) => [k, apiUsage(v)])), effort: R.effort, served_main: d.servedMain, segments: res.segments, cli_cost_usd: res.total_cost_usd, tests: { before, after } },
     };
-  } finally {
+  }, cleanup: async () => {
     if (!ctx.keep) {
       if (replay?.slug) await deleteReplay(R.gh, replay).catch(e => eprint(`  could not delete ${replay.slug}: ${e.message}`));
       for (const p of [join(R.work, name), home, tmp]) removeTree(p, m => eprint(`  ${m}`));
     }
-  }
+  } });
 }
 
 async function gradeCase(c, run, ref, ctx) {
   const work = join(R.work, `judge-${run.name}`);
-  try {
-    return await grade({ oauth: R.oauth, work, c, bugs: R.bugs, issue: run.issueText, prDiff: run.prDiff,
+  return retainAttempt({ root: ctx.evidenceRoot, label: 'judge',
+    request: { c, issue: run.issueText, prDiff: run.prDiff, changes: run.changes, material: run.material,
+      counts: run.counts, tests: run.tests, execution: ctx.execution }, homes: [join(work, 'judge-home')],
+    execute: () => grade({ oauth: R.oauth, work, c, bugs: R.bugs, issue: run.issueText, prDiff: run.prDiff,
       changes: run.changes, material: run.material, counts: run.counts, tests: run.tests,
-      judgeConfig: ctx.execution.judge, codex: R.codex, modelVerification: ctx.execution.modelVerification, deadline: ctx.deadline });
-  } finally {
+      judgeConfig: ctx.execution.judge, codex: R.codex, modelVerification: ctx.execution.modelVerification, deadline: ctx.deadline }), cleanup: () => {
     if (!ctx.keep) removeTree(work, m => eprint(`  ${m}`));
-  }
+  } });
 }
 
 function perfFrom(run, g) {
@@ -575,7 +579,8 @@ async function withBackoff(fn, retry, deadline = Infinity, tries = 5) {
 
 // Hard per-case wall-clock ceiling, independent of stream liveness - a hung
 // SSE stream can emit keepalives forever, defeating inactivity-based timers.
-// The underlying call may keep running; the case fails and the slot is freed.
+// A deadline rejects scoring; the worker still drains provider retention/cleanup
+// before freeing its slot. A late response cannot turn the timeout into a score.
 function withTimeout(promise, seconds, label) {
   if (!(seconds > 0)) return promise;
   let timer;
@@ -750,17 +755,21 @@ async function main() {
     while (i < tasks.length) {
       const { c, rep } = tasks[i++];
       const safeId = pathSafeId(c.id);
+      const evidenceRoot = join(vdir, 'attempts', `${safeId}_rep${rep}`);
+      mkdirNoFollow(evidenceRoot);
+      chmodSync(evidenceRoot, 0o700);
       const t0 = Date.now();
       let lastRun = null;    // survives into the catch - billed spend on a failed attempt
+      let caseWork = null; // drain provider cleanup/retention even if the scoring deadline wins
       let rowWritten = false; // set once the results row lands - the attempt is scored
       const deadline = args.timeoutS > 0 ? t0 + args.timeoutS * 1000 : Infinity;
       const appRetry = { count: 0, failures: [], evidence: [] }, judgeRetry = { count: 0, failures: [], evidence: [] };
       try {
         // One ceiling over the whole case - app call, identity check, and grading - 
         // so a hung judge stream can't hold the slot either.
-        const { run, g, latency_s } = await withTimeout((async () => {
+        const { run, g, latency_s } = await withTimeout(caseWork = (async () => {
           let tAttempt = t0;
-          const run = await withBackoff(() => { tAttempt = Date.now(); return runCase(c, { ...ctx, rep, deadline }); },
+          const run = await withBackoff(() => { tAttempt = Date.now(); return runCase(c, { ...ctx, rep, deadline, evidenceRoot }); },
             appRetry, deadline);
           lastRun = run;
           // latency_s = the final app attempt only; backoff sleeps, failed
@@ -796,7 +805,7 @@ async function main() {
               catch (e) { if (e?.code !== 'ENOENT') throw e; }
             }
           }
-          const g = await withBackoff(() => gradeCase(c, run, ref, { ...ctx, deadline }), judgeRetry, deadline);
+          const g = await withBackoff(() => gradeCase(c, run, ref, { ...ctx, deadline, evidenceRoot }), judgeRetry, deadline);
           return { run, g, latency_s };
         })(), args.timeoutS, `${c.id} rep${rep}`);
         const { codex_events: rawCodexEvents, ...rowMeta } = run.meta ?? {};
@@ -850,6 +859,10 @@ async function main() {
         }
         ok++;
       } catch (e) {
+        // A wall-clock rejection does not cancel the provider promise. Drain it
+        // before the next case or global cleanup so evidence survives and
+        // subscription concurrency stays one. Its late success is never scored.
+        await caseWork?.catch(() => {});
         fail++;
         if (rowWritten) {
           // The attempt scored; only a post-row write (trace, ref) failed. An error
@@ -863,6 +876,7 @@ async function main() {
           prompt_id: safeId, rep,
           ...(safeId !== String(c.id) ? { original_id: String(c.id) } : {}),
           failure_class: e?.failure_class ?? 'error',
+          evidence_directory: relative(vdir, evidenceRoot),
           error: String(e?.message || e),
           retries: appRetry.count, judge_retries: judgeRetry.count, failed_attempts: [...appRetry.failures, ...judgeRetry.failures],
           // Billed-but-failed spend stays countable: when the app call completed

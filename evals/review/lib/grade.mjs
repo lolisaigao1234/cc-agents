@@ -9,6 +9,7 @@ import { baseEnv, claude } from './cli.mjs';
 import { apiUsage } from './prices.mjs';
 import { LEGACY_JUDGE } from './config.mjs';
 import { codexExec, prepareCodex } from './codex.mjs';
+import { failureEvidence } from './attempt-evidence.mjs';
 
 export const JUDGE_MODEL = 'claude-fable-5-1';
 // Pinned, so the judge cannot drift with Claude Code's server-side default mid-screen.
@@ -101,7 +102,7 @@ ${changes || '(the agent changed nothing)'}
 
 // Both judges run in an empty directory without plugins. Claude exposes no
 // tools; Codex denies every tool and invalidates any attempted tool call.
-async function ask(judge, prompt, schema) {
+async function askRaw(judge, prompt, schema) {
   const config = judge.config;
   if (config.agent === 'codex') {
     try {
@@ -139,6 +140,21 @@ async function ask(judge, prompt, schema) {
   return { out, model, usage };
 }
 
+// Preserve every original judge request and response even when a later call fails.
+async function ask(judge, prompt, schema) {
+  const request = { prompt, schema, developerInstructions: SYSTEM, judge: judge.config };
+  try {
+    const result = await askRaw(judge, prompt, schema);
+    judge.calls.push({ request, status: 'ok', output: result.out, events: result.events,
+      provenance: result.provenance, usage: result.usage, model: result.model });
+    return result;
+  } catch (e) {
+    judge.calls.push({ request, status: 'failure', ...failureEvidence(e) });
+    e.judge_calls = judge.calls;
+    throw e;
+  }
+}
+
 const addUsage = (a, b) => {
   if (a == null || b == null) return null;
   const out = { ...a };
@@ -154,7 +170,7 @@ export async function grade({ oauth, work, c, bugs, issue, prDiff, changes, mate
   judgeConfig = LEGACY_JUDGE, codex, modelVerification = 'required', deadline = Date.now() + 1900_000 }) {
   const dir = join(work, 'judge');
   mkdirSync(dir, { recursive: true });
-  const judge = { dir, config: judgeConfig, modelVerification, deadline,
+  const judge = { dir, config: judgeConfig, modelVerification, deadline, calls: [],
     ...(judgeConfig.agent === 'codex'
       ? { runtime: prepareCodex({ dir, home: join(work, 'judge-home'), tmp: join(work, 'tmp'), auth: codex.auth }), bin: codex.bin }
       : { env: baseEnv(join(work, 'judge-home'), oauth) }) };
@@ -209,7 +225,7 @@ export async function grade({ oauth, work, c, bugs, issue, prDiff, changes, mate
     reintroduced: fixedOut ? fixedOut.regressions.map(b => `${b.bug_id}: ${b.status}`).join(', ') : 'no changes',
   };
   return {
-    grade: g, explanation, raw_events: rawEvents, judge_model: f.model, judge_usage: usage, judge_config: judgeConfig, judge_provenance: judgeCalls.length ? { calls: judgeCalls, model_verification: judgeCalls.every(x => x.served_model) ? 'response' : 'configured_only' } : null,
+    grade: g, explanation, judge_calls: judge.calls, raw_events: rawEvents, judge_model: f.model, judge_usage: usage, judge_config: judgeConfig, judge_provenance: judgeCalls.length ? { calls: judgeCalls, model_verification: judgeCalls.every(x => x.served_model) ? 'response' : 'configured_only' } : null,
     detail: { findings: fs, rounds: f.out.rounds, asked_human: f.out.asked_human, review_happened: f.out.review_happened,
       fixed: fixedOut?.bugs ?? null, regressions: fixedOut?.regressions ?? null, first_clean_round: firstClean },
   };

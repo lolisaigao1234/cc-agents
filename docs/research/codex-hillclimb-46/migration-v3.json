@@ -1,0 +1,201 @@
+{
+  "from": "astra-calibration-v2",
+  "to": "astra-calibration-v3",
+  "changed": [
+    {
+      "previous_path": "bundle.json",
+      "path": "bundle.json",
+      "previous_sha256": "c9db78a5b3a45ab18df40f98149225ab82fd4b044d40eaaed61ef561e8cc382e",
+      "sha256": "2b177e11678818eb6251b670a7d968c5a70377278528f906d012982a452abe3b"
+    },
+    {
+      "previous_path": "build-v2.py",
+      "path": "build-v3.py",
+      "previous_sha256": "5348a7c0d7e29cdf374b4c551cba40778397b828fc5714eba4ff3dcb36abdf05",
+      "sha256": "ae02e65e8b27a0dbad87f1a3bcc5cefd46205265a36723ea676cda6caf48dbf0"
+    }
+  ],
+  "unchanged": [
+    {
+      "previous_path": "sources/conv-pr33_rep0.json",
+      "path": "sources/conv-pr33_rep0.json",
+      "previous_sha256": "45d175cb3fb4e2a7daf930747c462a776995e6a4b46be58724e0e003fa9c2b9f",
+      "sha256": "45d175cb3fb4e2a7daf930747c462a776995e6a4b46be58724e0e003fa9c2b9f"
+    },
+    {
+      "previous_path": "sources/pr16-r1_rep0.json",
+      "path": "sources/pr16-r1_rep0.json",
+      "previous_sha256": "9c1e10e24a25cade935095443f1f5576e70244818e1edfdf2a107f643c96dd49",
+      "sha256": "9c1e10e24a25cade935095443f1f5576e70244818e1edfdf2a107f643c96dd49"
+    },
+    {
+      "previous_path": "sources/selected-metadata.json",
+      "path": "sources/selected-metadata.json",
+      "previous_sha256": "a29b314daf00c552da28e2089c3dd302f41d24c6139a70a1624410cbcf2dc266",
+      "sha256": "a29b314daf00c552da28e2089c3dd302f41d24c6139a70a1624410cbcf2dc266"
+    },
+    {
+      "previous_path": "sources/pr24_rep0.json",
+      "path": "sources/pr24_rep0.json",
+      "previous_sha256": "ec56889296e8422eb1aa7986c406d7a7e6dd2a7c6e52307eb18f4a759e7e3796",
+      "sha256": "ec56889296e8422eb1aa7986c406d7a7e6dd2a7c6e52307eb18f4a759e7e3796"
+    },
+    {
+      "previous_path": "sources/pr35-r0_rep0.json",
+      "path": "sources/pr35-r0_rep0.json",
+      "previous_sha256": "976f9de568dbfade10d56a68d2e921bc3d8490e5a31b51b3bbc4329dc51d0a83",
+      "sha256": "976f9de568dbfade10d56a68d2e921bc3d8490e5a31b51b3bbc4329dc51d0a83"
+    },
+    {
+      "previous_path": "inputs/p03-original.json",
+      "path": "inputs/p03-original.json",
+      "previous_sha256": "d550112bc62fad0046e25a711da1e5f59772d08dd0192f74f4e9441a14dba7b4",
+      "sha256": "d550112bc62fad0046e25a711da1e5f59772d08dd0192f74f4e9441a14dba7b4"
+    },
+    {
+      "previous_path": "inputs/u04-wording.json",
+      "path": "inputs/u04-wording.json",
+      "previous_sha256": "1df9dc2fc7402ffb9788606464fde9aeda0fefd5e9bf4a5b9826d11fae463552",
+      "sha256": "1df9dc2fc7402ffb9788606464fde9aeda0fefd5e9bf4a5b9826d11fae463552"
+    },
+    {
+      "previous_path": "inputs/p02-original.json",
+      "path": "inputs/p02-original.json",
+      "previous_sha256": "1552c81a1da0a9b0f9db172dab983261c014869169899173cd5a42ec12cdce5b",
+      "sha256": "1552c81a1da0a9b0f9db172dab983261c014869169899173cd5a42ec12cdce5b"
+    },
+    {
+      "previous_path": "inputs/u07-original.json",
+      "path": "inputs/u07-original.json",
+      "previous_sha256": "f259fb612885201ecfa8d3eb47de73ae1e1d4dd1a77490853a0a105e6e04ed15",
+      "sha256": "f259fb612885201ecfa8d3eb47de73ae1e1d4dd1a77490853a0a105e6e04ed15"
+    },
+    {
+      "previous_path": "inputs/u05-layout.json",
+      "path": "inputs/u05-layout.json",
+      "previous_sha256": "36111391c38932ba4a70469ea175ce47549ef1ae881c5079d3c6c602974470cb",
+      "sha256": "36111391c38932ba4a70469ea175ce47549ef1ae881c5079d3c6c602974470cb"
+    },
+    {
+      "previous_path": "inputs/u01-layout.json",
+      "path": "inputs/u01-layout.json",
+      "previous_sha256": "2c11f4b22253054faf04c2b0006b1f7a1c4cbe22f8fd62ccf78c5e9a8364e412",
+      "sha256": "2c11f4b22253054faf04c2b0006b1f7a1c4cbe22f8fd62ccf78c5e9a8364e412"
+    },
+    {
+      "previous_path": "inputs/u02-original.json",
+      "path": "inputs/u02-original.json",
+      "previous_sha256": "5c109faa3c815139bb564061c4fa1c2cb3f48bff5655436d1ba5b470534ed883",
+      "sha256": "5c109faa3c815139bb564061c4fa1c2cb3f48bff5655436d1ba5b470534ed883"
+    },
+    {
+      "previous_path": "inputs/u03-layout.json",
+      "path": "inputs/u03-layout.json",
+      "previous_sha256": "4b4f6976042fd665e8cd574d92e07fd27821f34eb4f1fc908921c16e6ba07274",
+      "sha256": "4b4f6976042fd665e8cd574d92e07fd27821f34eb4f1fc908921c16e6ba07274"
+    },
+    {
+      "previous_path": "inputs/u04-original.json",
+      "path": "inputs/u04-original.json",
+      "previous_sha256": "fedb2c9b3eeb64d508a6a5cc0da031aea1362f2e9281c1e6afd36eff341d34ab",
+      "sha256": "fedb2c9b3eeb64d508a6a5cc0da031aea1362f2e9281c1e6afd36eff341d34ab"
+    },
+    {
+      "previous_path": "inputs/u05-original.json",
+      "path": "inputs/u05-original.json",
+      "previous_sha256": "86fd6cd5cbb400c5d14d7918f9ae6f6f6bd7161d254ff51b073a7eb027cae284",
+      "sha256": "86fd6cd5cbb400c5d14d7918f9ae6f6f6bd7161d254ff51b073a7eb027cae284"
+    },
+    {
+      "previous_path": "inputs/u04-layout.json",
+      "path": "inputs/u04-layout.json",
+      "previous_sha256": "a562daa63528fd2826407ea3e73b9b3db378c413ea84daabc9bc5a289529a5e2",
+      "sha256": "a562daa63528fd2826407ea3e73b9b3db378c413ea84daabc9bc5a289529a5e2"
+    },
+    {
+      "previous_path": "inputs/u02-layout.json",
+      "path": "inputs/u02-layout.json",
+      "previous_sha256": "811a4ced77ef4a2a904e682add7ce23a6153349549e3dd918c1aa3aeed10b560",
+      "sha256": "811a4ced77ef4a2a904e682add7ce23a6153349549e3dd918c1aa3aeed10b560"
+    },
+    {
+      "previous_path": "inputs/u03-original.json",
+      "path": "inputs/u03-original.json",
+      "previous_sha256": "c658591406972109b3cb276eaa997962a9a96a37a3c487559274fbc8e7afc0af",
+      "sha256": "c658591406972109b3cb276eaa997962a9a96a37a3c487559274fbc8e7afc0af"
+    },
+    {
+      "previous_path": "inputs/p01-original.json",
+      "path": "inputs/p01-original.json",
+      "previous_sha256": "2d090c472e9409cbf57b845b97e104cd83c3ba207777198fc1abaeb7700d9ecf",
+      "sha256": "2d090c472e9409cbf57b845b97e104cd83c3ba207777198fc1abaeb7700d9ecf"
+    },
+    {
+      "previous_path": "inputs/u07-wording.json",
+      "path": "inputs/u07-wording.json",
+      "previous_sha256": "7ed680687eaf6f71eae272df5e0dd8b0687313a400fd840359631918f0085b78",
+      "sha256": "7ed680687eaf6f71eae272df5e0dd8b0687313a400fd840359631918f0085b78"
+    },
+    {
+      "previous_path": "inputs/u01-wording.json",
+      "path": "inputs/u01-wording.json",
+      "previous_sha256": "efc84c689f9db0b1bd907c6dbbf808d8802a941a576e5a998510ad726f260267",
+      "sha256": "efc84c689f9db0b1bd907c6dbbf808d8802a941a576e5a998510ad726f260267"
+    },
+    {
+      "previous_path": "inputs/u03-wording.json",
+      "path": "inputs/u03-wording.json",
+      "previous_sha256": "392a2c4ea0ad962448b3c5190804cf4935a57290acb25fc55842cccd5bc7728d",
+      "sha256": "392a2c4ea0ad962448b3c5190804cf4935a57290acb25fc55842cccd5bc7728d"
+    },
+    {
+      "previous_path": "inputs/u05-wording.json",
+      "path": "inputs/u05-wording.json",
+      "previous_sha256": "dc1f2b1c507b3f906a30e74691945c2881d426a48325ab2bd141747a913106ae",
+      "sha256": "dc1f2b1c507b3f906a30e74691945c2881d426a48325ab2bd141747a913106ae"
+    },
+    {
+      "previous_path": "inputs/u02-wording.json",
+      "path": "inputs/u02-wording.json",
+      "previous_sha256": "1c096d7b14c52e95a338e731c78d21fb4c72b9abdddd8b57ba61764b77c23a92",
+      "sha256": "1c096d7b14c52e95a338e731c78d21fb4c72b9abdddd8b57ba61764b77c23a92"
+    },
+    {
+      "previous_path": "inputs/p04-original.json",
+      "path": "inputs/p04-original.json",
+      "previous_sha256": "8f428bfc793b953195fc4c3797576aefa0c9addf480d8849676ec5903005ad51",
+      "sha256": "8f428bfc793b953195fc4c3797576aefa0c9addf480d8849676ec5903005ad51"
+    },
+    {
+      "previous_path": "inputs/u01-original.json",
+      "path": "inputs/u01-original.json",
+      "previous_sha256": "53de99e8f5fab9ede44ae1f32f48f311f50e0459865c298eebb9e810fb5f38c2",
+      "sha256": "53de99e8f5fab9ede44ae1f32f48f311f50e0459865c298eebb9e810fb5f38c2"
+    },
+    {
+      "previous_path": "inputs/u06-wording.json",
+      "path": "inputs/u06-wording.json",
+      "previous_sha256": "a5af49edeb5803888d088f32236e0dd40a8b7207e973398bd8f1c6622f7ac8d9",
+      "sha256": "a5af49edeb5803888d088f32236e0dd40a8b7207e973398bd8f1c6622f7ac8d9"
+    },
+    {
+      "previous_path": "inputs/u07-layout.json",
+      "path": "inputs/u07-layout.json",
+      "previous_sha256": "696e78a014a7412f3412d5d7a33cb515e884da4572d83a37872007b49b56d1db",
+      "sha256": "696e78a014a7412f3412d5d7a33cb515e884da4572d83a37872007b49b56d1db"
+    },
+    {
+      "previous_path": "inputs/u06-layout.json",
+      "path": "inputs/u06-layout.json",
+      "previous_sha256": "7991c3e965b50344b7d5067f0f354b84f64d2b1138aeb5c273aaa92841f54fad",
+      "sha256": "7991c3e965b50344b7d5067f0f354b84f64d2b1138aeb5c273aaa92841f54fad"
+    },
+    {
+      "previous_path": "inputs/u06-original.json",
+      "path": "inputs/u06-original.json",
+      "previous_sha256": "3dafbd75675162cf828dd5f8a0d042a2003ae2cbff11f0c05f7c629da708c6d5",
+      "sha256": "3dafbd75675162cf828dd5f8a0d042a2003ae2cbff11f0c05f7c629da708c6d5"
+    }
+  ],
+  "semantic_assertion": "Bundle differs only in version. Builder differs only in version and output filename; all 30 inputs/source files are byte-identical. Expected labels/citations/exclusions/order unchanged. No results exist."
+}
