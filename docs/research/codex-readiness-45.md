@@ -19,21 +19,33 @@ Historical Sol/Astra pilot and deferred Opus/Astra fingerprint:
 
 `e2c423eb214f4e68d95cc36f9903edfcb74e6c1d4d70bfed8637ed980747c612`
 
-Changed harness fingerprint (115 files):
+#45-only measurement fingerprint (115 files, immutable commit `8b92015`):
 
 `b9f15bbf16115038993b7e3094049b6407ed180382d4429cbadc8533346d533a`
 
 [New file inventory](codex-readiness-45/harness-files.json) records the exact
-protected membership and byte hashes. The only changed protected file is
+protected membership and byte hashes for those readiness measurements. The only
+protected file changed by #45 is
 `evals/review/lib/codex.mjs`. The workflow identity remains `codex-baseline-v1`;
 the audit procedure is `offline-readiness-45-v1`. Competitor/judge configuration
 remains requested Sol/Astra High/Fast, subscription authentication, concurrency
 1. Observed served model/tier and unpriced spend remain unknown/null. No new
 response-backed identity was observed.
 
+After merging local integration tip `57ba71fbd7bd201833788e61942956c40083aee6`
+(#47), the **final combined UNAPPROVED fingerprint** is:
+
+`ecd719b832effc148c15241f66b8133c6c8766a2dde4facd51679aa5a166a2f5`
+
+The [combined inventory](codex-readiness-45/merged-harness-files.json) has 118
+protected files. #47's own `b7f0110f…01633a` freeze remains unchanged, as do the
+original pilot inventories. The five-case measurements remain identified with
+the #45-only SHA; they are not relabeled as v13 model results.
+
 **HUMAN approval is required before any live run on the changed harness.** The
 historical offline verifier exits 2 with that exact stop and the new SHA
-([log](codex-readiness-45/checks/fingerprint-after.log)). No approval flag or
+([#45-only log](codex-readiness-45/checks/fingerprint-after.log),
+[combined log](codex-readiness-45/checks/merged/historical-gate-merged.log)). No approval flag or
 approved state was edited. This work does not authorize #46 or the deferred
 Opus/Astra schedule to use the new runtime. The old pinned checkout, original
 approval and deferred comparison remain identifiable and untouched. A human
@@ -164,6 +176,28 @@ test now also proves that the read-record sentinel cannot be read or overwritten
   No unrelated product correction or packaging test was added.
 - Five unmodified snapshot manifests are unchanged in both valid runs.
   Original pilot evidence hashes remain unchanged. `git diff --check` passes.
+
+### Integration revalidation
+
+The latest local integration tip was merged before handoff. A conflict between
+independently appended eval tests was resolved by keeping both sets; #47's
+both-arm sandbox workflow tests retain #45's protected-record sentinel checks.
+The merged generated filesystem policies for agent/review/judge match the
+measured #45 policy byte for byte; `codexBwrap` and `prepareCodex` function
+sources are identical to the measured revision. This does not substitute for a
+new v13 model experiment, and none was run. The complete five-case tests were
+not rerun on the combined revision because its filesystem/replay setup is
+unchanged; merged boundary tests exercise the actual combined code.
+
+Final merged checks are retained separately in
+[checks/merged](codex-readiness-45/checks/merged/):
+
+- Covering no-model eval and guard checks: **73 pass, zero failures/skips**.
+- Ordinary full suite: **184 pass, 2 pre-existing failures, 5 skips** (191 total).
+- Typecheck: the same **55 diagnostics**, byte-identical to the pre-edit audit.
+- Historical verifier: **exit 2, STOP: HUMAN approval required**, reporting the
+  final combined fingerprint above. No historical inventory, approval or pilot
+  artifact was updated.
 
 To reproduce without models (use new output paths each time):
 
