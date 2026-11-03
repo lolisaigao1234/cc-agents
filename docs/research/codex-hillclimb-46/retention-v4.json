@@ -1,0 +1,41 @@
+{
+  "version": "astra-calibration-v4",
+  "issue": 46,
+  "access": "Maintainer-only unpublished draft. Never publish automatically. Preserve all older releases and v3 BLOCK evidence.",
+  "implementation_revision": "a9b57be3162cdbae0229d72975efbe6f18190f33",
+  "release": {
+    "id": 433327254,
+    "tag_name": "cc-agents-46-calibration-preregistration-v4",
+    "draft": true,
+    "target_commitish": "3b36c90d1ed28e0874128e29a1909efc24fe7312",
+    "html_url": "https://github.com/lolisaigao1234/cc-agents/releases/tag/untagged-e227ee8a540e151f1fd5"
+  },
+  "target_note": "Draft targets the existing integration base. Implementation is committed locally for parent review/merge and is included as a patch in the restricted checks; implementer made no push.",
+  "assets": [
+    {
+      "id": 707468350,
+      "name": "astra-calibration-v4.tar.gz",
+      "bytes": 190059,
+      "sha256": "b38d7eea72654e2aebda63d14112e9e96dcb7dd065839d684ad3ded995c6cf0f",
+      "download_verified": true,
+      "members_verified": 32
+    },
+    {
+      "id": 707468352,
+      "name": "calibration-v4-offline-checks.tar.gz",
+      "bytes": 36410,
+      "sha256": "af075e7c15536cc86f99a454eb3362601af83f001a05f76694b58f72e279ef9f",
+      "download_verified": true,
+      "members_verified": 26
+    }
+  ],
+  "private_members_verified": 32,
+  "byte_identical_v3_input_source_files": 30,
+  "metadata_only_changed_files": 2,
+  "local_private_bundle": "/home/ubuntu/cc-agents-artifacts/issue-46/preregistration-v4",
+  "local_checks": "/home/ubuntu/cc-agents-artifacts/issue-46/followup-v4-checks",
+  "local_verified_download": "/home/ubuntu/cc-agents-artifacts/issue-46/download-v4-verified",
+  "credential_pattern_matches": 0,
+  "live_model_calls": 0,
+  "approval": "Required; none transcribed"
+}

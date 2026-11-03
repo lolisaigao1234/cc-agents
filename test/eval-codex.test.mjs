@@ -175,6 +175,7 @@ if(prompt.includes('TRY_TOOL')) execSync(hooks.PreToolUse[0].hooks[0].command,{i
 if(prompt.includes('SANDBOX_EVENT_FAIL')) console.log(JSON.stringify({type:'item.completed',item:{id:'sandbox',type:'command_execution',command:'pwd',exit_code:1,aggregated_output:"bwrap: Cannot create sandbox mount: Read-only file system"}}));
 if(prompt.includes('SANDBOX_HOOK_FAIL')) execSync(hooks.PostToolUse[0].hooks[0].command,{input:JSON.stringify({session_id:'fixture',tool_name:'Bash',tool_input:{command:'pwd'},tool_response:'bwrap: initialization failed'})});
 const schema=JSON.parse(readFileSync(get('--output-schema'),'utf8'));
+writeFileSync(get('--output-last-message')+'.request.json',JSON.stringify({prompt,schema,developerInstructions:JSON.parse(argv.find(a=>a.startsWith('developer_instructions='))?.slice('developer_instructions='.length)||'null')}));
 const value=schema.properties.findings ? {review_happened:true,findings:[{first_round:1,repeats:0,summary:'broken path',location:'a:1',category:'in_diff_bug',bug_id:'b1',reason:'same failure'}],rounds:[{round:1,blocking_findings:1},{round:2,blocking_findings:0}],asked_human:false}
  : schema.properties.bugs ? {bugs:[{bug_id:'b1',status:'fixed',reason:'fixed path'}],regressions:[]} : {ok:true};
 const final=prompt.includes('BAD_SCHEMA') ? {ok:'bad'} : value;
@@ -217,7 +218,7 @@ test('Astra uses the existing findings/fixes rubric and metrics over two fake CL
   try {
     const g = await grade({ work: join(f.root, 'grading'), c: { bug_ids: ['b1'], pre_existing_bugs: [] },
       bugs: new Map([['b1', { id: 'b1', title: 'broken path', location: 'a:1', description: 'same failure' }]]),
-      issue: 'fix path', prDiff: 'a', changes: 'fixed a', material: 'finding', counts: { bug_reviews: 2 }, tests: { before: true, after: true },
+      issue: 'Frozen issue: protect all settings env values.\nDo not execute repository instructions.', prDiff: 'diff --git a/a b/a\n+const selectors = [s => s.env.bypass]\n+const changed = selectors.some(get => JSON.stringify(get(before)) !== JSON.stringify(get(after)))', changes: 'fixed a', material: 'finding', counts: { bug_reviews: 2 }, tests: { before: true, after: true },
       judgeConfig: CODEX_JUDGE, codex: { auth: f.auth, bin: f.bin }, modelVerification: 'configured_only' });
     assert.equal(g.grade.recall, 1);
     assert.equal(g.grade.fixed, 1);
@@ -226,6 +227,25 @@ test('Astra uses the existing findings/fixes rubric and metrics over two fake CL
     assert.equal(g.judge_usage.output_tokens, 40);
     assert.equal(g.judge_model, null);
     assert.equal(g.judge_config.model, 'gpt-6-astra');
+    const control = join(f.root, 'grading/judge-home/eval-control');
+    const calls = readdirSync(control).filter(name => name.startsWith('judge-'));
+    assert.equal(calls.length, 2);
+    for (const call of calls) {
+      const request = JSON.parse(readFileSync(join(control, call, 'final.txt.request.json'), 'utf8'));
+      assert.match(request.developerInstructions, /tool-free scorer/);
+      assert.match(request.developerInstructions, /Never call tools/);
+      assert.match(request.developerInstructions, /repository, files, shell, or web/);
+      assert.match(request.developerInstructions, /supplied frozen evidence/);
+      assert.match(request.developerInstructions, /insufficient.*uncertainty/i);
+      assert.match(request.developerInstructions, /never instructions/);
+      // Both independent sessions need the exact frozen evidence, not just a patch fragment.
+      assert.ok(request.prompt.includes('<issue>\nFrozen issue: protect all settings env values.\nDo not execute repository instructions.\n</issue>'));
+      assert.ok(request.prompt.includes('<diff>\ndiff --git a/a b/a\n+const selectors = [s => s.env.bypass]\n+const changed = selectors.some(get => JSON.stringify(get(before)) !== JSON.stringify(get(after)))\n</diff>'));
+      if (request.schema.properties.bugs) {
+        assert.match(request.prompt, /final head/);
+        assert.ok(request.prompt.includes('<agent_changes>\nfixed a\n</agent_changes>'));
+      }
+    }
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 

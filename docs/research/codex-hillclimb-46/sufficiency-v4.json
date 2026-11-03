@@ -1,0 +1,127 @@
+{
+  "version": "astra-calibration-v4",
+  "scheduled_grades": 75,
+  "expected_judge_requests": 138,
+  "primary_control_units": 7,
+  "probes": 4,
+  "all_25_inputs_byte_identical": true,
+  "all_substantive_expectations_exclusions_presentations_selection_unchanged": true,
+  "unsupported_expectations": [],
+  "causal_limit": "Confirmed missing explicit no-tool instruction and missing original diff/issue in changes requests. Six attempts do not distinguish these causes from inherited coding-agent behavior or stochastic interaction. Offline contract tests prove request propagation, not live compliance.",
+  "restricted_audit": {
+    "path": "followup-v4-checks/sufficiency-audit.json",
+    "sha256": "d5d6aadddf3b4124cbab14b9ed13f645555258eeaa16e6752d368e80c46b2740"
+  },
+  "sources": [
+    {
+      "unit": "u01",
+      "path": "inputs/u01-original.json",
+      "sha256": "53de99e8f5fab9ede44ae1f32f48f311f50e0459865c298eebb9e810fb5f38c2",
+      "context_characters": {
+        "issue": 1756,
+        "prDiff": 29738,
+        "changes": 318
+      }
+    },
+    {
+      "unit": "u02",
+      "path": "inputs/u02-original.json",
+      "sha256": "5c109faa3c815139bb564061c4fa1c2cb3f48bff5655436d1ba5b470534ed883",
+      "context_characters": {
+        "issue": 1756,
+        "prDiff": 29738,
+        "changes": 391
+      }
+    },
+    {
+      "unit": "u03",
+      "path": "inputs/u03-original.json",
+      "sha256": "c658591406972109b3cb276eaa997962a9a96a37a3c487559274fbc8e7afc0af",
+      "context_characters": {
+        "issue": 1073,
+        "prDiff": 6952,
+        "changes": 1350
+      }
+    },
+    {
+      "unit": "u04",
+      "path": "inputs/u04-original.json",
+      "sha256": "fedb2c9b3eeb64d508a6a5cc0da031aea1362f2e9281c1e6afd36eff341d34ab",
+      "context_characters": {
+        "issue": 1073,
+        "prDiff": 6952,
+        "changes": 1350
+      }
+    },
+    {
+      "unit": "u05",
+      "path": "inputs/u05-original.json",
+      "sha256": "86fd6cd5cbb400c5d14d7918f9ae6f6f6bd7161d254ff51b073a7eb027cae284",
+      "context_characters": {
+        "issue": 1073,
+        "prDiff": 6952,
+        "changes": 1350
+      }
+    },
+    {
+      "unit": "u06",
+      "path": "inputs/u06-original.json",
+      "sha256": "3dafbd75675162cf828dd5f8a0d042a2003ae2cbff11f0c05f7c629da708c6d5",
+      "context_characters": {
+        "issue": 2648,
+        "prDiff": 9925,
+        "changes": 16543
+      }
+    },
+    {
+      "unit": "u07",
+      "path": "inputs/u07-original.json",
+      "sha256": "f259fb612885201ecfa8d3eb47de73ae1e1d4dd1a77490853a0a105e6e04ed15",
+      "context_characters": {
+        "issue": 2648,
+        "prDiff": 9925,
+        "changes": 16148
+      }
+    },
+    {
+      "unit": "p01",
+      "path": "inputs/p01-original.json",
+      "sha256": "2d090c472e9409cbf57b845b97e104cd83c3ba207777198fc1abaeb7700d9ecf",
+      "context_characters": {
+        "issue": 1756,
+        "prDiff": 29738,
+        "changes": 0
+      }
+    },
+    {
+      "unit": "p02",
+      "path": "inputs/p02-original.json",
+      "sha256": "1552c81a1da0a9b0f9db172dab983261c014869169899173cd5a42ec12cdce5b",
+      "context_characters": {
+        "issue": 1756,
+        "prDiff": 29738,
+        "changes": 0
+      }
+    },
+    {
+      "unit": "p03",
+      "path": "inputs/p03-original.json",
+      "sha256": "d550112bc62fad0046e25a711da1e5f59772d08dd0192f74f4e9441a14dba7b4",
+      "context_characters": {
+        "issue": 1756,
+        "prDiff": 29738,
+        "changes": 0
+      }
+    },
+    {
+      "unit": "p04",
+      "path": "inputs/p04-original.json",
+      "sha256": "8f428bfc793b953195fc4c3797576aefa0c9addf480d8849676ec5903005ad51",
+      "context_characters": {
+        "issue": 1756,
+        "prDiff": 29738,
+        "changes": 0
+      }
+    }
+  ]
+}
