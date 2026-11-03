@@ -1,0 +1,30 @@
+dr-xr-xr-x 2 ubuntu ubuntu 40 Nov  3 22:06 /tmp/cc-agents-43/ticket-45-evidence/replay-v2/pr16-r1/temp/.git
+✖ a search reaches the archive of the repository it searches, wherever the agent is (74.216819ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 240.439596
+
+✖ failing tests:
+
+test at test/archive.test.mjs:376:1
+✖ a search reaches the archive of the repository it searches, wherever the agent is (74.216819ms)
+  AssertionError [ERR_ASSERTION]: rg -uu foo /tmp/cc-agents-43/ticket-45-evidence/replay-v2/pr16-r1/temp/repos-78vHaw
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/replay-v2/pr16-r1/replay/test/archive.test.mjs:386:121)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: null,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+fatal: not a git repository (or any parent up to mount point /tmp/cc-agents-43/ticket-45-evidence/replay-v2/pr16-r1)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).

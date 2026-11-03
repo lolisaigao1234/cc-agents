@@ -1,0 +1,214 @@
+{
+  "node": "v24.22.2",
+  "codex": "0.166.0",
+  "records": [
+    {
+      "id": "pr16-r1",
+      "kind": "bug",
+      "head": "8b2a99f55f1ba27e0250a8b05c9d3db703696763",
+      "mode": "host",
+      "exit": 0,
+      "signal": null,
+      "counts": {
+        "tests": 29,
+        "pass": 29,
+        "fail": 0,
+        "skipped": 0
+      },
+      "failures": [],
+      "log": "pr16-r1/host.log",
+      "log_sha256": "28c44467e2d0b6d6582a994716d4b5e2a499e2f2c3f6783c3d3cc2c5fd9ca108"
+    },
+    {
+      "id": "pr16-r1",
+      "kind": "bug",
+      "head": "8b2a99f55f1ba27e0250a8b05c9d3db703696763",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 29,
+        "pass": 28,
+        "fail": 1,
+        "skipped": 0
+      },
+      "failures": [
+        "a search reaches the archive of the repository it searches, wherever the agent is"
+      ],
+      "log": "pr16-r1/sandbox.log",
+      "log_sha256": "4357fda1d90d146600c530202cfb9b4e359aef5454d29d1fd2eb80353a09a93b"
+    },
+    {
+      "id": "pr24",
+      "kind": "bug",
+      "head": "0ad0f2d1f99c258cff0805a4074a344225842918",
+      "mode": "host",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 91,
+        "pass": 89,
+        "fail": 2,
+        "skipped": 0
+      },
+      "failures": [
+        "the hook says nothing about allowed commands and other tools",
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "pr24/host.log",
+      "log_sha256": "4c6ad1958625cb5a9c2ffe70d66e1bc6a41cc4096192f7f34905f5bdf73d9acb"
+    },
+    {
+      "id": "pr24",
+      "kind": "bug",
+      "head": "0ad0f2d1f99c258cff0805a4074a344225842918",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 91,
+        "pass": 85,
+        "fail": 6,
+        "skipped": 0
+      },
+      "failures": [
+        "a search reaches the archive of the repository it searches, wherever the agent is",
+        "the guard allows everything else, including text that mentions destructive commands",
+        "the hook says nothing about allowed commands and other tools",
+        "the hook counts an agent's own full reads only, and only while the docs are unchanged",
+        "the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction",
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "pr24/sandbox.log",
+      "log_sha256": "06a435799a2f479ea654e61573705223ec5bc8c5801a3cb55f9150965d888b99"
+    },
+    {
+      "id": "pr35-r0",
+      "kind": "bug",
+      "head": "52c688fe770563a318633200c26fac95f4b2db40",
+      "mode": "host",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 96,
+        "pass": 93,
+        "fail": 1,
+        "skipped": 2
+      },
+      "failures": [
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "pr35-r0/host.log",
+      "log_sha256": "24517b104f357674851f8beb863036043e7e40ddcd1f3a07264ec87367894a85"
+    },
+    {
+      "id": "pr35-r0",
+      "kind": "bug",
+      "head": "52c688fe770563a318633200c26fac95f4b2db40",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 96,
+        "pass": 89,
+        "fail": 5,
+        "skipped": 2
+      },
+      "failures": [
+        "a search reaches the archive of the repository it searches, wherever the agent is",
+        "the guard allows everything else, including text that mentions destructive commands",
+        "the hook counts an agent's own full reads only, and only while the docs are unchanged",
+        "the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction",
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "pr35-r0/sandbox.log",
+      "log_sha256": "db89481b44fab748b7ec7c59eae83b0694e9a3b4f423a66aedd1ee179e04217a"
+    },
+    {
+      "id": "clean-pr33",
+      "kind": "clean",
+      "head": "8eddafd170613a6f8524d5fc3ea72cc32eeb256d",
+      "mode": "host",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 95,
+        "pass": 92,
+        "fail": 1,
+        "skipped": 2
+      },
+      "failures": [
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "clean-pr33/host.log",
+      "log_sha256": "47ebf46e565a289493ed85bbc9696d3d7ebe403465f10364320bedb5ccbc638d"
+    },
+    {
+      "id": "clean-pr33",
+      "kind": "clean",
+      "head": "8eddafd170613a6f8524d5fc3ea72cc32eeb256d",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 95,
+        "pass": 88,
+        "fail": 5,
+        "skipped": 2
+      },
+      "failures": [
+        "a search reaches the archive of the repository it searches, wherever the agent is",
+        "the guard allows everything else, including text that mentions destructive commands",
+        "the hook counts an agent's own full reads only, and only while the docs are unchanged",
+        "the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction",
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "clean-pr33/sandbox.log",
+      "log_sha256": "a52653d326ede5326765dac510e40bca92322d947cd27d8f3ca43b9a3e24e323"
+    },
+    {
+      "id": "conv-pr33",
+      "kind": "convergence",
+      "head": "195172b212f85c6594c88739604435b310fd3a68",
+      "mode": "host",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 95,
+        "pass": 92,
+        "fail": 1,
+        "skipped": 2
+      },
+      "failures": [
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "conv-pr33/host.log",
+      "log_sha256": "b12f80ffcf35e50a9dd0fefa2146e006291aeb899021d6b24dfe379fed2b2663"
+    },
+    {
+      "id": "conv-pr33",
+      "kind": "convergence",
+      "head": "195172b212f85c6594c88739604435b310fd3a68",
+      "mode": "sandbox",
+      "exit": 1,
+      "signal": null,
+      "counts": {
+        "tests": 95,
+        "pass": 88,
+        "fail": 5,
+        "skipped": 2
+      },
+      "failures": [
+        "a search reaches the archive of the repository it searches, wherever the agent is",
+        "the guard allows everything else, including text that mentions destructive commands",
+        "the hook counts an agent's own full reads only, and only while the docs are unchanged",
+        "the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction",
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds"
+      ],
+      "log": "conv-pr33/sandbox.log",
+      "log_sha256": "2b9103e56b3b2223fbc731501adc0f1dddbaf8d0afd7fe70554785d4896f7283"
+    }
+  ],
+  "protocol": "offline-readiness-45-v1",
+  "policy": "e2c423eb-pilot"
+}

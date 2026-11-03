@@ -1,0 +1,37 @@
+✔ file tools are denied inside the archive (9.437634ms)
+✔ file tools are allowed outside the archive, look-alikes included (3.951191ms)
+✔ Bash commands that reach into the archive are denied (99.240054ms)
+✔ Bash commands that stay out of the archive, or move files into it, are allowed (50.151271ms)
+✔ a root .ignore that lists the archive lets rg, fd and Grep search the repository (63.813538ms)
+✔ a search reaches the archive of the repository it searches, wherever the agent is (365.871415ms)
+✔ an ignore file that takes the archive back voids the .ignore exemption (28.772464ms)
+✔ an archive anywhere but a repository root is not the archive (1.088929ms)
+✔ the hook denies a Read of the archive, and lets other reads through (156.975985ms)
+✔ the guard denies commands that destroy work or history (9.879477ms)
+✔ the guard allows everything else, including text that mentions destructive commands (0.776526ms)
+✔ the hook denies a destructive Bash command, giving the reason (69.314661ms)
+✔ the hook says nothing about allowed commands and other tools (289.019095ms)
+✔ the hook ignores input it cannot parse (60.461632ms)
+✔ a repository that has not opted in is never gated (3.81887ms)
+✔ an edit on the default branch is refused, naming the Branch step (0.406203ms)
+✔ an edit on a branch that names no issue is refused, naming the Track step (0.451284ms)
+✔ an edit on an open issue's branch is allowed (0.304202ms)
+✔ an edit on a closed or missing issue's branch is refused, naming the Track step (0.321962ms)
+✔ when GitHub cannot be asked, the edit is refused, naming the step and the bypass (0.411683ms)
+✔ a detached HEAD where no default branch is known is refused, naming the Track step (0.372963ms)
+✔ a repository nested in a traced one, and not traced itself, is gated by the outer one (0.353882ms)
+✔ the bypass, set at launch, turns the trace off (0.314282ms)
+✔ edits outside the repository are never gated, and its .git directory is (0.398923ms)
+✔ the hook refuses an edit on the default branch of a traced repository, in a subagent too (676.514959ms)
+✔ the hook lets edits through in an untraced repository, outside it, and under the bypass (265.158069ms)
+✔ the hook asks origin's repository about the issue, and refuses a pull request's number (245.677037ms)
+✔ the hook resolves symlinks and ~ before deciding (154.878489ms)
+✔ the hook refuses a settings change that would switch the hooks or the trace off (966.878944ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2451.498008

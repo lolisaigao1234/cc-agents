@@ -1,0 +1,197 @@
+✔ file tools are denied inside the archive (11.196807ms)
+✔ file tools are allowed outside the archive, look-alikes included (10.127199ms)
+✔ Bash commands that reach into the archive are denied (114.626255ms)
+✔ Bash commands that stay out of the archive, or move files into it, are allowed (60.599353ms)
+✔ a root .ignore that lists the archive lets rg, fd and Grep search the repository (39.023784ms)
+✔ a search reaches the archive of the repository it searches, wherever the agent is (301.545313ms)
+✔ an ignore file that takes the archive back voids the .ignore exemption (52.857132ms)
+✔ an archive anywhere but a repository root is not the archive (0.880487ms)
+✔ the hook denies a Read of the archive, and lets other reads through (342.348151ms)
+✔ the context names the linked issue, its acceptance criteria, its latest progress comment and the related docs, quoting the issue's text (12.005613ms)
+✔ the acceptance criteria run to the next heading of their level, past code fences, and an empty section falls back to the body (4.736077ms)
+✔ an issue's text cannot pass for the hook's own lines (2.086617ms)
+✔ an issue without acceptance criteria or comments shows its body, and a long part is cut with how to read it all (1.912295ms)
+✔ off an issue branch the context names the step to go back to; untraced, bypassed or unreachable, it says what it can (1.799454ms)
+✔ stopping after a push newer than the last comment is blocked once, then let through (1.411971ms)
+✔ an agent that has read nothing is refused, with every related doc and how to read it (8.271985ms)
+✔ an agent that has read every related doc in full may edit (162.336707ms)
+✔ reads in chunks add up to a full read; a part of the file does not (64.520063ms)
+✔ a Read that returned other text than the file holds is no read; a file that is no doc is not read back (105.12534ms)
+✔ a read goes stale when the file changes, until it is read again (59.227142ms)
+✔ docs read through a symlink, with CRLF, a lone CR, a BOM or in UTF-16 count once read (175.303008ms)
+✔ an ADR scoped by applies-to is related only to edits of matching paths; an inactive one to none (55.953436ms)
+✔ files under docs/ that the issue body links are related docs; binary or missing ones are not (72.049802ms)
+✔ the issue's comments are read too, as printed, as JSON, or as posted, and an edited one is unread again (119.830495ms)
+✔ output too long to show counts only for its preview (3.779029ms)
+✔ a doc moved, emptied, re-marked or made unreadable in the working tree is still related (43.363139ms)
+✔ an issue part or a doc in HEAD too long to show counts once saved to a file and Read, and a renamed doc once read under its new name (93.788132ms)
+✔ a notebook, or a file too large to Read, that the issue body links is not a related doc (39.302627ms)
+✔ the agent's own edits and writes keep its reads of a doc current (45.062751ms)
+✔ when the agent cannot be told apart, or GitHub cannot say what the issue says, the change is refused (47.220728ms)
+✔ a repository with no related docs and an empty issue needs no reads (0.840087ms)
+✔ a commit, or any git command that makes or moves commits, waits for every active ADR (108.619848ms)
+✔ the guard denies commands that destroy work or history (43.299778ms)
+✖ the guard allows everything else, including text that mentions destructive commands (11.268368ms)
+✔ the guard names what it refuses (1.884054ms)
+✔ the hook denies a destructive Bash command, giving the reason (119.665054ms)
+✔ the hook denies a write to Claude Code's settings named from where the command runs (278.964737ms)
+✔ the hook denies an interpreter's in-place write to an installed plugin under CLAUDE_CONFIG_DIR (261.833363ms)
+✔ the hook says nothing about allowed commands and other tools (339.939372ms)
+✔ the hook ignores input it cannot parse (120.050897ms)
+✔ outside a traced repository, or under the bypass, there is no status (4.545995ms)
+✔ off an issue branch, the step is the one the gates name (1.901255ms)
+✔ on an open issue whose docs are unread, the step is Read, with what is unread (4.936358ms)
+✔ the step moves on as each one completes, up to Close (9.874557ms)
+✔ the PR's CI is failing on any failed check, pending on any unfinished one, and none without checks (3.189865ms)
+✔ when GitHub cannot say, the status says so instead of guessing (2.485899ms)
+✔ a repository that has not opted in is never gated (3.254266ms)
+✔ an edit on the default branch is refused, naming the Branch step (0.497844ms)
+✔ an edit on a branch that names no issue is refused, naming the Track step (0.481323ms)
+✔ an edit on an open issue's branch is allowed (1.952215ms)
+✔ an edit on a closed or missing issue's branch is refused, naming the Track step (0.688325ms)
+✔ when GitHub cannot be asked, the edit is refused, naming the step and the bypass (0.758046ms)
+✔ a detached HEAD where no default branch is known is refused, naming the Track step (0.327963ms)
+✔ a repository nested in a traced one, and not traced itself, is gated by the outer one (1.067929ms)
+✔ the bypass, set at launch, turns the trace off (2.333579ms)
+✔ edits outside the repository are never gated, and its .git directory is (0.374763ms)
+✔ the deadline on git and GitHub starts with each call, not when the module loads (78.09273ms)
+✔ the hook refuses an edit on the default branch of a traced repository, in a subagent too (1324.398013ms)
+✔ the hook lets edits through in an untraced repository, outside it, and under the bypass (460.319352ms)
+✔ the hook asks origin's repository about the issue, and refuses a pull request's number (766.507621ms)
+✖ the hook counts an agent's own full reads only, and only while the docs are unchanged (3324.096776ms)
+✔ during a rebase, the branch being rebased is the one the trace reads (613.108384ms)
+✖ the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction (215.407041ms)
+✔ the status event reports the trace from real git and gh: the commits, the PR and its checks (2520.573186ms)
+✔ the hook refuses tools that would touch the trace's read records, and only those (1489.370821ms)
+✔ the hook resolves symlinks and ~ before deciding (415.26704ms)
+✔ the hook refuses a settings change that would switch the hooks or the trace off (3091.968765ms)
+✔ the hook refuses edits to a traced repository's git directory, even on an open issue's branch (485.788431ms)
+✔ the hook reads origin's GitHub repository from every URL form, and only from GitHub (1811.424334ms)
+✔ a git that cannot run refuses edits only where the marker says the repository is traced (338.45632ms)
+✔ the hook expands only ~ and ~/, as the edit tools do (196.11161ms)
+✔ the hook refuses settings changes it cannot read, wherever the settings live (1726.021627ms)
+✔ a commit whose message references the linked issue is allowed, in any message form (20.113837ms)
+✔ a commit whose message does not reference the linked issue is refused, naming the issue and the text to add (7.206856ms)
+✔ an amend that keeps the message is judged by the commit it rewrites (4.749557ms)
+✔ a commit whose message cannot be told from the command is refused with a reason (8.290944ms)
+✔ a commit through a git alias is judged as the command it runs (6.102168ms)
+✔ the commit gate follows the branch rules and the trace switches of the edit gate (4.107312ms)
+✔ a PR whose body closes the linked issue is allowed (5.573884ms)
+✔ a PR whose body does not close the linked issue is refused, naming the issue and the text to add (4.386875ms)
+✔ a PR whose body cannot be told from the command is refused with a reason (3.324066ms)
+✔ a commit message is judged as git records it: fixups, trailers, cleanup and comment lines (6.897414ms)
+✔ a commit an editor, an unknown option or a computed source decides is refused with a reason (3.986471ms)
+✔ a commit or PR is gated wherever a cd may leave it, and refused where that cannot be told (1.872615ms)
+✔ an alias that git or gh runs through a shell is refused, naming the issue and the fix (0.401683ms)
+✔ a PR is read as gh reads it: last option wins, values stay values, -R anywhere (2.497059ms)
+✔ a long or late-defined git alias, or one the environment may set, is refused with a reason (3.181065ms)
+✔ a file written earlier on the line in any form is not read as it was (7.190576ms)
+✔ a PR is read as gh reads it: pflag values, booleans, the body file, the base repository (6.551731ms)
+✖ the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds (0.419443ms)
+✔ ordinary commands that reference the linked issue, or create nothing, are allowed (2.911783ms)
+✔ the hook refuses an unreferenced commit or PR in a traced repository, in a subagent too, reading files from cwd (8039.603009ms)
+✔ the mod's typecheck reads only committed files and node_modules (802.936785ms)
+﹣ the vendored declarations come from the installed Claude Code (2.62546ms) # claude is not on PATH
+﹣ the vendored declarations match the ones Claude Code last wrote (0.332642ms) # no interactive session has loaded the mod from this checkout
+✔ the mod's typecheck writes nothing (147.677432ms)
+ℹ tests 96
+ℹ suites 0
+ℹ pass 90
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 2
+ℹ todo 0
+ℹ duration_ms 28696.177421
+
+✖ failing tests:
+
+test at test/guard.test.mjs:230:1
+✖ the guard allows everything else, including text that mentions destructive commands (11.268368ms)
+  AssertionError [ERR_ASSERTION]: mv notes.md ~/.claude/
+  + actual - expected
+  
+  + "`mv` moves /tmp/cc-agents-43/ticket-45-evidence/replay-green/pr35-r0/home/.claude, which holds Claude Code's settings or plugins, which can switch the hooks off; only the human changes it, by hand; a settings change other than env, disableAllHooks, enabledPlugins or hooks can be made with the Edit tool"
+  - null
+  
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/replay-green/pr35-r0/replay/test/guard.test.mjs:231:35)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: "`mv` moves /tmp/cc-agents-43/ticket-45-evidence/replay-green/pr35-r0/home/.claude, which holds Claude Code's settings or plugins, which can switch the hooks off; only the human changes it, by hand; a settings change other than env, disableAllHooks, enabledPlugins or hooks can be made with the Edit tool",
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/trace.test.mjs:216:1
+✖ the hook counts an agent's own full reads only, and only while the docs are unchanged (3324.096776ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + {
+  +   hookEventName: 'PreToolUse',
+  +   permissionDecision: 'deny',
+  +   permissionDecisionReason: "trace: the related docs are not all read. Unread: GLOSSARY.md; issue #8: its title, comment 5 by h (`gh issue view 8 -R owner/name` for the title and body; `gh api --paginate repos/owner/name/issues/8/comments --jq '.[].body'` for the comments, or `gh api repos/owner/name/issues/comments/<id> --jq .body` for one). Read step: read each file with the Read tool, every line, and run the commands shown (an output too long to show counts only for its preview: save it to a file outside the repository and Read that), in this agent; reads by its parent or another agent do not count."
+  + }
+  - null
+  
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/replay-green/pr35-r0/replay/test/trace.test.mjs:236:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: "trace: the related docs are not all read. Unread: GLOSSARY.md; issue #8: its title, comment 5 by h (`gh issue view 8 -R owner/name` for the title and body; `gh api --paginate repos/owner/name/issues/8/comments --jq '.[].body'` for the comments, or `gh api repos/owner/name/issues/comments/<id> --jq .body` for one). Read step: read each file with the Read tool, every line, and run the commands shown (an output too long to show counts only for its preview: save it to a file outside the repository and Read that), in this agent; reads by its parent or another agent do not count." },
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/trace.test.mjs:269:1
+✖ the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction (215.407041ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + undefined
+  - 'SessionStart'
+  
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/replay-green/pr35-r0/replay/test/trace.test.mjs:276:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'SessionStart',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/trace.test.mjs:714:1
+✖ the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds (0.419443ms)
+  AssertionError [ERR_ASSERTION]: GH pr create -t t -b x
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/replay-green/pr35-r0/replay/test/trace.test.mjs:716:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'null',
+    expected: /does not close #7/,
+    operator: 'match',
+    diff: 'simple'
+  }

@@ -53,6 +53,11 @@ export function codexConfig({ dir, home, tmp, control, bin, denied = [], role = 
     [dir, judge || review ? 'read' : 'write'],
     [join(dir, '.git'), judge || review ? 'read' : 'write'],
     [home, 'write'], [tmp, 'write'],
+    // Codex otherwise mounts an empty read-only .git at this writable root.
+    // Historical archive guards mistake that placeholder for a repository,
+    // hiding the real scratch repositories below it. Temp git metadata is
+    // scratch data; the protected read-record store remains denied below.
+    [join(tmp, '.git'), 'write'],
     [join(home, '.agents'), 'read'], [join(tmp, 'trace-reads'), 'deny'],
     ...denied.map(p => [p, 'deny']),
     [join(home, '.codex'), 'deny'], [control, 'deny'],
