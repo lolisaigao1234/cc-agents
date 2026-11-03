@@ -1,0 +1,62 @@
+✔ file tools are denied inside the archive (9.060511ms)
+✔ file tools are allowed outside the archive, look-alikes included (3.959591ms)
+✔ Bash commands that reach into the archive are denied (91.643075ms)
+✔ Bash commands that stay out of the archive, or move files into it, are allowed (57.132246ms)
+✔ a root .ignore that lists the archive lets rg, fd and Grep search the repository (58.255574ms)
+✔ a search reaches the archive of the repository it searches, wherever the agent is (344.853171ms)
+✔ an ignore file that takes the archive back voids the .ignore exemption (31.700048ms)
+✔ an archive anywhere but a repository root is not the archive (0.958928ms)
+✔ the hook denies a Read of the archive, and lets other reads through (174.008718ms)
+✔ the guard denies commands that destroy work or history (10.333481ms)
+✔ the guard allows everything else, including text that mentions destructive commands (1.041488ms)
+✔ the hook denies a destructive Bash command, giving the reason (61.940364ms)
+✖ the hook says nothing about allowed commands and other tools (157.855831ms)
+✔ the hook ignores input it cannot parse (82.09576ms)
+✔ a repository that has not opted in is never gated (2.60062ms)
+✔ an edit on the default branch is refused, naming the Branch step (0.410363ms)
+✔ an edit on a branch that names no issue is refused, naming the Track step (0.396683ms)
+✔ an edit on an open issue's branch is allowed (0.306882ms)
+✔ an edit on a closed or missing issue's branch is refused, naming the Track step (0.309762ms)
+✔ when GitHub cannot be asked, the edit is refused, naming the step and the bypass (0.561004ms)
+✔ a detached HEAD where no default branch is known is refused, naming the Track step (0.268642ms)
+✔ a repository nested in a traced one, and not traced itself, is gated by the outer one (0.582085ms)
+✔ the bypass, set at launch, turns the trace off (0.286002ms)
+✔ edits outside the repository are never gated, and its .git directory is (0.413364ms)
+✔ the hook refuses an edit on the default branch of a traced repository, in a subagent too (678.428613ms)
+✔ the hook lets edits through in an untraced repository, outside it, and under the bypass (301.11347ms)
+✔ the hook asks origin's repository about the issue, and refuses a pull request's number (257.161126ms)
+✔ the hook resolves symlinks and ~ before deciding (158.282835ms)
+✔ the hook refuses a settings change that would switch the hooks or the trace off (924.506974ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 28
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2440.046078
+
+✖ failing tests:
+
+test at test/guard.test.mjs:108:1
+✖ the hook says nothing about allowed commands and other tools (157.855831ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"trace: this is the default branch (main). Branch step: work on the issue\'s branch, `gh issue develop <n> --checkout` (Track first if there is no issue)."}}'
+  - ''
+  
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/replay-v1/pr16-r1/replay/test/guard.test.mjs:116:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"trace: this is the default branch (main). Branch step: work on the issue\'s branch, `gh issue develop <n> --checkout` (Track first if there is no issue)."}}',
+    expected: '',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

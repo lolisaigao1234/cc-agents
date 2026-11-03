@@ -1,0 +1,27 @@
+✖ the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds (5.595843ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 172.347185
+
+✖ failing tests:
+
+test at test/trace.test.mjs:714:1
+✖ the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds (5.595843ms)
+  AssertionError [ERR_ASSERTION]: GH pr create -t t -b x
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/probe-fixture/replay/test/trace.test.mjs:716:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'null',
+    expected: /does not close #7/,
+    operator: 'match',
+    diff: 'simple'
+  }

@@ -1,0 +1,62 @@
+
+> typecheck
+> tsc -p tsconfig.json
+
+evals/review/lib/prices.mjs(11,25): error TS7006: Parameter 'model' implicitly has an 'any' type.
+evals/review/lib/prices.mjs(15,16): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ 'claude-fable-5-1': { in: number; out: number; cacheRead: number; }; 'claude-opus-5-5': { in: number; out: number; cacheRead: number; }; 'claude-sonnet-5-5': { in: number; out: number; cacheRead: number; }; 'claude-haiku-5-5': { ...; }; }'.
+  No index signature with a parameter of type 'string' was found on type '{ 'claude-fable-5-1': { in: number; out: number; cacheRead: number; }; 'claude-opus-5-5': { in: number; out: number; cacheRead: number; }; 'claude-sonnet-5-5': { in: number; out: number; cacheRead: number; }; 'claude-haiku-5-5': { ...; }; }'.
+evals/review/lib/prices.mjs(19,24): error TS7006: Parameter 'model' implicitly has an 'any' type.
+evals/review/lib/prices.mjs(19,31): error TS7006: Parameter 'u' implicitly has an 'any' type.
+evals/review/lib/prices.mjs(41,26): error TS7006: Parameter 'mu' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(22,14): error TS7006: Parameter 'cmd' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(22,19): error TS7006: Parameter 'args' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(22,27): error TS2339: Property 'cwd' does not exist on type '{}'.
+evals/review/lib/replay.mjs(22,32): error TS2339: Property 'env' does not exist on type '{}'.
+evals/review/lib/replay.mjs(22,37): error TS2339: Property 'input' does not exist on type '{}'.
+evals/review/lib/replay.mjs(29,47): error TS7006: Parameter 'a' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(37,25): error TS7006: Parameter 's' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(42,18): error TS7006: Parameter 'sourceRoot' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(42,30): error TS7006: Parameter 'sha' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(42,35): error TS7006: Parameter 'dir' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(57,23): error TS7006: Parameter 'dir' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(57,28): error TS7006: Parameter 'from' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(57,34): error TS7006: Parameter 'to' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(58,16): error TS7006: Parameter 'd' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(77,29): error TS7006: Parameter 'dir' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(77,34): error TS7006: Parameter 'overlay' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(80,16): error TS7006: Parameter 'd' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(93,18): error TS7006: Parameter 'sourceRoot' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(93,30): error TS7006: Parameter 'sha' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(93,35): error TS7006: Parameter 'dir' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(93,40): error TS7006: Parameter 'source' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(93,48): error TS7006: Parameter 'slug' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(93,54): error TS7006: Parameter 'overlay' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(137,64): error TS2339: Property 'trim' does not exist on type 'string | NonSharedBuffer'.
+  Property 'trim' does not exist on type 'NonSharedBuffer'.
+evals/review/lib/replay.mjs(138,64): error TS2339: Property 'trim' does not exist on type 'string | NonSharedBuffer'.
+  Property 'trim' does not exist on type 'NonSharedBuffer'.
+evals/review/lib/replay.mjs(150,36): error TS7006: Parameter 'gh' implicitly has an 'any' type.
+evals/review/lib/replay.mjs(150,40): error TS7006: Parameter 'replay' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(5,15): error TS7006: Parameter 's' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(7,16): error TS7006: Parameter 'c' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(12,21): error TS7006: Parameter 'input' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(13,21): error TS7006: Parameter 'input' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(24,27): error TS7006: Parameter 'input' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(25,16): error TS7006: Parameter 'text' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(25,22): error TS7006: Parameter 'where' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(71,68): error TS7006: Parameter 'b' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(71,96): error TS7006: Parameter 'b' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(99,16): error TS7006: Parameter 'results' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(102,32): error TS7006: Parameter 'r' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(106,32): error TS7006: Parameter 'a' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(106,35): error TS7006: Parameter 'r' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(121,16): error TS7006: Parameter 'text' implicitly has an 'any' type.
+evals/review/lib/transcript.mjs(121,22): error TS7006: Parameter 'where' implicitly has an 'any' type.
+test/eval-copilot-digest.test.mjs(8,14): error TS7006: Parameter 'content' implicitly has an 'any' type.
+test/eval-copilot-digest.test.mjs(9,16): error TS7006: Parameter 'id' implicitly has an 'any' type.
+test/eval-copilot-digest.test.mjs(9,20): error TS7006: Parameter 'toolName' implicitly has an 'any' type.
+test/eval-copilot-digest.test.mjs(9,30): error TS7006: Parameter 'args' implicitly has an 'any' type.
+test/eval-copilot-digest.test.mjs(10,15): error TS7006: Parameter 'id' implicitly has an 'any' type.
+test/eval-copilot-digest.test.mjs(10,19): error TS7006: Parameter 'data' implicitly has an 'any' type.
+test/eval-copilot-digest.test.mjs(34,16): error TS18047: 'd.init' is possibly 'null'.
+test/eval-copilot-digest.test.mjs(84,13): error TS2531: Object is possibly 'null'.
