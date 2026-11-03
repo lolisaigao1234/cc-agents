@@ -116,8 +116,10 @@ gh release download cc-agents-46-calibration-results-v3-20261103 --repo lolisaig
 ```
 
 Verify the archive hash before extraction, then every extracted member against
-the public index and `run-v3-20261103-SHA256SUMS`. The restricted report can be
-reverified with the frozen CLI and extracted bundle:
+the public index and `run-v3-20261103-SHA256SUMS`. The restricted report must be
+reverified from historical commit `3b36c90d1ed28e0874128e29a1909efc24fe7312`
+with its frozen v3 CLI and extracted bundle. The current CLI selects v4 and
+rejects the historical runtime; use a checkout of that exact historical commit:
 
 ```bash
 node evals/review/calibration/calibrate.mjs report --private /absolute/private-extraction/preregistration-v3 --output /absolute/private-extraction/run-v3-20261103

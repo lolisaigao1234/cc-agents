@@ -1,4 +1,4 @@
-# Codex-only hillclimb #43: calibration BLOCK / INCONCLUSIVE
+# Codex-only hillclimb #43: calibration v4 prepared; v3 BLOCK / INCONCLUSIVE
 
 Integration [PR #50](https://github.com/lolisaigao1234/cc-agents/pull/50) merged at `f18ce230c1650e1693836f26233b716f5129fe2d`. Followthrough branch: `43-codex-calibration-v3-followthrough`. The approved v3 calibration ran on 2026-11-03 and returned **BLOCK / INCONCLUSIVE**. The current adoption decision is **inconclusive** because calibration failed. The hillclimb remains incomplete; no baseline/candidate results or candidate quality claim exist.
 
@@ -7,7 +7,7 @@ Integration [PR #50](https://github.com/lolisaigao1234/cc-agents/pull/50) merged
 | #44 integration handoff | Delivered; closed | [Reproduction and retained pilot evidence](codex-hillclimb-handoff-44.md). Five scored keys and eight failed attempts retained. |
 | #45 readiness audit | Delivered; closed | [Five-case readiness matrix](codex-readiness-45.md). One confirmed temporary-root `.git` harness fault corrected; original product failures, guard denials and human requirements preserved. |
 | #47 controlled variant | Delivered; closed | [v13 support and deterministic checks](codex-evidence-before-fix-47.md). No quality claim from injected execution. |
-| #46 Astra calibration | Open; approved run BLOCK / INCONCLUSIVE | [Actual v3 result](codex-calibration-result-v3.md): 75/75 attempts, 69 valid grades, six tool-attempt rejections and 138 retained judge invocations. The pre-integration v1/v2 snapshots remain identifiable. |
+| #46 Astra calibration | Open; v3 BLOCK; v4 prepared for exact approval | [Actual v3 result](codex-calibration-result-v3.md): 75/75 attempts, 69 valid grades and six tool-attempt rejections. [V4 correction](codex-calibration-correction-v4.md) makes the no-tool contract explicit and supplies frozen changes context; zero v4 live grades. |
 | #48 frozen repeated baseline | Not started; blocked by #46 | Requires passing calibration, its own preregistered screening/holdout protocol and final baseline freeze/approval. |
 | #49 paired experiment and decision | Not started; blocked by #46/#48 | No candidate, paired or held-out result exists; selection remains blocked. |
 
@@ -40,6 +40,28 @@ The human approval transcribed on 2026-11-03 bound the [v3 calibration packet](c
 
 The frozen `report` CLI independently reproduced the sealed result and exited **2 / BLOCK**. The current `plan` exits **0** and is byte-identical to the retained pre-run and post-run plans. All 76 sealed indexes have exact membership and matching hashes; all 1,243 entries in the public [artifact index](codex-hillclimb-46/results-v3-artifact-index.json) match local retained bytes. No protected runtime, protocol, schedule, rubric or private bundle bytes changed.
 
-The native frontier remains #46: a maintainer must review the retained failures before deciding any remedy. Any changed runtime, prompt or rubric needs a new versioned snapshot, explicit approval and fresh calibration. Failed rows cannot be replaced to repair this result. #46 stays open and #48/#49 stay blocked; baseline/candidate execution cannot advance from this result. Raw calibration answers remain outside public git in a maintainer-access draft release; retrieval and hashes are in the actual result and artifact index. Preserve the earlier releases and never publish answer keys automatically.
+The native frontier remains #46. The [reviewed v4 correction](codex-calibration-review-v4.md) addresses the instruction/context gaps in a new frozen snapshot; exact human approval must precede its whole fresh calibration. Failed v3 rows cannot be replaced to repair that result. #46 stays open and #48/#49 stay blocked; baseline/candidate execution cannot advance from this result. Raw calibration answers remain outside public git in a maintainer-access draft release; retrieval and hashes are in the actual result and artifact index. Preserve the earlier releases and never publish answer keys automatically.
 
 The deferred Opus/Astra comparison remains pinned to historical fingerprint `e2c423eb214f4e68d95cc36f9903edfcb74e6c1d4d70bfed8637ed980747c612` in its original checkout. This followthrough made no Claude restart, schedule change, reset redemption or product rollout; its evidence branch has not been merged to the source eval branch/main.
+
+## Current v4 approval frontier
+
+The [correction and exact snapshot](codex-calibration-correction-v4.md) are merged
+into the integration branch. Independent Standards and Spec reviews found no
+actionable issues; see the [review and merged verification](codex-calibration-review-v4.md).
+The current plan verifies 150 runtime, 119 protected and 32 private members.
+All 30 input/source files and substantive expectations remain unchanged.
+
+| Current v4 identity | SHA256 |
+| --- | --- |
+| Runtime | `efbc6b80a2e54efbe62069293745b999c04f5973505bab6393e9a644f1031fe5` |
+| Protocol | `8245fb69e10ea98675097b7c3daa000cc432190d1f75b285adacb9028411e31c` |
+| Preregistration | `b86afcdc054113907f3b16ec947b74765defafc98950d5e6e7edf078f8f71d47` |
+| Protected harness | `85c479bbb24a186c09e08b9f13fa7464b93eb52f9754b7b55ebd36c6aa598144` |
+
+Requested scope: calibration only, 75 fresh grades / 138 expected Astra High/Fast
+requests, subscription authentication, concurrency one, configured-only identity.
+Unobserved served model/tier and API-equivalent spend remain unknown/null. No v4
+approval record or live result exists. V3 approval covers different bytes and is
+rejected before auth. #48/#49 still require a passing calibration and their own
+future frozen experiment protocol.

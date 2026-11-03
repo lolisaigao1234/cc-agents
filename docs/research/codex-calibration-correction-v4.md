@@ -153,3 +153,29 @@ protected member change invalidates these hashes and requires a new snapshot.
 No v4 approval or live result is claimed. The next gate is parent review and
 freeze verification, followed by exact human approval and the whole fresh
 75-grade/138-request calibration. Only a passing calibration can unblock #48/#49.
+
+## Parent review and exact approval request
+
+The integration merge `01d22fc6ad379a2bdc1005e6b05af26f58171121` preserves the
+implementation tree. The actual plan after merge reproduces all four bound
+hashes above. Independent [Standards and Spec reviews](codex-calibration-review-v4.md)
+found no actionable issues. The integrated review changes only public reports,
+so the frozen runtime is unchanged. All historical v3 evidence remains retained.
+
+A human can approve this concrete packet with:
+
+> I approve calibration v4 only, with runtime SHA256
+> efbc6b80a2e54efbe62069293745b999c04f5973505bab6393e9a644f1031fe5,
+> protocol SHA256 8245fb69e10ea98675097b7c3daa000cc432190d1f75b285adacb9028411e31c,
+> and preregistration SHA256
+> b86afcdc054113907f3b16ec947b74765defafc98950d5e6e7edf078f8f71d47:
+> 75 fresh grades / 138 expected Astra High/Fast requests, subscription auth,
+> concurrency one, configured-only identity and unknown served model/tier and
+> spend. I accept the disclosed readiness conditions for calibration. This
+> does not approve baseline/candidate experiments, changed hashes, Claude calls,
+> reset redemption or schedule changes.
+
+This is a template only; no decision or v4 approval record is claimed. A clear
+explicit response approving this linked packet is sufficient; the human need
+not repeat hashes or write JSON. The agent may faithfully transcribe that
+response and its locator only after it arrives.
