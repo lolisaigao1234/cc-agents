@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Calibration orchestration only. Grading prompts, schemas and metrics are unchanged.
+// Calibration orchestration. V4 versions the tool-free instruction/context correction.
 import assert from 'node:assert/strict';
 import { sha, stable } from './utils.mjs';
 export { sha } from './utils.mjs';
@@ -117,8 +117,8 @@ export function validateResponse(result) {
 }
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const PUBLIC = join(ROOT, 'docs/research/codex-hillclimb-46/preregistration-v3.json');
-const PROTOCOL = join(ROOT, 'evals/review/calibration/protocol-v3.json');
+const PUBLIC = join(ROOT, 'docs/research/codex-hillclimb-46/preregistration-v4.json');
+const PROTOCOL = join(ROOT, 'evals/review/calibration/protocol-v4.json');
 /** @param {string} root @param {string} path */
 function safePath(root, path) {
   assert.ok(!isAbsolute(path) && path && !path.split('/').includes('..'), 'invalid relative artifact path');
@@ -137,7 +137,7 @@ function load(privateRoot) {
   assert.notEqual(spawnSync('git', ['-C', privateRoot, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' }).stdout?.trim(), 'true', 'answer keys cannot live in any git worktree');
   assert.equal(statSync(privateRoot).mode & 0o077, 0, 'restricted artifacts need mode 700');
   const prereg = json(PUBLIC), protocol = json(PROTOCOL);
-  assert.equal(prereg.version, 'astra-calibration-v3');
+  assert.equal(prereg.version, 'astra-calibration-v4');
   verifySnapshot(ROOT, privateRoot, prereg);
   verifyEnvironment(prereg.environment);
   assert.equal(sha(readFileSync(PROTOCOL)), prereg.protocol_sha256, 'changed protocol');
@@ -147,7 +147,7 @@ function load(privateRoot) {
   assert.deepEqual(bundle.units.map(u => ({ id: u.id, presentations: u.presentations, control_of: u.control_of ?? null })), prereg.units);
   assert.equal(schedule(bundle).length, prereg.scheduled_grades);
   // #44's verifier remains unchanged and deliberately stops on integration.
-  // V3 verifies its own full membership above, never an old approval.
+  // V4 verifies its own full membership above, never an old approval.
   return { prereg, protocol, bundle, privateRoot, current: { runtime_sha256: prereg.runtime.sha256, protocol_sha256: sha(readFileSync(PROTOCOL)), preregistration_sha256: sha(readFileSync(PUBLIC)) } };
 }
 /** @param {string} root @param {string} [prefix] @returns {string[]} */
@@ -230,14 +230,15 @@ async function run(state, output, approvalPath) {
 }
 async function main() {
   const [command, ...args] = process.argv.slice(2);
-  assert.ok(['plan', 'run', 'report'].includes(command), 'usage: calibrate.mjs plan|run|report --private DIR [--output DIR] [--approval FILE]');
+  assert.ok(['plan', 'run', 'report'].includes(command), 'usage: calibrate.mjs plan|run|report --private DIR [--output DIR] [--approval FILE] [--version v4]');
   assert.equal(args.length % 2, 0);
   /** @type {Record<string,string>} */
   const options = {};
   for (let i = 0; i < args.length; i += 2) {
-    assert.ok(['--private', '--output', '--approval'].includes(args[i]) && !Object.hasOwn(options, args[i]), 'unknown/duplicate option');
-    options[args[i]] = resolve(args[i + 1]);
+    assert.ok(['--private', '--output', '--approval', '--version'].includes(args[i]) && !Object.hasOwn(options, args[i]), 'unknown/duplicate option');
+    options[args[i]] = args[i] === '--version' ? args[i + 1] : resolve(args[i + 1]);
   }
+  assert.ok(!options['--version'] || options['--version'] === 'v4', 'Historical calibration reproductions require their original frozen commit; this CLI selects v4 only.');
   const state = load(options['--private']);
   if (command === 'plan') console.log(JSON.stringify({ ...state.current, protected_harness_sha256: state.prereg.protected_harness.sha256, expected_judge_requests: state.prereg.expected_judge_requests, scheduled_grades: schedule(state.bundle).length,
     status: 'BLOCK: exact new driver/protocol/preregistration requires HUMAN approval; no live calibration results', concurrency: 1 }, null, 2));

@@ -1,5 +1,12 @@
 # Integrated Astra calibration v3: approval packet (#43/#46)
 
+> **Historical packet; calibration approved and run on 2026-11-03.** The
+> [actual v3 result](codex-calibration-result-v3.md) is **BLOCK / INCONCLUSIVE**:
+> 75/75 attempts, 69 valid grades, six tool-attempt rejections and 138 retained
+> judge invocations. #46 remains open; #48/#49 remain blocked. The original
+> preparation text below is preserved as written, including its then-unapproved
+> status; the bound hashes and approved calibration-only scope are unchanged.
+
 **Prepared, UNAPPROVED; zero live grades.** The concrete implementation and
 snapshot are immutable at
 [`c19f5c6e15cf1e4acd1e06afc64c60261a5a5e6c`](https://github.com/lolisaigao1234/cc-agents/commit/c19f5c6e15cf1e4acd1e06afc64c60261a5a5e6c).
