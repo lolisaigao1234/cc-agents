@@ -1,10 +1,10 @@
 {
-  "version": "astra-calibration-v1",
+  "version": "astra-calibration-v2",
   "issue": 46,
   "historical_harness_sha256": "e2c423eb214f4e68d95cc36f9903edfcb74e6c1d4d70bfed8637ed980747c612",
   "source_archive_sha256": "ada8cad455f614aadb10f7b2e2d1789c2fc5aafe3b3ab88709463b74b57d10ce",
   "runtime": {
-    "sha256": "6c73240c1d9ad966354069d64bc6012f44b56d2c8b21166fdde2721a6fa45cc3",
+    "sha256": "ff7eebf9e060039fa5cf25005eddaef7f5fce7d50e077bb13495d19cbc0e9a56",
     "files": [
       {
         "path": "docs/research/codex-hillclimb-44/artifact-inventory.json",
@@ -24,19 +24,19 @@
       },
       {
         "path": "evals/review/calibration/README.md",
-        "sha256": "0d2c32a82e64dd2520b09c4a9056a87a58ef084c6af7aeda6c073a62d5b2c04f"
+        "sha256": "db6407bf21002f3d2f4ece1a342582daf9ea97b9027499c24efec2cad3d4883b"
       },
       {
         "path": "evals/review/calibration/calibrate.mjs",
-        "sha256": "6229c6e6a288937c9f09454e70727088f5d88e1c3d06fc1946e0b402930d8a85"
+        "sha256": "819c4033955e86f5f84311305c28bafc84688c26a38511be8f6cdf69e959c244"
       },
       {
         "path": "evals/review/calibration/freeze.mjs",
-        "sha256": "511bfd09486ab6876c03afe4fdc91fd7d7cdc3b6d5c0f0c999bc9f4671ead7a4"
+        "sha256": "0294e67e663375550237f55b99197e3554c002288902e21096b61185cb0b1cb7"
       },
       {
         "path": "evals/review/calibration/protocol.json",
-        "sha256": "e5e4ecee0b8ac3196e8bae57ff63378d359e854ef833dc17e3bf5ee7ea258350"
+        "sha256": "6601485baa96860a6dd7840047d5761e617fa7c37b6321baaded9fac548b98e4"
       },
       {
         "path": "evals/review/data/adjudicated.json",
@@ -571,14 +571,14 @@
   },
   "private_files": [
     {
-      "path": "build-v1.py",
-      "bytes": 11252,
-      "sha256": "18bcb686816f34af3ca45888deff20103ee83d50d070711fffa9c51c9b59a247"
+      "path": "build-v2.py",
+      "bytes": 11171,
+      "sha256": "5348a7c0d7e29cdf374b4c551cba40778397b828fc5714eba4ff3dcb36abdf05"
     },
     {
       "path": "bundle.json",
-      "bytes": 16739,
-      "sha256": "1609ee4f11256f1b6160d879ebd93e73c1e8a833112f0fc27a4e4ff0bbe40d5a"
+      "bytes": 16478,
+      "sha256": "c9db78a5b3a45ab18df40f98149225ab82fd4b044d40eaaed61ef561e8cc382e"
     },
     {
       "path": "inputs/p01-original.json",
@@ -662,18 +662,18 @@
     },
     {
       "path": "inputs/u05-layout.json",
-      "bytes": 11649,
-      "sha256": "c694a065853fdccf36e089ef068a1beebf3df558c2d83fd944809df7fbcb3342"
+      "bytes": 11652,
+      "sha256": "36111391c38932ba4a70469ea175ce47549ef1ae881c5079d3c6c602974470cb"
     },
     {
       "path": "inputs/u05-original.json",
-      "bytes": 11629,
-      "sha256": "e67a7ea182ab01abaedc2c16a326893064ad3343fdcc3e747b98c67b30297329"
+      "bytes": 11632,
+      "sha256": "86fd6cd5cbb400c5d14d7918f9ae6f6f6bd7161d254ff51b073a7eb027cae284"
     },
     {
       "path": "inputs/u05-wording.json",
-      "bytes": 11627,
-      "sha256": "cbaea877026535d21cd24d4719e1e1d9a3d89bba3c6d1a1d3ce6467578e3d846"
+      "bytes": 11625,
+      "sha256": "dc1f2b1c507b3f906a30e74691945c2881d426a48325ab2bd141747a913106ae"
     },
     {
       "path": "inputs/u06-layout.json",
@@ -826,7 +826,7 @@
   ],
   "scheduled_grades": 75,
   "expected_judge_requests": 138,
-  "retention": "Restricted preregistration-v1 bundle outside public git; see retention.json. The bundle includes exact inputs, evidence-cited expected labels, scoped source snapshots and its reproducible builder.",
+  "retention": "Restricted preregistration-v2 bundle outside public git; see retention.json. The bundle includes exact inputs, evidence-cited expected labels, scoped source snapshots and its reproducible builder.",
   "approval": {
     "status": "required",
     "reason": "New driver/runtime/protocol. Historical #44 approvals do not cover this calibration experiment. No human approval supplied."

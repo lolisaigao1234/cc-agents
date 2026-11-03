@@ -138,7 +138,7 @@ function load(privateRoot) {
   assert.notEqual(spawnSync('git', ['-C', privateRoot, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' }).stdout?.trim(), 'true', 'answer keys cannot live in any git worktree');
   assert.equal(statSync(privateRoot).mode & 0o077, 0, 'restricted artifacts need mode 700');
   const prereg = json(PUBLIC), protocol = json(PROTOCOL);
-  assert.equal(prereg.version, 'astra-calibration-v1');
+  assert.equal(prereg.version, 'astra-calibration-v2');
   inventory(ROOT, prereg.runtime.files);
   assert.equal(sha(stable(prereg.runtime.files)), prereg.runtime.sha256, 'runtime manifest identity');
   inventory(privateRoot, prereg.private_files);

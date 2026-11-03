@@ -1,4 +1,4 @@
-# #46: Astra calibration preregistration and gated replay tooling
+# #46: Astra calibration preregistration v2 and gated replay tooling
 
 **Selection: BLOCK. No live calibration grades exist.** The new calibration
 runtime/protocol requires real human approval. The historical #44 approval is
@@ -70,10 +70,10 @@ code-review gains, a repeated baseline or candidate adoption.
 Frozen identity before integration merge:
 
 - Original protected #44 harness: `e2c423eb214f4e68d95cc36f9903edfcb74e6c1d4d70bfed8637ed980747c612` (115 files), unchanged.
-- Complete new driver runtime manifest: `6c73240c1d9ad966354069d64bc6012f44b56d2c8b21166fdde2721a6fa45cc3` (133 public code/config/check files plus separately bound private inputs/builder and runtime binaries).
-- Protocol SHA256: `e5e4ecee0b8ac3196e8bae57ff63378d359e854ef833dc17e3bf5ee7ea258350`.
-- Preregistration SHA256: `beaddfc4d9563f3154dd86411bd517f162c6292888bd638e2db3a331155ee498`.
-- Restricted archive SHA256: `21357f7b9d9a5941cc312b87b2c5e7fa1e3236a41b3d7fd048c5edc06e2f5df5`; 183,365 bytes, 32 files; credential-pattern scan found zero matches.
+- Complete new driver runtime manifest: `ff7eebf9e060039fa5cf25005eddaef7f5fce7d50e077bb13495d19cbc0e9a56` (133 public code/config/check files plus separately bound private inputs/builder and runtime binaries).
+- Protocol SHA256: `6601485baa96860a6dd7840047d5761e617fa7c37b6321baaded9fac548b98e4`.
+- Preregistration SHA256: `bffe600d7c049760feb46ab61d8a3537976d2d2fa5abee6951663340cfcbc53c`.
+- Restricted archive SHA256: `f1a21df39e9eecfe9ed33293c670d7a7828d049a08040b504ba7a5ccee2c7972`; 183,365 bytes, 32 files; credential-pattern scan found zero matches.
 
 Human review must cover the public driver/protocol, all private input and
 expected-label evidence, and these three runtime/protocol/preregistration hashes.
@@ -98,3 +98,15 @@ Integration compatibility and the final immutable commit are recorded in the
 implementation handoff. A later integration merge must not be used to run this
 frozen snapshot under historical approval: changed protected bytes stop before
 authentication. Keep the frozen commit and private artifact archive together.
+
+Before any live results, v2 superseded v1 to remove an input ambiguity: the
+original noise request could contradict the issue's explicit layout requirement.
+The replacement is a heading-capitalization preference with no functional or
+requirement claim. This is an input/expected-label revision; `grade.mjs` and its
+rubric are unchanged. V1 remains immutable at commit
+`de11c6b9b2742f7672c2d036a290308c8fe13a34` and in a separate
+[restricted retained draft](codex-hillclimb-46/retention-v1.json). Neither version
+has any live grade or human approval. V2 has new input, runtime, protocol and
+preregistration hashes; approval cannot carry across. Public red logs trim only
+trailing whitespace; original failed-test bytes remain in the restricted local
+check artifacts.

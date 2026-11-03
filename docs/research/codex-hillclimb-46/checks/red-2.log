@@ -16,9 +16,9 @@
 test at test/eval-calibration.test.mjs:44:1
 ✖ historical runtime approval cannot approve a new driver or altered input bytes (1.541812ms)
   AssertionError [ERR_ASSERTION]: The input did not match the regular expression /HUMAN approval/. Input:
-  
+
   'TypeError: requireApproval is not a function'
-  
+
       at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-271def49/test/eval-calibration.test.mjs:47:10)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {

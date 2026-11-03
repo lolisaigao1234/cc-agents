@@ -23,11 +23,11 @@ const runtimePaths = new Set([
   ...['verify.mjs', 'harness-files.json', 'artifact-inventory.json', 'prerequisites.json'].map(name => `docs/research/codex-hillclimb-44/${name}`),
 ]);
 const files = [...runtimePaths].sort().map(path => ({ path, sha256: sha(readFileSync(join(root, path))) }));
-const privatePaths = ['bundle.json', 'build-v1.py', ...['sources', 'inputs'].flatMap(dir => readdirSync(join(privateRoot, dir)).sort().map(name => `${dir}/${name}`))];
+const privatePaths = ['bundle.json', 'build-v2.py', ...['sources', 'inputs'].flatMap(dir => readdirSync(join(privateRoot, dir)).sort().map(name => `${dir}/${name}`))];
 const private_files = privatePaths.sort().map(path => ({ path, bytes: statSync(join(privateRoot, path)).size, sha256: sha(readFileSync(join(privateRoot, path))) }));
 const units = bundle.units.map((/** @type {any} */ u) => ({ id: u.id, presentations: u.presentations, control_of: u.control_of ?? null }));
 const preregistration = {
-  version: 'astra-calibration-v1', issue: 46,
+  version: 'astra-calibration-v2', issue: 46,
   historical_harness_sha256: original.harness_sha,
   source_archive_sha256: 'ada8cad455f614aadb10f7b2e2d1789c2fc5aafe3b3ab88709463b74b57d10ce',
   runtime: { sha256: sha(stable(files)), files },
@@ -35,7 +35,7 @@ const preregistration = {
     operating_system: 'Linux; system libraries and kernel are external prerequisites, not claimed hermetic artifacts',
     system_tools: ['/usr/bin/flock', '/usr/bin/bwrap'].map(path => ({ path, sha256: sha(readFileSync(realpathSync(path))) })) },
   private_files, units, scheduled_grades: schedule(bundle).length, expected_judge_requests: 138,
-  retention: 'Restricted preregistration-v1 bundle outside public git; see retention.json. The bundle includes exact inputs, evidence-cited expected labels, scoped source snapshots and its reproducible builder.',
+  retention: 'Restricted preregistration-v2 bundle outside public git; see retention.json. The bundle includes exact inputs, evidence-cited expected labels, scoped source snapshots and its reproducible builder.',
   approval: { status: 'required', reason: 'New driver/runtime/protocol. Historical #44 approvals do not cover this calibration experiment. No human approval supplied.' },
   results: { live_calls: 0, selection: 'BLOCK', reason: 'Live calibration and probes await exact human approval; no grades exist.' },
 };

@@ -1,5 +1,5 @@
 {
-  "version": "astra-calibration-v1",
+  "version": "astra-calibration-v2",
   "judge": { "agent": "codex", "model": "gpt-6-astra", "effort": "high", "service_tier": "fast", "model_verification": "configured_only", "subscription_only": true, "concurrency": 1 },
   "rubric": "Unmodified evals/review/lib/grade.mjs; no prompt corrections, candidate tuning, Claude calls or fallback.",
   "source_scope": "Only saved #44 pilot inputs and their selected case metadata/known bug records. No held-out cases, historical candidate grades as answer keys, writing prompts or new competitor runs.",

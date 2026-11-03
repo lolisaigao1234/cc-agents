@@ -1,4 +1,4 @@
-# Astra calibration v1 (#46)
+# Astra calibration v2 (#46)
 
 This driver replays a preregistered, pilot-derived calibration set through the
 unchanged `../lib/grade.mjs` findings/fixes rubric. It never runs a competitor.
@@ -32,7 +32,7 @@ Run the offline plan with the retained directory (mode 700, outside any git
 worktree):
 
 ```bash
-node evals/review/calibration/calibrate.mjs plan --private /absolute/preregistration-v1
+node evals/review/calibration/calibrate.mjs plan --private /absolute/preregistration-v2
 CODEX_SANDBOX_TEST=1 node --test test/eval-*.test.mjs
 ```
 
@@ -56,8 +56,8 @@ human review; do not edit old approvals or use `--approve-harness`.
 After that approval, using the already provisioned eval-only subscription auth:
 
 ```bash
-node evals/review/calibration/calibrate.mjs run --private /absolute/preregistration-v1 --output /absolute/fresh-restricted-run --approval /absolute/human-approval.json
-node evals/review/calibration/calibrate.mjs report --private /absolute/preregistration-v1 --output /absolute/fresh-restricted-run
+node evals/review/calibration/calibrate.mjs run --private /absolute/preregistration-v2 --output /absolute/fresh-restricted-run --approval /absolute/human-approval.json
+node evals/review/calibration/calibrate.mjs report --private /absolute/preregistration-v2 --output /absolute/fresh-restricted-run
 ```
 
 The driver verifies approval before importing the model adapter or accessing
@@ -76,7 +76,7 @@ and do not turn it into scored evidence. Use a fresh directory for a new approve
 run. Restricted reports include label-level details; CLI output shows only safe
 counts and status. Keep all failed attempts and previous protocol versions.
 
-Reproducing the frozen set requires the restricted `build-v1.py` artifact and
+Reproducing the frozen set requires the restricted `build-v2.py` artifact and
 its saved pilot archive. Run that builder with this checkout, the extracted
 pilot directory and a fresh outside-git destination. Hash-compare every output
 to the preregistered private inventory. `freeze.mjs PRIVATE_DIR` creates the
