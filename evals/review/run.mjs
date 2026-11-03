@@ -300,7 +300,7 @@ async function runCase(c, ctx) {
     if (codex) {
       try {
         cd = await runCodexAgent({
-          dir: replay.dir, home, tmp, model: ctx.model, effort: R.effort, serviceTier: ctx.execution.serviceTier,
+          dir: replay.dir, home, tmp, variant: ctx.variant, variantIdentity: ctx.execution.variant, model: ctx.model, effort: R.effort, serviceTier: ctx.execution.serviceTier,
           prompt: promptFor(replay), pluginDirs: R.pluginDirs, denyReadTool: R.denyReadTool,
           limitS, ghToken: R.token, slug: replay.slug, auth: R.codex.auth, bin: R.codex.bin,
           modelVerification: ctx.execution.modelVerification, leak: R.leak, seen: R.seen,
@@ -354,7 +354,7 @@ async function runCase(c, ctx) {
       issueText: `${issue.title}\n\n${issue.body}`,
       prDiff: diffOf(replay.dir, [replay.baseSha, replay.headSha]),
       changes: diffOf(replay.dir, [replay.headSha]),
-      material: clip(material, 400_000),
+      material: codex ? material : clip(material, 400_000),
       counts: d.counts, tests: { before, after },
       model_usage: codex ? { [ctx.model]: cd.usage } : Object.fromEntries(Object.entries(mu).map(([k, v]) => [k, apiUsage(v)])),
       turns: res.num_turns, budget_hit: codex ? null : /max_budget/.test(res.subtype ?? '') ? 1 : 0,
@@ -445,7 +445,7 @@ function parseArgs(argv) {
 function usage() {
   eprint('usage: node evals/review/run.mjs --flow DIR --variant ID --model ID [--agent claude|copilot|codex] [--reps N] [--cases id,id] [--kinds bug,clean,convergence]');
   eprint('         [--concurrency N] [--timeout-s N (0 = no ceiling)] [--budget-usd N per case] [--keep] [--approve-harness]');
-  eprint('  --agent codex uses the baseline Codex adapter; judge model and backend are frozen in the flow state.');
+  eprint('  --agent codex supports baseline and v13 (evidence-before-fix v1); judge model and backend are frozen in the flow state.');
   eprint('  --agent copilot runs GitHub Copilot CLI under bwrap; legacy flows retain their Claude judge.');
   eprint('  --keep leaves each replay repository and clone in place for inspection.');
   eprint('  --dry-run checks the setup and lists the (case, rep) pairs it would run, then exits.');
@@ -666,14 +666,14 @@ async function main() {
     try { st = JSON.parse(stateText) || {}; }
     catch { eprint(`${statePath} exists but is not valid JSON - fix it before spending a pass`); process.exit(2); }
   }
+  // Reject unsupported protocols before auth, setup, or any model call.
+  const execution = executionConfig(st, args);
   checkHarness(statePath, st, args.approveHarness);
   // A flow's rows compare only against runs of the same agent and model.
   for (const [k, want] of [['agent', st.agent ?? 'claude'], ['model', st.model]]) {
     if (want != null && args[k] !== want) { eprint(`${statePath} is a ${k} '${want}' flow; got --${k} '${args[k]}'`); process.exit(2); }
   }
-  const ctx = { ...args, state: st, execution: executionConfig(st, args) };
-  await setup(ctx);
-
+  const ctx = { ...args, state: st, execution };
   // Resume: which (id, rep) pairs already have a row?
   const resultsPath = join(vdir, 'results.jsonl');
   const done = new Set();
@@ -688,8 +688,11 @@ async function main() {
       throw new Error('flow results use a different judge configuration; use a separate flow');
     if (args.agent === 'codex' && (r.meta?.codex?.effort !== ctx.execution.effort || r.meta?.codex?.service_tier !== ctx.execution.serviceTier))
       throw new Error('flow results use a different Codex effort/tier; use a separate flow');
+    if (args.agent === 'codex' && JSON.stringify(r.meta?.codex?.variant) !== JSON.stringify(ctx.execution.variant))
+      throw new Error('flow results use a different Codex variant; use a separate flow');
     done.add(`${r.prompt_id}\0${r.rep}`);
   }
+  await setup(ctx);
   // Rows key on the path-safe id (see pathSafeId), so resume must too.
 
   const cases = await loadCases();

@@ -1,3 +1,5 @@
+import { codexVariant, rejectClaudeRequirements } from './codex-variants.mjs';
+
 // Frozen per-flow execution identity. Legacy flows retain their original judge.
 export const LEGACY_JUDGE = { agent: 'claude', model: 'claude-fable-5-1', effort: 'high', service_tier: null };
 export const CODEX_JUDGE = { agent: 'codex', model: 'gpt-6-astra', effort: 'high', service_tier: 'fast' };
@@ -14,8 +16,9 @@ export function executionConfig(state, args) {
   const codex = args.agent === 'codex';
   if (codex && (args.model !== CODEX_MODEL || state.effort !== 'high' || state.service_tier !== 'fast'))
     throw new Error('the Codex competitor must be gpt-6.1-sol, high effort, Fast mode');
-  if (codex && args.variant !== 'baseline')
-    throw new Error('Codex currently supports baseline only; Claude Workflow variants need a separate adapter');
+  const variant = codex ? codexVariant(args.variant).identity : null;
+  if (codex) rejectClaudeRequirements(state.requirements);
+  if (!codex && args.variant === 'v13') throw new Error('v13 is Codex-only');
   if ((codex || judge.agent === 'codex') && args.concurrency !== 1)
     throw new Error('Codex subscription auth requires --concurrency 1 (including the judge)');
   if ((codex || judge.agent === 'codex') && !['required', 'configured_only'].includes(state.model_verification))
@@ -26,7 +29,7 @@ export function executionConfig(state, args) {
       throw new Error(`Claude usage exhausted; resume after ${state.claude.resume_after ?? 'the confirmed usage reset'}`);
   }
   return { judge, effort: state.effort, serviceTier: state.service_tier, modelVerification: state.model_verification ?? 'required',
-    codexVersion: state.codex_version ?? CODEX_VERSION };
+    codexVersion: state.codex_version ?? CODEX_VERSION, ...(variant ? { variant } : {}) };
 }
 
 /** @param {string} requested @param {string[] | null | undefined} served @param {string} [verification] */

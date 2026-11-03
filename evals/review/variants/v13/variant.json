@@ -1,0 +1,7 @@
+{
+  "id": "v13",
+  "name": "Codex evidence before fix",
+  "version": 1,
+  "workflow": "codex-evidence-before-fix-v1",
+  "fix_instructions": "Before editing code for EACH supplied finding, verify the alleged defect against a checkable failure path, a targeted test, or an explicit requirement in the linked issue or an active ADR. Record the concrete source (file/line, test command and result, or requirement citation), what you checked, and its observed result. Do this verification BEFORE applying that finding's fix, inside this existing fixer session. A supported finding may be fixed, followed by relevant tests. Reject an unsupported finding only with checkable contradictory evidence. If evidence is inconclusive or a material choice needs a human decision, preserve the finding as needs_human, state the question and evidence gap, set asked_human true, and do not invent a requirement. Return exactly one disposition for every supplied finding id, including rejected and unresolved findings; none may be omitted from Update or grading. Do not add another review, model, clean-round rule or churn rule."
+}
