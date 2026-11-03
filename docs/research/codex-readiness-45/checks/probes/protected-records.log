@@ -1,0 +1,63 @@
+✖ the hook counts an agent's own full reads only, and only while the docs are unchanged (1677.829331ms)
+✖ the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction (171.942741ms)
+✔ the hook refuses tools that would touch the trace's read records, and only those (1396.333294ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 1
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3467.264534
+
+✖ failing tests:
+
+test at test/trace.test.mjs:216:1
+✖ the hook counts an agent's own full reads only, and only while the docs are unchanged (1677.829331ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + {
+  +   hookEventName: 'PreToolUse',
+  +   permissionDecision: 'deny',
+  +   permissionDecisionReason: "trace: the related docs are not all read. Unread: GLOSSARY.md; issue #8: its title, comment 5 by h (`gh issue view 8 -R owner/name` for the title and body; `gh api --paginate repos/owner/name/issues/8/comments --jq '.[].body'` for the comments, or `gh api repos/owner/name/issues/comments/<id> --jq .body` for one). Read step: read each file with the Read tool, every line, and run the commands shown (an output too long to show counts only for its preview: save it to a file outside the repository and Read that), in this agent; reads by its parent or another agent do not count."
+  + }
+  - null
+  
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/probe-fixture/replay/test/trace.test.mjs:236:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: "trace: the related docs are not all read. Unread: GLOSSARY.md; issue #8: its title, comment 5 by h (`gh issue view 8 -R owner/name` for the title and body; `gh api --paginate repos/owner/name/issues/8/comments --jq '.[].body'` for the comments, or `gh api repos/owner/name/issues/comments/<id> --jq .body` for one). Read step: read each file with the Read tool, every line, and run the commands shown (an output too long to show counts only for its preview: save it to a file outside the repository and Read that), in this agent; reads by its parent or another agent do not count." },
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/trace.test.mjs:269:1
+✖ the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction (171.942741ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + undefined
+  - 'SessionStart'
+  
+      at TestContext.<anonymous> (file:///tmp/cc-agents-43/ticket-45-evidence/probe-fixture/replay/test/trace.test.mjs:276:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at node:internal/test_runner/test:1305:31
+      at node:internal/process/task_queues:151:7
+      at AsyncResource.runInAsyncScope (node:async_hooks:227:14)
+      at AsyncResource.runMicrotask (node:internal/process/task_queues:148:8) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'SessionStart',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

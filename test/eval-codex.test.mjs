@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -320,6 +320,7 @@ for (const variant of ['baseline', 'v13']) test(`${variant}: full workflow roles
     writeFileSync(join(trace, 'answer-key'), 'hidden');
     writeFileSync(join(f.root, 'other-case/answer-key'), 'hidden');
     writeFileSync(join(f.runtime.control, 'sentinel'), 'hidden');
+    writeFileSync(join(f.runtime.tmp, 'trace-reads/sentinel'), 'hidden');
     Object.assign(f.runtime, { pluginDirs: [trace, matt], denied: [trace, '/home/ubuntu'] });
     /** @param {string[]} argv */
     const git = argv => {
@@ -332,7 +333,7 @@ for (const variant of ['baseline', 'v13']) test(`${variant}: full workflow roles
     const run = await runCodexAgent({ ...args, variant, dir: f.runtime.dir, runtime: f.runtime, limitS: 60 }, async (_, request) => {
       const role = request.role;
       writeFileSync(join(f.runtime.home, '.codex/config.toml'), codexConfig({ ...f.runtime, model: 'gpt-6.1-sol', role }));
-      const checks = `test ! -r '${trace}/answer-key' && test ! -r '${f.runtime.home}/.codex/auth.json' && test ! -r '${f.runtime.control}/sentinel' && test ! -r '/proc/1/root${f.runtime.home}/.codex/auth.json' && test ! -e '${f.root}/other-case/answer-key'`;
+      const checks = `test ! -r '${trace}/answer-key' && test ! -r '${f.runtime.home}/.codex/auth.json' && test ! -r '${f.runtime.control}/sentinel' && test ! -r '/proc/1/root${f.runtime.home}/.codex/auth.json' && test ! -e '${f.root}/other-case/answer-key' && test ! -r '${f.runtime.tmp}/trace-reads/sentinel' && ! touch '${f.runtime.tmp}/trace-reads/tamper' 2>/dev/null`;
       const writes = role === 'review' ? '! touch forbidden 2>/dev/null' : 'touch allowed';
       const argv = codexBwrap({ ...f.runtime, bin, args: ['sandbox', '--', '/bin/sh', '-c', `${checks} && ${writes}`],
         env: { HOME: f.runtime.home, CODEX_HOME: join(f.runtime.home, '.codex'), TMPDIR: f.runtime.tmp, PATH: '/usr/local/bin:/usr/bin:/bin' } });
@@ -366,6 +367,29 @@ test('replay authorship is allowed while tool inputs and source-repo output stil
     { type: 'hook_evidence', input: { command: 'fetch-source' }, response: 'lolisaigao1234/cc-agents', decision: null },
   ];
   for (const [i, item] of forbidden.entries()) assert.equal(codexDigest([{ type: 'item.completed', item: { id: String(i), ...item } }], leak, seen).leaks.length, 1);
+});
+
+test('scratch repositories remain visible to the archive guard inside the real command sandbox', t => {
+  if (!process.env.CODEX_SANDBOX_TEST) { t.skip('set CODEX_SANDBOX_TEST=1 for the scratch repository check'); return; }
+  const f = fakeRuntime();
+  try {
+    // Replay product code, distinct from the protected hook/plugin copy.
+    cpSync(new URL('../plugins/trace/scripts/lib/', import.meta.url), join(f.runtime.dir, 'lib'), { recursive: true });
+    const child = join(f.runtime.tmp, 'child');
+    mkdirSync(join(child, 'archive'), { recursive: true });
+    const git = spawnSync('git', ['init', '-q', child], { encoding: 'utf8' });
+    assert.equal(git.status, 0, git.stderr);
+    writeFileSync(join(child, 'archive/old.md'), 'fixture');
+    const probe = `import assert from 'node:assert/strict';
+      import { archiveBlock } from './lib/archive.mjs';
+      assert.match(String(archiveBlock('Bash', { command: 'rg -uu fixture ' + process.env.TMPDIR }, process.cwd())), /archive/);`;
+    const bin = resolveCodex();
+    writeFileSync(join(f.runtime.home, '.codex/config.toml'), codexConfig({ ...f.runtime, model: 'gpt-6.1-sol' }));
+    const r = spawnSync('bwrap', codexBwrap({ ...f.runtime, bin, args: ['sandbox', '--', process.execPath, '--input-type=module', '-e', probe],
+      env: { HOME: f.runtime.home, CODEX_HOME: join(f.runtime.home, '.codex'), TMPDIR: f.runtime.tmp, PATH: '/usr/local/bin:/usr/bin:/bin' } }),
+      { encoding: 'utf8', timeout: 15000 });
+    assert.equal(r.status, 0, r.stderr || r.stdout);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
 /** @param {any} output @param {any} request */

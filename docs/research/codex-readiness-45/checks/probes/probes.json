@@ -1,0 +1,62 @@
+[
+  {
+    "name": "node-and-path",
+    "exit": 127,
+    "log_sha256": "096cc97d6d04bd462390ce226ce8c835fee50e8147b430359c49474766750246",
+    "script": "node -p 'JSON.stringify({node:process.version,exec:process.execPath,tmp:require(\"os\").tmpdir(),home:require(\"os\").homedir()})'; command -v rg || :; command -v GH || :; GH --version"
+  },
+  {
+    "name": "protected-records",
+    "exit": 1,
+    "log_sha256": "788d94fb89e853cdb8913536186aa888827a9d2bacf45a5f136a8f59da5545b9",
+    "script": "test ! -r \"$TMPDIR/trace-reads/.key\" && test ! -w \"$TMPDIR/trace-reads\" && node --test --test-name-pattern='own full reads|tells each agent|refuses tools.*read records' test/trace.test.mjs"
+  },
+  {
+    "name": "test-owned-records",
+    "exit": 0,
+    "log_sha256": "96bff5152568a71bff48999d12cb62564d661a440e481e551a6898c81d7a4a0d",
+    "script": "test ! -r \"$TMPDIR/trace-reads/.key\" && TMPDIR=\"$TMPDIR/test-owned\" node --test --test-name-pattern='own full reads|tells each agent|refuses tools.*read records' test/trace.test.mjs"
+  },
+  {
+    "name": "claude-home-absent",
+    "exit": 1,
+    "log_sha256": "a3cd8d502e17dc714856d9529dcf2a640f794c261039463d4334a202b63204d9",
+    "script": "node --test --test-name-pattern='guard allows everything else' test/guard.test.mjs"
+  },
+  {
+    "name": "claude-home-directory",
+    "exit": 0,
+    "log_sha256": "58dc1567de44470b41e032d509aec1e56656d717eec57f066e54c44313867d42",
+    "script": "node --test --test-name-pattern='guard allows everything else' test/guard.test.mjs"
+  },
+  {
+    "name": "uppercase-gh",
+    "exit": 1,
+    "log_sha256": "c698466805f1f387657b9039b1535c0b359b1e2a6e5364dc6ed4007d7864729b",
+    "script": "node --test --test-name-pattern='shell runs what the gates read' test/trace.test.mjs"
+  },
+  {
+    "name": "historical-node-guard",
+    "event_index": 171,
+    "command_sha256": "73f51a576874540e1a042bd42c49ae4307db7cb2c5f6e74e6958becfc27492dd",
+    "decision": {
+      "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": "trace guard: `node` names Claude Code's settings or plugins, and its code may write them, which can switch the hooks off; only the human changes it, by hand; a settings change other than env, disableAllHooks, enabledPlugins or hooks can be made with the Edit tool. If it is really needed, ask the user to run it."
+      }
+    }
+  },
+  {
+    "name": "historical-node-guard",
+    "event_index": 383,
+    "command_sha256": "566c1f16d5267a55dd237a0805d95a3fa5ae587eb4ecb8f8543b8028d20f6318",
+    "decision": {
+      "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": "trace guard: `node` names Claude Code's settings or plugins, and its code may write them, which can switch the hooks off; only the human changes it, by hand; a settings change other than env, disableAllHooks, enabledPlugins or hooks can be made with the Edit tool. If it is really needed, ask the user to run it."
+      }
+    }
+  }
+]

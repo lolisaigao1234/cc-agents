@@ -1,0 +1,11 @@
+✔ the hook counts an agent's own full reads only, and only while the docs are unchanged (5488.0653ms)
+✔ the hook tells each agent about the linked issue when it starts, nudges once at a stop, and forgets reads on compaction (14116.510824ms)
+✔ the hook refuses tools that would touch the trace's read records, and only those (956.927426ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 21006.394662
