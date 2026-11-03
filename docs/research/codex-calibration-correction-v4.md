@@ -1,5 +1,11 @@
 # Calibration v4 preparation for #46
 
+Historical preparation record. The later approved [actual v4 execution](codex-calibration-result-v4.md)
+completed 75/75 valid grades and 138/138 retained judge invocations: limited
+calibration **PASS**, adoption **INCONCLUSIVE**. The next gate is a separately
+frozen and approved baseline protocol. The preparation statements below
+are preserved as history; the protected README/manifest remain unchanged.
+
 V4 is prepared for parent review and exact human approval, with zero live calls.
 The actual v3 result stays **BLOCK / INCONCLUSIVE**. #46 remains open and
 #48/#49 remain blocked. This correction establishes a new request contract and
