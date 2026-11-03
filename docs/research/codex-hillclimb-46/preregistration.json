@@ -1,0 +1,839 @@
+{
+  "version": "astra-calibration-v2",
+  "issue": 46,
+  "historical_harness_sha256": "e2c423eb214f4e68d95cc36f9903edfcb74e6c1d4d70bfed8637ed980747c612",
+  "source_archive_sha256": "ada8cad455f614aadb10f7b2e2d1789c2fc5aafe3b3ab88709463b74b57d10ce",
+  "runtime": {
+    "sha256": "ff7eebf9e060039fa5cf25005eddaef7f5fce7d50e077bb13495d19cbc0e9a56",
+    "files": [
+      {
+        "path": "docs/research/codex-hillclimb-44/artifact-inventory.json",
+        "sha256": "45a473b3da1394429ddc034f045d4d9edc201f0ae3a20d791d9d954302ad2536"
+      },
+      {
+        "path": "docs/research/codex-hillclimb-44/harness-files.json",
+        "sha256": "c8848f5ac8b2699ca6958ed76cd43c613acecef1c7fab9194f4dfd45986ab33a"
+      },
+      {
+        "path": "docs/research/codex-hillclimb-44/prerequisites.json",
+        "sha256": "3e6eb6c7491b16d08b5812b153a80021ee19d393d48ae21116ec657e2f2929ec"
+      },
+      {
+        "path": "docs/research/codex-hillclimb-44/verify.mjs",
+        "sha256": "c9ccbd7fb73f6572ac5209455c98d8c9b0c9c9a39855c8750fcda2bffedc6e6f"
+      },
+      {
+        "path": "evals/review/calibration/README.md",
+        "sha256": "db6407bf21002f3d2f4ece1a342582daf9ea97b9027499c24efec2cad3d4883b"
+      },
+      {
+        "path": "evals/review/calibration/calibrate.mjs",
+        "sha256": "819c4033955e86f5f84311305c28bafc84688c26a38511be8f6cdf69e959c244"
+      },
+      {
+        "path": "evals/review/calibration/freeze.mjs",
+        "sha256": "0294e67e663375550237f55b99197e3554c002288902e21096b61185cb0b1cb7"
+      },
+      {
+        "path": "evals/review/calibration/protocol.json",
+        "sha256": "6601485baa96860a6dd7840047d5761e617fa7c37b6321baaded9fac548b98e4"
+      },
+      {
+        "path": "evals/review/data/adjudicated.json",
+        "sha256": "79b9f30b870bb711f495a0a1833a975cfc6e2bf78bd724da83ba2fb69d6d49c9"
+      },
+      {
+        "path": "evals/review/data/bugs.json",
+        "sha256": "87e7322e898d13c8969ff39a34f10081479e1205249b7dcdc4ed125d370cf7df"
+      },
+      {
+        "path": "evals/review/data/cases.json",
+        "sha256": "313e4e39c6ed5546192b5ce04bc1bff125193d37b7c15c49ec186aafa5208929"
+      },
+      {
+        "path": "evals/review/data/ideas.json",
+        "sha256": "66b27afce61eb887fa26db3d181ac11430ee980b1296bb0234e7827078197049"
+      },
+      {
+        "path": "evals/review/data/issues/10.md",
+        "sha256": "4ca54176f060dceead2c0a5360c79f04562951882457e8d196b9d4ac272ac22b"
+      },
+      {
+        "path": "evals/review/data/issues/11.md",
+        "sha256": "65e416d05429dd0464eb2a5e9fe792dce4a177394bec2f308333abb722d18d50"
+      },
+      {
+        "path": "evals/review/data/issues/13.md",
+        "sha256": "4150c9218c58a54a1f1a0fb1440d8f2dd98865163644b708cf8c59be790da849"
+      },
+      {
+        "path": "evals/review/data/issues/23.md",
+        "sha256": "11caf9b72c3fadf533ea291b30e974b442f507efb2174c27cfe15beea21e5e90"
+      },
+      {
+        "path": "evals/review/data/issues/25.md",
+        "sha256": "bcabc7894ba93f33fad442eb9b118da9c14576233734bf4c0b21a0919890856f"
+      },
+      {
+        "path": "evals/review/data/issues/27.md",
+        "sha256": "dbcf0415d6b9d5f83deff78a43c8886def292d7c79e088ed5af49807797ca620"
+      },
+      {
+        "path": "evals/review/data/issues/29.md",
+        "sha256": "d910b1e20bb15a60ecfaf72fd1d2a3ad41261b223ebe69596141b0c70e7e5b6a"
+      },
+      {
+        "path": "evals/review/data/issues/31.md",
+        "sha256": "5d73fb58cb8f848fb4af84a1ce3770334256aea52f1de28522656419644b524e"
+      },
+      {
+        "path": "evals/review/data/issues/32.md",
+        "sha256": "b1b37542ed140bab30373b0c0b42520f2212c783c8a7116f657db15e4b52f6ee"
+      },
+      {
+        "path": "evals/review/data/issues/34.md",
+        "sha256": "aaffbbbca40dd22e39833088c2b29ee55aa75f60aa41a5dd9ae4a37f473a5fb0"
+      },
+      {
+        "path": "evals/review/data/issues/4.md",
+        "sha256": "de5cc779672672fc6613ad286157c700f12bcd509939f5ebe4a3635da537ade3"
+      },
+      {
+        "path": "evals/review/data/issues/5.md",
+        "sha256": "3aef1059f6bd9b634e1032a4968261f7711a69f0a1b226d0cf1dcc10ba5f4cd6"
+      },
+      {
+        "path": "evals/review/data/issues/6.md",
+        "sha256": "70a895f9124d81a8c62b841fd434feeb8b5369fd579c56600b6084ba8bb6654a"
+      },
+      {
+        "path": "evals/review/data/issues/7.md",
+        "sha256": "d4feaef7c308223a35d0612cc79cbf888edf78f41fb45fadc9726f0cc8749547"
+      },
+      {
+        "path": "evals/review/data/issues/8.md",
+        "sha256": "a98da8b72aa555f0dc28eb27127837f561225326da2bd1ee1ad26ae895bd3038"
+      },
+      {
+        "path": "evals/review/data/issues/9.md",
+        "sha256": "5277ef26b2e7d969f6aa526211e4f74840653e840d03998c9588c1858564ad34"
+      },
+      {
+        "path": "evals/review/lib/agent.mjs",
+        "sha256": "7b3a4ea3cfc9ad2c9b78b06775f83ecc4f4019123166dc5e6a0255a63d2f40ff"
+      },
+      {
+        "path": "evals/review/lib/cases.mjs",
+        "sha256": "2b5019bab491ff096dbc8fbaba035bffe798547f5d7034be627642cbed9a006c"
+      },
+      {
+        "path": "evals/review/lib/cleanup.mjs",
+        "sha256": "19c1bd6de544db0b5d9eee8b556fb362e3cc0f0115cb321aca84da42bf517f09"
+      },
+      {
+        "path": "evals/review/lib/cli.mjs",
+        "sha256": "e088193d6d823a7ab4a4a505b57c62d07cb1d6a0f9a5a1113e39769ea4474dbf"
+      },
+      {
+        "path": "evals/review/lib/codex-agent.mjs",
+        "sha256": "762ef96f6653eee38b3bef9013775e789ed282806bd581cda73c04227c32728e"
+      },
+      {
+        "path": "evals/review/lib/codex-digest.mjs",
+        "sha256": "0582aa34c6c8f507f6c0dfd6552ec2af8c9629c29924e8a9f0bb1fed3f9f2d84"
+      },
+      {
+        "path": "evals/review/lib/codex-hooks.mjs",
+        "sha256": "262ffdcd6145a4745d10ed2c1f64af8d3a32c39bbf7ef4232bf584f136dcf6ed"
+      },
+      {
+        "path": "evals/review/lib/codex.mjs",
+        "sha256": "9e8466882920a70d7d47174c3203fd538794e4e1dae214f21e7de86dd5beba73"
+      },
+      {
+        "path": "evals/review/lib/config.mjs",
+        "sha256": "f088b6bafe5f940fa0d6d3dbe3b2af6cbceeb97b301aa422ead730cd4168aff4"
+      },
+      {
+        "path": "evals/review/lib/copilot.mjs",
+        "sha256": "c73790f672d80213b7acc41aa6bc1a206407edcb647dee97670aecd4382f4ad2"
+      },
+      {
+        "path": "evals/review/lib/egress-guard.mjs",
+        "sha256": "daa5031dcb19f6c6469d92cbb3ac799b79544d31264e3aee4c1d5075fb7d1cb9"
+      },
+      {
+        "path": "evals/review/lib/github.mjs",
+        "sha256": "88262ec4f2412f44a74c42f2d555766b6a9f52c3300a2e28e92b9367a8f8bfd6"
+      },
+      {
+        "path": "evals/review/lib/grade.mjs",
+        "sha256": "d1d8268d69763db5145e07fc12cc947f4c973bc93706ddb30aec3f7a0c894036"
+      },
+      {
+        "path": "evals/review/lib/prices.mjs",
+        "sha256": "2d2f0422680e3156a01ab99d35235f4925b9d94b3055d8ac5634308eef96ae8c"
+      },
+      {
+        "path": "evals/review/lib/replay.mjs",
+        "sha256": "eb35a748fd697e6d7a7903bbedad1d5e3f4e42d5545d62ffe223ba5a7048a1b3"
+      },
+      {
+        "path": "evals/review/lib/transcript.mjs",
+        "sha256": "5b5acc594070192dfbfd6ffa794708f77c92654e2fe429072e7b4a781b8917b8"
+      },
+      {
+        "path": "evals/review/run.mjs",
+        "sha256": "8b1f2da0b564f7c820eeff51f4d32fca52df555b0e410b15b0f11811d417bd44"
+      },
+      {
+        "path": "evals/review/selftest.mjs",
+        "sha256": "94df45883421bda115c0cf3c772665c19e79b093d7ffed7c1c0041ac88d04680"
+      },
+      {
+        "path": "evals/review/variants/v1/change.md",
+        "sha256": "8cbd610e694f3a3731b3e4766bfc85e10514753a1a0947d883fe8e81a9979253"
+      },
+      {
+        "path": "evals/review/variants/v1/plugin/hooks/hooks.json",
+        "sha256": "cf2df07d2e45f5ba141f191b0062937a06477d74410df6986d31a5c11c1dd48a"
+      },
+      {
+        "path": "evals/review/variants/v1/plugin/scripts/variant/checks.mjs",
+        "sha256": "5c88a02f064962551e908da8aca9b9d74e2905b714dfbce2960ab2dfa0b7aaac"
+      },
+      {
+        "path": "evals/review/variants/v1/plugin/scripts/variant/common.mjs",
+        "sha256": "fde502be7f7e8d7407d18ac74f5133327bbf9648cd38ab970b53b0c80d1ad880"
+      },
+      {
+        "path": "evals/review/variants/v1/plugin/scripts/variant/typecheck-on-edit.mjs",
+        "sha256": "e8d4de0551f2c61c51701bbf26b105a9499f24fd7f42cd783148192a10763e6b"
+      },
+      {
+        "path": "evals/review/variants/v1/plugin/skills/trace/SKILL.md",
+        "sha256": "b91bd49f664a91e03d1d22f8c155080b11d9ac4b70b4dce46eb9261b82deb2ad"
+      },
+      {
+        "path": "evals/review/variants/v1/repo-append/CLAUDE.md",
+        "sha256": "4ae974f3bdaece78d1b20d4ca620c315554ff7018525946924334b5ce58b40b3"
+      },
+      {
+        "path": "evals/review/variants/v1/variant.json",
+        "sha256": "72c5711ac4ddd421d0a9a5843213c2f70ee214ca18f170bc2293cae22963c4d4"
+      },
+      {
+        "path": "evals/review/variants/v10/change.md",
+        "sha256": "bda48ec8e85ce60ab7aaba623cd3912e381186c91987550a385192c11e9914d6"
+      },
+      {
+        "path": "evals/review/variants/v10/plugin/skills/trace/SKILL.md",
+        "sha256": "b988a0e06c80ce5b17979f174e5e34bad556ea952334c0422421b6dc1c9c8b09"
+      },
+      {
+        "path": "evals/review/variants/v10/repo/.claude/workflows/latent-sweep.js",
+        "sha256": "cbd305fb2aadee2603fa4d08f4cc620a3229e76681cdb48b7f7b055e9d83d123"
+      },
+      {
+        "path": "evals/review/variants/v10/variant.json",
+        "sha256": "5a71bc705f5e327c85fe1b954e40086a3ef648955c56925f213bbbe91c56a059"
+      },
+      {
+        "path": "evals/review/variants/v11/change.md",
+        "sha256": "d9cafc03698f2ec7e4bec7188c6acf44849c118ed429cd02ee96fa426351e671"
+      },
+      {
+        "path": "evals/review/variants/v11/variant.json",
+        "sha256": "20d3db490178b1ab867bc628b970bf3d830551fc4d43e63e801642acd32b2523"
+      },
+      {
+        "path": "evals/review/variants/v12/change.md",
+        "sha256": "c6b7dd61878045f267e948c883228b2fca13c5cb92ce8ad9a66c65399d3bf89d"
+      },
+      {
+        "path": "evals/review/variants/v12/plugin/skills/trace/SKILL.md",
+        "sha256": "806a205dd8e7f81ae62521f3412b550a01e9c68404e6bd56d8ca24ac093b54f1"
+      },
+      {
+        "path": "evals/review/variants/v12/variant.json",
+        "sha256": "c0876301b9adce7ffbbf259201fa8b564075c186d36c544808c3398e4972da24"
+      },
+      {
+        "path": "evals/review/variants/v2/change.md",
+        "sha256": "f9a05978b9a3e05454e53ea060ecd34d80764515f76ca896810be1fd4f868285"
+      },
+      {
+        "path": "evals/review/variants/v2/plugin/hooks/hooks.json",
+        "sha256": "5791b3aa83b76d2226073bc0d31e03e8453d5821ef45972e3486b46573c239bd"
+      },
+      {
+        "path": "evals/review/variants/v2/plugin/scripts/variant/review-context.mjs",
+        "sha256": "ffc948a0501098a7aa0f7973ea49b1b775a7eb9ad2103590a952df6612d2864d"
+      },
+      {
+        "path": "evals/review/variants/v2/plugin/skills/trace/SKILL.md",
+        "sha256": "6edc2c4ca47958d08a9d430d54e7793352cd2a5c731022fe7d1d6f33f67cad4e"
+      },
+      {
+        "path": "evals/review/variants/v2/repo-append/.gitignore",
+        "sha256": "d96a9fff957d92f1f7b37c3a66836373f9965a2406d3d4d1c889526da474a2ec"
+      },
+      {
+        "path": "evals/review/variants/v2/repo-append/CLAUDE.md",
+        "sha256": "906b990a6d91b9be57df503ab124c02bfaa8219c44e757f03a32c761e904bfe5"
+      },
+      {
+        "path": "evals/review/variants/v2/repo/REVIEW.md",
+        "sha256": "db48566d76fd32898a76c00477d2eae61d3a319f5cf6ba2af9da506033f2f812"
+      },
+      {
+        "path": "evals/review/variants/v2/variant.json",
+        "sha256": "5479298db4c2ce734c96c0442a4afaf7544c7b9be4f69241b2d04e4c7008c28c"
+      },
+      {
+        "path": "evals/review/variants/v3/change.md",
+        "sha256": "6d3b464ee41484bac8dc5fbc03ebb2f0f01048247184de43e45bb339b60eeb95"
+      },
+      {
+        "path": "evals/review/variants/v3/plugin/skills/trace/SKILL.md",
+        "sha256": "d08a0cd65e8a2147d9a93d6830bb28b23f2326dd1360b4489db923e1cfdf6e2f"
+      },
+      {
+        "path": "evals/review/variants/v3/repo-append/CLAUDE.md",
+        "sha256": "270ab43b49e9b0db346dad879ac8c7c86fd17168218ecd9185919b5effd4be11"
+      },
+      {
+        "path": "evals/review/variants/v3/repo/.claude/workflows/review-finders.js",
+        "sha256": "bd0150926cb82bc2512553449b35d4a0d76d1001b93ceb792e53088070fae02c"
+      },
+      {
+        "path": "evals/review/variants/v3/variant.json",
+        "sha256": "9829259e292eca9cff0f9342298595d1c74022fda3795a94c523d18029c65c82"
+      },
+      {
+        "path": "evals/review/variants/v4/change.md",
+        "sha256": "e22ab7f0d2bd49ec829da033072aefa9479b8bb9ff03567f24cc7a3d43077394"
+      },
+      {
+        "path": "evals/review/variants/v4/plugin/skills/trace/SKILL.md",
+        "sha256": "1e01febd332f17e726aa5cf1433e8dc8e24aeacf2a94043eccb17f426ca130c5"
+      },
+      {
+        "path": "evals/review/variants/v4/repo-append/CLAUDE.md",
+        "sha256": "f67175d34ae8f6db45117015e7129203b54720bc092fec23b173a8affd78012f"
+      },
+      {
+        "path": "evals/review/variants/v4/repo/.claude/workflows/verify-findings.js",
+        "sha256": "1204cfce85d2fa2b533e57e60fd5bd6b12315130e90aabfd1cf71e337c8a7988"
+      },
+      {
+        "path": "evals/review/variants/v4/repo/REVIEW.md",
+        "sha256": "ca3a823c9334136ca5c988c9e0cf5d80934afd6a5985cefc8e12691e0709cbf1"
+      },
+      {
+        "path": "evals/review/variants/v4/variant.json",
+        "sha256": "8457ba1dc665e586cb07a41534fffc12e6d01139fac5d70e762f70cdad6c15fe"
+      },
+      {
+        "path": "evals/review/variants/v5/change.md",
+        "sha256": "ed29c3ba5989c3e3bb8ad308d78957bb958d4f9c81ad5e60bbb9feac377a718d"
+      },
+      {
+        "path": "evals/review/variants/v5/plugin/hooks/hooks.json",
+        "sha256": "f9338c1efad939be4a80ffc8baeea39785890a7dc3cb3557bd136947cc02c249"
+      },
+      {
+        "path": "evals/review/variants/v5/plugin/scripts/variant/findings.mjs",
+        "sha256": "84c0748183aa302aef32d5a12ffc0f270edeaaae1540598bbc873babe530fe55"
+      },
+      {
+        "path": "evals/review/variants/v5/plugin/skills/trace/SKILL.md",
+        "sha256": "8c3b4a46fd047c973c38f8e2fd60628f77e5c9e84dc87d78c8ce6205af1ee3d4"
+      },
+      {
+        "path": "evals/review/variants/v5/variant.json",
+        "sha256": "f566b4bba35f8921469327f40a0c9c1babf67f9f830f93c0a96011d72ec88393"
+      },
+      {
+        "path": "evals/review/variants/v6/change.md",
+        "sha256": "efa8afeef2875da73af1b356ecfa4b9036ac990bad30f5c131ac9cc90412f58d"
+      },
+      {
+        "path": "evals/review/variants/v6/plugin/hooks/hooks.json",
+        "sha256": "1de04319ab773ead8fe5df61b541bc5eb289e4084edee3c207d38c00640ae68f"
+      },
+      {
+        "path": "evals/review/variants/v6/plugin/scripts/variant/rounds.mjs",
+        "sha256": "e977cd2f2640314ad70ff635e46515e4d32c6da18a3bc6b2eb7a122bd385a078"
+      },
+      {
+        "path": "evals/review/variants/v6/plugin/skills/trace/SKILL.md",
+        "sha256": "807984c39bc5885073b3de78afb56d5ec5520329097beb3bddbb3a505d0e8515"
+      },
+      {
+        "path": "evals/review/variants/v6/variant.json",
+        "sha256": "cc86b924b0fb838f83d720662916bd01976cc8d7ab2f215952b592abec388e15"
+      },
+      {
+        "path": "evals/review/variants/v7/change.md",
+        "sha256": "8419abe898f5a36ad16bcb693e28c68bec0150479871dc8339dfc522db9aab99"
+      },
+      {
+        "path": "evals/review/variants/v7/plugin/hooks/hooks.json",
+        "sha256": "aee8d78260e855b795ecf0c2a828f3b4919deec8f40d35524b10ffe84cfbf664"
+      },
+      {
+        "path": "evals/review/variants/v7/plugin/scripts/variant/commit-review.mjs",
+        "sha256": "b6b5058535e2a4951dce8f42e9cb9d40477d9d7dc704c44d684b212c51b38332"
+      },
+      {
+        "path": "evals/review/variants/v7/plugin/skills/trace/SKILL.md",
+        "sha256": "a0fba02c0acfbca6f8655661747b7870ac7722698a84152d8ada188a6b48c60b"
+      },
+      {
+        "path": "evals/review/variants/v7/variant.json",
+        "sha256": "8524faf083ee334892bb2fdf60c34243b32515b3473be4ab356056b89d202b4a"
+      },
+      {
+        "path": "evals/review/variants/v8/change.md",
+        "sha256": "8381ce48e18cd28c0b006217eee3a6a1bb523a705a4f3523fdc69cd02f2b8e67"
+      },
+      {
+        "path": "evals/review/variants/v8/plugin/skills/trace/SKILL.md",
+        "sha256": "1ee02bae6e65e7c58c3454319734c3c59c0ce98437fcf0c410dff14c336f4f0f"
+      },
+      {
+        "path": "evals/review/variants/v8/repo/.claude/risk-tiers.md",
+        "sha256": "6b4319b033f21327f8cd78f115056492c96b24d5ac3fa0d33da83ee65e755210"
+      },
+      {
+        "path": "evals/review/variants/v8/repo/.claude/workflows/risk-tier.js",
+        "sha256": "9cc7f098efb22ca96e12deeb4b103620db244667537b081043839dc89cd3cdb6"
+      },
+      {
+        "path": "evals/review/variants/v8/variant.json",
+        "sha256": "65caf56fee146b82cce6c93f399c78e1fc21bd06ef70b957c95fe227462911a6"
+      },
+      {
+        "path": "evals/review/variants/v9/change.md",
+        "sha256": "a7e518450c71d718bffe08deabc538bd95c1629342a85e0f9e44c89a9ae25354"
+      },
+      {
+        "path": "evals/review/variants/v9/variant.json",
+        "sha256": "eca053765cd9620fabcd8bdc5ea6012c5e55d47845cfe278228635c70c0cac1b"
+      },
+      {
+        "path": "package-lock.json",
+        "sha256": "508c47443ba57aa5799adf24257a458ec87e048140269b62540b3a57d6aaccac"
+      },
+      {
+        "path": "package.json",
+        "sha256": "35d8bc3a0b60b1d996c75d90955f01fa8bc66b1dc5a9e44100208cea67a640ac"
+      },
+      {
+        "path": "plugins/trace/.claude-plugin/plugin.json",
+        "sha256": "446e660230cccd151b35c494bb2c7e3f86154de1948ad5a68b9073144876b589"
+      },
+      {
+        "path": "plugins/trace/README.md",
+        "sha256": "04345fb1e6cbefd5c22cc255374c02779fc92eff188a65d3812769841608a335"
+      },
+      {
+        "path": "plugins/trace/hooks/band.tsx",
+        "sha256": "2d2c4f29a45223e64f20f81c2369e455935ccd431ea1f89acd8eb99501ba26c2"
+      },
+      {
+        "path": "plugins/trace/hooks/hooks.json",
+        "sha256": "929c70053677223074d94de0a9ee33f583117766f04055a274065d5cf197f3a1"
+      },
+      {
+        "path": "plugins/trace/scripts/hook.mjs",
+        "sha256": "34f6c729b082f3923f81644d0589f36de8dc49b0a0441e54ff987b25ccc0da30"
+      },
+      {
+        "path": "plugins/trace/scripts/lib/archive.mjs",
+        "sha256": "4bd6c432169ee8c9c1df84d7e0c913df103c413763aaee01a789765556dbc322"
+      },
+      {
+        "path": "plugins/trace/scripts/lib/context.mjs",
+        "sha256": "9a0dc2f00bb20fd2ee59db9dc3522d030019e97c32f1075199a0e57d138f58fa"
+      },
+      {
+        "path": "plugins/trace/scripts/lib/docs.mjs",
+        "sha256": "6a5760be6e57e10f9c65da7cbf69bcec898649e8fab5188cb5e643d865760d11"
+      },
+      {
+        "path": "plugins/trace/scripts/lib/guard.mjs",
+        "sha256": "bada4d5010fbd7c7cdc42d3a0215d8d072928306aa24661e4c609617567c0432"
+      },
+      {
+        "path": "plugins/trace/scripts/lib/halt.mjs",
+        "sha256": "f05d545307c0105e44a7f28bcf31e44e2c20feb6a871700f020a0aadf1a1ee96"
+      },
+      {
+        "path": "plugins/trace/scripts/lib/paths.mjs",
+        "sha256": "425107d535406b5d7d7a6e06843088d01d1d49421a309135fbd157cb8295d557"
+      },
+      {
+        "path": "plugins/trace/scripts/lib/shell.mjs",
+        "sha256": "fd6e4516da6d427fb4147f7b18ae62bba0f90f7209b1b557bfc19b48c05e419a"
+      },
+      {
+        "path": "plugins/trace/scripts/lib/status.mjs",
+        "sha256": "123d4aaa62d1f3a8bf8fb1a445740a7838fbb761e67bb65ddb05976dbc328dcc"
+      },
+      {
+        "path": "plugins/trace/scripts/lib/trace.mjs",
+        "sha256": "0d3ceed720af52923298ab2963c08b37fbca44bec749d104dba9b5a0f714768b"
+      },
+      {
+        "path": "plugins/trace/skills/setup/SKILL.md",
+        "sha256": "751d3fdca3ca4d17e339a9ba30771e4eb948ea2824d8c7e916c6ae05f57f1370"
+      },
+      {
+        "path": "plugins/trace/skills/trace/SKILL.md",
+        "sha256": "c631b0f348d4cf8b22d3ae4b5710c4c41196e49b69ce09a12d4f43fe9d78573d"
+      },
+      {
+        "path": "plugins/trace/test/band.test.tsx",
+        "sha256": "aa801a9b3d9511aa232c98c52c53d433edae8dcfb374ba6251dedac26b04dd69"
+      },
+      {
+        "path": "plugins/trace/tsconfig.json",
+        "sha256": "a52b5dabaa8f16862ac3d71faa0ed21f73a33d2d4bd789325a38648a46c72d8b"
+      },
+      {
+        "path": "plugins/trace/types/index.d.ts",
+        "sha256": "d358198f16893dc76e2f682ca18b1a23fe640dc5d469b5a77657bc479d2a4776"
+      },
+      {
+        "path": "test/eval-calibration.test.mjs",
+        "sha256": "f63d0a6cc6444cb657f20bf389fa93e69b2a5be9eba75456b3963dbd01c7c364"
+      },
+      {
+        "path": "test/eval-cases.test.mjs",
+        "sha256": "fbd830264d53c51a1379721aaecadd2432c5ca06ea7974de61517e23c43b5ccf"
+      },
+      {
+        "path": "test/eval-cleanup.test.mjs",
+        "sha256": "8fa8347d1ef09b9437be8eed3fef38c5e72827180631a33113d443773aad5d58"
+      },
+      {
+        "path": "test/eval-codex.test.mjs",
+        "sha256": "efb8f8db1a880abb53e993eee1d1496f37ba4a975a88ac28ce9a81f56e6b5dea"
+      },
+      {
+        "path": "test/eval-copilot-digest.test.mjs",
+        "sha256": "a0f50cc2e120b5d4fff2bf859606f8bae940c5b6ffd4f65fb83a9acb1f3f58d9"
+      },
+      {
+        "path": "test/eval-harness-gate.test.mjs",
+        "sha256": "a8e641eec36c6e30d00954003b0fabb4840c2eee367721c62067e4d4b24802ab"
+      },
+      {
+        "path": "test/eval-home-leak.test.mjs",
+        "sha256": "eeb7fd0d0d216c7700ced697d06d62d79642e46284ac14266f7f53f13125e8a4"
+      },
+      {
+        "path": "test/eval-replay-slugs.test.mjs",
+        "sha256": "8bed1d55cd3dcc6429b4eeed13fd707f6d574b76848b1723df7be5d845dd2094"
+      }
+    ]
+  },
+  "environment": {
+    "node_version": "v24.22.2",
+    "node_sha256": "b4855de8c4781130b722ceaec9718fed77cca3eed2e5cfc5455e267c0b9ee3b0",
+    "codex_runtime_files": [
+      {
+        "name": "codex",
+        "sha256": "f2e6c980c937e734644bed1b4a9a018d3e63a0ccbe71aafc85c86a8c6e4b462a"
+      },
+      {
+        "name": "codex-code-mode-host",
+        "sha256": "587436a943a59c18cabdbe83f07800d237b60ddd2e0f54d05b23d8b37a0b36f4"
+      },
+      {
+        "name": "codex-exec-server",
+        "sha256": "58625693605c66abb56a17a47b9ae880b66d15fe994d115bc1249b9301ba2070"
+      }
+    ],
+    "operating_system": "Linux; system libraries and kernel are external prerequisites, not claimed hermetic artifacts",
+    "system_tools": [
+      {
+        "path": "/usr/bin/flock",
+        "sha256": "b991f23fbc6a3928a86977d87a6c4fd14acc44cfe90ce7cb8f5dcab4d8a49fbf"
+      },
+      {
+        "path": "/usr/bin/bwrap",
+        "sha256": "cd6b143283b464baf078ab09ca19dadc5bcc2423b833c4f9dd7e83f9ba1b640b"
+      }
+    ]
+  },
+  "private_files": [
+    {
+      "path": "build-v2.py",
+      "bytes": 11171,
+      "sha256": "5348a7c0d7e29cdf374b4c551cba40778397b828fc5714eba4ff3dcb36abdf05"
+    },
+    {
+      "path": "bundle.json",
+      "bytes": 16478,
+      "sha256": "c9db78a5b3a45ab18df40f98149225ab82fd4b044d40eaaed61ef561e8cc382e"
+    },
+    {
+      "path": "inputs/p01-original.json",
+      "bytes": 34157,
+      "sha256": "2d090c472e9409cbf57b845b97e104cd83c3ba207777198fc1abaeb7700d9ecf"
+    },
+    {
+      "path": "inputs/p02-original.json",
+      "bytes": 33905,
+      "sha256": "1552c81a1da0a9b0f9db172dab983261c014869169899173cd5a42ec12cdce5b"
+    },
+    {
+      "path": "inputs/p03-original.json",
+      "bytes": 33981,
+      "sha256": "d550112bc62fad0046e25a711da1e5f59772d08dd0192f74f4e9441a14dba7b4"
+    },
+    {
+      "path": "inputs/p04-original.json",
+      "bytes": 34057,
+      "sha256": "8f428bfc793b953195fc4c3797576aefa0c9addf480d8849676ec5903005ad51"
+    },
+    {
+      "path": "inputs/u01-layout.json",
+      "bytes": 34501,
+      "sha256": "2c11f4b22253054faf04c2b0006b1f7a1c4cbe22f8fd62ccf78c5e9a8364e412"
+    },
+    {
+      "path": "inputs/u01-original.json",
+      "bytes": 34481,
+      "sha256": "53de99e8f5fab9ede44ae1f32f48f311f50e0459865c298eebb9e810fb5f38c2"
+    },
+    {
+      "path": "inputs/u01-wording.json",
+      "bytes": 34448,
+      "sha256": "efc84c689f9db0b1bd907c6dbbf808d8802a941a576e5a998510ad726f260267"
+    },
+    {
+      "path": "inputs/u02-layout.json",
+      "bytes": 34574,
+      "sha256": "811a4ced77ef4a2a904e682add7ce23a6153349549e3dd918c1aa3aeed10b560"
+    },
+    {
+      "path": "inputs/u02-original.json",
+      "bytes": 34554,
+      "sha256": "5c109faa3c815139bb564061c4fa1c2cb3f48bff5655436d1ba5b470534ed883"
+    },
+    {
+      "path": "inputs/u02-wording.json",
+      "bytes": 34521,
+      "sha256": "1c096d7b14c52e95a338e731c78d21fb4c72b9abdddd8b57ba61764b77c23a92"
+    },
+    {
+      "path": "inputs/u03-layout.json",
+      "bytes": 11845,
+      "sha256": "4b4f6976042fd665e8cd574d92e07fd27821f34eb4f1fc908921c16e6ba07274"
+    },
+    {
+      "path": "inputs/u03-original.json",
+      "bytes": 11821,
+      "sha256": "c658591406972109b3cb276eaa997962a9a96a37a3c487559274fbc8e7afc0af"
+    },
+    {
+      "path": "inputs/u03-wording.json",
+      "bytes": 11636,
+      "sha256": "392a2c4ea0ad962448b3c5190804cf4935a57290acb25fc55842cccd5bc7728d"
+    },
+    {
+      "path": "inputs/u04-layout.json",
+      "bytes": 11645,
+      "sha256": "a562daa63528fd2826407ea3e73b9b3db378c413ea84daabc9bc5a289529a5e2"
+    },
+    {
+      "path": "inputs/u04-original.json",
+      "bytes": 11625,
+      "sha256": "fedb2c9b3eeb64d508a6a5cc0da031aea1362f2e9281c1e6afd36eff341d34ab"
+    },
+    {
+      "path": "inputs/u04-wording.json",
+      "bytes": 11617,
+      "sha256": "1df9dc2fc7402ffb9788606464fde9aeda0fefd5e9bf4a5b9826d11fae463552"
+    },
+    {
+      "path": "inputs/u05-layout.json",
+      "bytes": 11652,
+      "sha256": "36111391c38932ba4a70469ea175ce47549ef1ae881c5079d3c6c602974470cb"
+    },
+    {
+      "path": "inputs/u05-original.json",
+      "bytes": 11632,
+      "sha256": "86fd6cd5cbb400c5d14d7918f9ae6f6f6bd7161d254ff51b073a7eb027cae284"
+    },
+    {
+      "path": "inputs/u05-wording.json",
+      "bytes": 11625,
+      "sha256": "dc1f2b1c507b3f906a30e74691945c2881d426a48325ab2bd141747a913106ae"
+    },
+    {
+      "path": "inputs/u06-layout.json",
+      "bytes": 32460,
+      "sha256": "7991c3e965b50344b7d5067f0f354b84f64d2b1138aeb5c273aaa92841f54fad"
+    },
+    {
+      "path": "inputs/u06-original.json",
+      "bytes": 32440,
+      "sha256": "3dafbd75675162cf828dd5f8a0d042a2003ae2cbff11f0c05f7c629da708c6d5"
+    },
+    {
+      "path": "inputs/u06-wording.json",
+      "bytes": 32443,
+      "sha256": "a5af49edeb5803888d088f32236e0dd40a8b7207e973398bd8f1c6622f7ac8d9"
+    },
+    {
+      "path": "inputs/u07-layout.json",
+      "bytes": 32065,
+      "sha256": "696e78a014a7412f3412d5d7a33cb515e884da4572d83a37872007b49b56d1db"
+    },
+    {
+      "path": "inputs/u07-original.json",
+      "bytes": 32045,
+      "sha256": "f259fb612885201ecfa8d3eb47de73ae1e1d4dd1a77490853a0a105e6e04ed15"
+    },
+    {
+      "path": "inputs/u07-wording.json",
+      "bytes": 32048,
+      "sha256": "7ed680687eaf6f71eae272df5e0dd8b0687313a400fd840359631918f0085b78"
+    },
+    {
+      "path": "sources/conv-pr33_rep0.json",
+      "bytes": 51295,
+      "sha256": "45d175cb3fb4e2a7daf930747c462a776995e6a4b46be58724e0e003fa9c2b9f"
+    },
+    {
+      "path": "sources/pr16-r1_rep0.json",
+      "bytes": 44688,
+      "sha256": "9c1e10e24a25cade935095443f1f5576e70244818e1edfdf2a107f643c96dd49"
+    },
+    {
+      "path": "sources/pr24_rep0.json",
+      "bytes": 20165,
+      "sha256": "ec56889296e8422eb1aa7986c406d7a7e6dd2a7c6e52307eb18f4a759e7e3796"
+    },
+    {
+      "path": "sources/pr35-r0_rep0.json",
+      "bytes": 16756,
+      "sha256": "976f9de568dbfade10d56a68d2e921bc3d8490e5a31b51b3bbc4329dc51d0a83"
+    },
+    {
+      "path": "sources/selected-metadata.json",
+      "bytes": 10050,
+      "sha256": "a29b314daf00c552da28e2089c3dd302f41d24c6139a70a1624410cbcf2dc266"
+    }
+  ],
+  "units": [
+    {
+      "id": "u01",
+      "presentations": [
+        "original",
+        "layout",
+        "wording"
+      ],
+      "control_of": null
+    },
+    {
+      "id": "u02",
+      "presentations": [
+        "original",
+        "layout",
+        "wording"
+      ],
+      "control_of": "u01"
+    },
+    {
+      "id": "u03",
+      "presentations": [
+        "original",
+        "layout",
+        "wording"
+      ],
+      "control_of": null
+    },
+    {
+      "id": "u04",
+      "presentations": [
+        "original",
+        "layout",
+        "wording"
+      ],
+      "control_of": "u03"
+    },
+    {
+      "id": "u05",
+      "presentations": [
+        "original",
+        "layout",
+        "wording"
+      ],
+      "control_of": null
+    },
+    {
+      "id": "u06",
+      "presentations": [
+        "original",
+        "layout",
+        "wording"
+      ],
+      "control_of": null
+    },
+    {
+      "id": "u07",
+      "presentations": [
+        "original",
+        "layout",
+        "wording"
+      ],
+      "control_of": "u06"
+    },
+    {
+      "id": "p01",
+      "presentations": [
+        "original"
+      ],
+      "control_of": null
+    },
+    {
+      "id": "p02",
+      "presentations": [
+        "original"
+      ],
+      "control_of": null
+    },
+    {
+      "id": "p03",
+      "presentations": [
+        "original"
+      ],
+      "control_of": null
+    },
+    {
+      "id": "p04",
+      "presentations": [
+        "original"
+      ],
+      "control_of": null
+    }
+  ],
+  "scheduled_grades": 75,
+  "expected_judge_requests": 138,
+  "retention": "Restricted preregistration-v2 bundle outside public git; see retention.json. The bundle includes exact inputs, evidence-cited expected labels, scoped source snapshots and its reproducible builder.",
+  "approval": {
+    "status": "required",
+    "reason": "New driver/runtime/protocol. Historical #44 approvals do not cover this calibration experiment. No human approval supplied."
+  },
+  "results": {
+    "live_calls": 0,
+    "selection": "BLOCK",
+    "reason": "Live calibration and probes await exact human approval; no grades exist."
+  }
+}

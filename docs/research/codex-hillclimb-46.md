@@ -1,0 +1,172 @@
+# #46: Astra calibration preregistration v2 and gated replay tooling
+
+**Selection: BLOCK. No live calibration grades exist.** The new calibration
+runtime/protocol requires real human approval. The historical #44 approval is
+not approval for this driver or experiment. An unapproved execution exits 2,
+before authentication, locking a subscription login or creating a run directory.
+No approval flag was used, approval record written, model called, candidate
+prompt inspected/tuned, held-out case used or Claude/reset/schedule action taken.
+
+The concrete deliverable is a versioned, evidence-cited calibration set plus
+replay, retention and comparison tooling. [Protocol](../../evals/review/calibration/protocol.json),
+[driver and instructions](../../evals/review/calibration/README.md), and
+[preregistration manifest](codex-hillclimb-46/preregistration.json) are reviewable
+before any live results. Raw input/answer-key bytes and citations are kept in the
+separate [restricted artifact bundle](codex-hillclimb-46/retention.json), outside
+public git. Its 32 members include a reproducible builder and untouched copies
+of the four selected saved pilot inputs. Running the builder into a fresh
+private directory produced all 32 files byte for byte.
+
+Seven focused units cover known matching, valid-other, wrong/harmful, noise,
+fixed/unfixed and introduced/not-introduced decisions. Every unit has an original,
+a layout presentation and an equivalent wording presentation, each repeated
+three times. Four probes (oracle, null, uncertainty and wrong target) each have
+three repeats. The frozen schedule is **75 grades, 138 expected judge requests**,
+concurrency one. Controls explicitly change a finding's truth, fix an existing
+bypass, or reintroduce an evidence-backed defect. All patches and findings are
+derived from saved pilot code/issue material and scoped known-bug evidence.
+Synthetic final heads are labelled as controls, never reported as historical
+agent changes. No historical Astra verdict is treated as independent truth.
+
+The unmodified `grade.mjs` rubric and Codex adapter request Astra High/Fast,
+subscription authentication, configured-only verification, fresh sessions and
+tool-free judging. Every request, rendered prompt/schema, raw response, final
+output, stderr, hook ledger and failure is retained separately with hashes.
+The driver adds rejection of explicit refusal envelopes, retains rejected
+attempts and never substitutes a grade. Authentication files are excluded from
+retention. The fixed model-run lock and existing eval-auth lock cover the entire
+sequential execution. No fallback, automatic retry, reset redemption or candidate
+run exists in this driver.
+
+| Acceptance item | State and evidence |
+| --- | --- |
+| Versioned inputs and evidence-cited expected labels before live results | Prepared: private bundle with exact source hashes, JSON pointers and checked verbatim evidence fragments; public 32-file inventory. All seven requested categories/status classes covered. |
+| Original + two equivalents, each graded three times; semantic controls | Preregistered 63 primary/control grades plus 12 probe grades. Live execution blocked; no completion claim. |
+| Requests/raw responses/failures retained; compare categories, matches, fixes/regressions and metrics | Tooling implemented. Independent repeat/presentation pair counts; immutable per-attempt/run indexes; protocol mismatch cannot be pooled. No live measurements yet. |
+| Oracle/null/uncertainty/wrong-target and tool/refusal/invalid-output rejection | Four probes frozen, awaiting live execution. Offline tool/refusal/schema/sandbox tests pass; live probe outcomes remain unknown. |
+| Materiality and acceptance rules before interpreting results | Versioned zero-tolerance rules. Any unexplained structured change, wrong expected label, missing/rejected grade or unresolved ambiguity returns BLOCK; CLI exits 2 for blocked completed reports. |
+| Rubric corrections versioned and recalibrated | No rubric correction. Future changes require a new version, fresh human approval and calibration; no differently graded/Fable rows pooled. |
+
+Exclusions and limits are preregistered inside the restricted bundle. Originals
+are focused derived inputs rather than unchanged full replay transcripts. Bug
+context is limited to selected pilot records, without loading the global
+trap/held-out collection. The wrong-target probe specifies zero recall without
+inventing a category for an assertion the shown diff cannot confirm; repeat
+category changes still block selection. The disputed marketplace-install flag
+is excluded from expected finding labels. Final-head patch bytes remain
+identical across equivalent presentations; this measures repeatability of those
+fix prompts rather than robustness to rewriting patches. Explanatory prose,
+location formatting and list order are nonmaterial. No post-result exclusions,
+majority vote or automated adjudication are allowed. There are no live
+ambiguities adjudicated or live comparisons to interpret.
+
+Within each three-presentation unit, the report counts nine within-presentation
+repeat pairs separately from 27 between-presentation pairs. Probe pairs add only
+to repeat variation. These dependent pairs are descriptive, not independent
+statistical trials. Expected labels independently catch unanimous errors. A
+PASS would certify this pilot-derived calibration only; it would not establish
+code-review gains, a repeated baseline or candidate adoption.
+
+Frozen identity before integration merge:
+
+- Original protected #44 harness: `e2c423eb214f4e68d95cc36f9903edfcb74e6c1d4d70bfed8637ed980747c612` (115 files), unchanged.
+- Complete new driver runtime manifest: `ff7eebf9e060039fa5cf25005eddaef7f5fce7d50e077bb13495d19cbc0e9a56` (133 public code/config/check files plus separately bound private inputs/builder and runtime binaries).
+- Protocol SHA256: `6601485baa96860a6dd7840047d5761e617fa7c37b6321baaded9fac548b98e4`.
+- Preregistration SHA256: `bffe600d7c049760feb46ab61d8a3537976d2d2fa5abee6951663340cfcbc53c`.
+- Restricted archive SHA256: `f1a21df39e9eecfe9ed33293c670d7a7828d049a08040b504ba7a5ccee2c7972`; 183,365 bytes, 32 files; credential-pattern scan found zero matches.
+
+Human review must cover the public driver/protocol, all private input and
+expected-label evidence, and these three runtime/protocol/preregistration hashes.
+The explicit implementation contract says: “NEVER silently bypass human approval
+for a changed runtime/rubric.” The #44 handoff also says its flow states are
+historical approvals, not approval for later experiments. No human record covers
+this new snapshot. Until one exists, live calibration, live probes and selection
+remain blocked. Requested identity is Astra High/Fast; observed served model,
+served tier and API-equivalent spend are unknown/null.
+
+[Verification logs](codex-hillclimb-46/checks/summary.json): covering eval checks
+**52 pass, zero failures/skips**, including actual pinned Codex CLI sandbox
+subcommands without model calls; all five new comparison/gate/rejection tests
+pass. Red-before-green logs retain the missing comparison interface and approval
+gate failures. Typecheck retains **55 existing diagnostics**, byte-identical to
+#44, with none in the new files. Historical verifier passes all 115 protected
+file bytes and 39 retained artifact hashes. The preregistered input builder
+reproduces byte for byte. `git diff --check` passes. Full-suite historical failures
+are documented by #44; this scoped task did not rerun that unchanged suite.
+
+Integration compatibility and the final immutable commit are recorded in the
+implementation handoff. A later integration merge must not be used to run this
+frozen snapshot under historical approval: changed protected bytes stop before
+authentication. Keep the frozen commit and private artifact archive together.
+
+Before any live results, v2 superseded v1 to remove an input ambiguity: the
+original noise request could contradict the issue's explicit layout requirement.
+The replacement is a heading-capitalization preference with no functional or
+requirement claim. This is an input/expected-label revision; `grade.mjs` and its
+rubric are unchanged. V1 remains immutable at commit
+`de11c6b9b2742f7672c2d036a290308c8fe13a34` and in a separate
+[restricted retained draft](codex-hillclimb-46/retention-v1.json). Neither version
+has any live grade or human approval. V2 has new input, runtime, protocol and
+preregistration hashes; approval cannot carry across. Public red logs trim only
+trailing whitespace; original failed-test bytes remain in the restricted local
+check artifacts.
+
+## Final retention and integration compatibility
+
+V2's immutable pre-integration preregistration is
+[`0762c55447ada38cd9bf1112c32850833b32b596`](https://github.com/lolisaigao1234/cc-agents/commit/0762c55447ada38cd9bf1112c32850833b32b596).
+Its archive is retained in the separate maintainer-access
+[draft release](https://github.com/lolisaigao1234/cc-agents/releases/tag/untagged-75380ca8da8af7850982),
+release ID **433276544**, asset ID **707288160**. The archive was downloaded
+again; its SHA256 and all **32 member hashes/sizes** match the public manifest.
+It remains a draft and requires existing maintainer access. V1 is also retained
+separately and marked superseded before live calls. Neither release may be
+published automatically because both contain raw answer keys.
+
+Retrieve v2 into a fresh private directory with:
+
+```bash
+gh release download cc-agents-46-calibration-preregistration-v2 --repo lolisaigao1234/cc-agents --pattern astra-calibration-v2.tar.gz --dir /absolute/private-download
+```
+
+Verify archive SHA256
+`f1a21df39e9eecfe9ed33293c670d7a7828d049a08040b504ba7a5ccee2c7972`
+and every member against the frozen public `private_files` inventory before use.
+Keep extraction outside git with directory mode 700. Offline `plan` at the frozen
+commit verifies this inventory without authentication. At the integrated head,
+the same command correctly stops on changed runtime bytes.
+
+There was no live execution before either integration merge. The ticket branch
+merged #47 first, then the current #45+#47 integration tip
+`7721d63ce7b2ba3b6e1a6736ecccf3a434886273`, producing merge head
+`fe3069416d77995f73c4f0b4630f42eef0c8cc97`. No migration or approval was applied
+to the frozen preregistration. [Compatibility inventory](codex-hillclimb-46/compatibility.json)
+records exact old/new judge-related byte hashes; the earlier
+[#47-only inventory](codex-hillclimb-46/compatibility-47.json) is retained too.
+
+The requested `CODEX_JUDGE` constant remains Astra/High/Fast, and `grade.mjs`
+remains byte-identical at SHA256
+`d1d8268d69763db5145e07fc12cc947f4c973bc93706ddb30aec3f7a0c894036`.
+Hooks and digest bytes also match. Configuration and Codex adapter bytes differ,
+and the combined protected harness is
+`ecd719b832effc148c15241f66b8133c6c8766a2dde4facd51679aa5a166a2f5`,
+**UNAPPROVED**. The historical verifier exits **2/HUMAN stop** at exactly that
+fingerprint. The calibration manifest independently exits **2** on the first
+changed registered runtime file, before authentication. The frozen manifest was
+preserved; no hashes were rewritten to accept integration.
+
+Two precise approval gaps remain: real approval of the new frozen calibration
+driver/protocol/input hashes, and approval of any newly manifested integrated
+runtime before using it for calibration/comparison. The integrated branch cannot
+execute the old calibration manifest. A later comparison must calibrate and grade
+both arms under the same approved runtime/protocol; existing pilot grades and a
+possible calibration on older runtime bytes cannot be pooled automatically.
+No live probes, presentation/repeat measurements or comparison rows are claimed.
+Selection stays **BLOCK**.
+
+After both merges, covering eval checks passed **70/70**, zero failures/skips,
+including actual no-model pinned CLI sandbox probes. Typecheck remains the same
+**55 existing diagnostics**, byte-identical to #44. The original 39 pilot files
+remain unchanged. All private archive/source hashes and public whitespace checks
+pass. No PR, tracker update, integration push, candidate tuning or approval
+override was performed by this ticket.

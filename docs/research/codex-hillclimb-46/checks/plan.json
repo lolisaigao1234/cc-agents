@@ -1,0 +1,8 @@
+{
+  "runtime_sha256": "ff7eebf9e060039fa5cf25005eddaef7f5fce7d50e077bb13495d19cbc0e9a56",
+  "protocol_sha256": "6601485baa96860a6dd7840047d5761e617fa7c37b6321baaded9fac548b98e4",
+  "preregistration_sha256": "bffe600d7c049760feb46ab61d8a3537976d2d2fa5abee6951663340cfcbc53c",
+  "scheduled_grades": 75,
+  "status": "BLOCK: exact new driver/protocol/preregistration requires HUMAN approval; no live calibration results",
+  "concurrency": 1
+}

@@ -1,0 +1,37 @@
+{
+  "covering_eval_tests": {
+    "pass": 52,
+    "fail": 0,
+    "skip": 0,
+    "real_pinned_cli_sandbox_no_model": true
+  },
+  "typecheck": {
+    "existing_diagnostics": 55,
+    "new_diagnostics": 0,
+    "byte_identical_to_44": true
+  },
+  "unapproved_run": {
+    "exit": 2,
+    "output_directory_created": false,
+    "auth_accessed": false,
+    "model_calls": 0
+  },
+  "private_bundle_reproduction": "32 files byte-identical",
+  "historical_pilot_verification": "115 protected bytes unchanged; 39 retained file hashes pass",
+  "live_calibration": "BLOCK: real human approval for new runtime/protocol/input snapshot missing",
+  "combined_45_47": {
+    "integration_tip": "7721d63ce7b2ba3b6e1a6736ecccf3a434886273",
+    "covering_eval_tests": {
+      "pass": 70,
+      "fail": 0,
+      "skip": 0
+    },
+    "typecheck_existing_diagnostics": 55,
+    "typecheck_diff_empty": true,
+    "protected_harness_sha256": "ecd719b832effc148c15241f66b8133c6c8766a2dde4facd51679aa5a166a2f5",
+    "historical_gate_exit": 2,
+    "calibration_gate_exit": 2,
+    "approved": false,
+    "live_calls": 0
+  }
+}
