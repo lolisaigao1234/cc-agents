@@ -1,0 +1,42 @@
+{
+  "assets": [
+    {
+      "digest": "sha256:45a473b3da1394429ddc034f045d4d9edc201f0ae3a20d791d9d954302ad2536",
+      "id": 707232386,
+      "name": "artifact-inventory.json",
+      "size": 16134
+    },
+    {
+      "digest": "sha256:b408aef4a7bc0e2251ae8b19aefb3350b1d8daab1693e9690e0d11bc745c3fb2",
+      "id": 707232392,
+      "name": "bundle.json",
+      "size": 427
+    },
+    {
+      "digest": "sha256:ada8cad455f614aadb10f7b2e2d1789c2fc5aafe3b3ab88709463b74b57d10ce",
+      "id": 707232388,
+      "name": "codex-hillclimb-44-pilot.tar.gz",
+      "size": 5825329
+    },
+    {
+      "digest": "sha256:4557b2ec7fa72412ad53de71e3dc8148b6f2ffca6cfc9d6904f56fca3e441504",
+      "id": 707232389,
+      "name": "SHA256SUMS",
+      "size": 4857
+    }
+  ],
+  "draft": true,
+  "html_url": "https://github.com/lolisaigao1234/cc-agents/releases/tag/untagged-53781630da604fcb0527",
+  "id": 433261414,
+  "tag_name": "cc-agents-44-evidence-20261103",
+  "target_commitish": "f0ebe91913a31dae2a9503dd8534b6e931c3af5c",
+  "url": "https://api.github.com/repos/lolisaigao1234/cc-agents/releases/433261414",
+  "verification": {
+    "downloaded_all_assets": true,
+    "exact_bytes_match": true,
+    "archive_files_verified": 39,
+    "unique_scored_keys": 5,
+    "preserved_failed_attempts": 8,
+    "no_model_calls": true
+  }
+}
