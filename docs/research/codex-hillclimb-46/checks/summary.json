@@ -1,0 +1,22 @@
+{
+  "covering_eval_tests": {
+    "pass": 52,
+    "fail": 0,
+    "skip": 0,
+    "real_pinned_cli_sandbox_no_model": true
+  },
+  "typecheck": {
+    "existing_diagnostics": 55,
+    "new_diagnostics": 0,
+    "byte_identical_to_44": true
+  },
+  "unapproved_run": {
+    "exit": 2,
+    "output_directory_created": false,
+    "auth_accessed": false,
+    "model_calls": 0
+  },
+  "private_bundle_reproduction": "32 files byte-identical",
+  "historical_pilot_verification": "115 protected bytes unchanged; 39 retained file hashes pass",
+  "live_calibration": "BLOCK: real human approval for new runtime/protocol/input snapshot missing"
+}

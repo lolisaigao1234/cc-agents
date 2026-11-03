@@ -1,0 +1,30 @@
+{
+  "version": "astra-calibration-v1",
+  "judge": { "agent": "codex", "model": "gpt-6-astra", "effort": "high", "service_tier": "fast", "model_verification": "configured_only", "subscription_only": true, "concurrency": 1 },
+  "rubric": "Unmodified evals/review/lib/grade.mjs; no prompt corrections, candidate tuning, Claude calls or fallback.",
+  "source_scope": "Only saved #44 pilot inputs and their selected case metadata/known bug records. No held-out cases, historical candidate grades as answer keys, writing prompts or new competitor runs.",
+  "presentations": {
+    "original": "Frozen focused calibration finding derived from cited saved input/evidence; saved source input remains separately retained byte for byte.",
+    "layout": "Same finding text and round markers, rendered as a labelled list.",
+    "wording": "Separately authored equivalent wording preserving the defect, affected path/input, requested action, round and blocking disposition.",
+    "unchanged_context": "Issue, PR diff, case metadata, bug context, counts, tests and final-head change bytes identical across equivalent presentations. Diff whitespace is never rewritten. Fix verdict repeatability therefore gets nine identical changes prompts per main unit.",
+    "probes": "Oracle, null, uncertainty and wrong-target use one presentation each, repeated three times. The seven primary/control units each use all three presentations three times."
+  },
+  "order": "Frozen unit order, then original/layout/wording, then repeats 0,1,2; sequential calls, independent fresh sessions; no replacement or optional retries.",
+  "materiality": {
+    "zero_tolerance": ["finding category multiset", "known bug matches", "harmful/wrong status", "final-head fixed/partly/not_fixed", "introduced/not_introduced", "derived metrics", "first round and repeat counts", "round blocking counts", "review happened", "asked human"],
+    "ignored_prose": ["summary wording", "reason wording", "location formatting", "finding order", "bug status list order"],
+    "rule": "Any unexplained change in a zero-tolerance field is unresolved material disagreement and BLOCKS selection. No majority vote, tolerance band, automatic adjudication or post-hoc exclusion. Wrong expected labels also BLOCK even with perfect repeatability."
+  },
+  "comparison": {
+    "repeat": "All three within-presentation pairs, separately counted (9 per three-presentation unit).",
+    "presentation": "All nine between-presentation repeat pairs for each presentation pair (27 per three-presentation unit); count separately from within-presentation variation. Report raw pairs and disagreement fractions. Dependent pair counts are descriptive, not independent statistical trials.",
+    "controls": "Changed expectations must differ from the referenced parent before calls. Compare every output to its own preregistered expected fields, including controls.",
+    "accept": "PASS only with all 75 scheduled grades, valid retained responses, all specified expectations met, zero repeat or presentation disagreements, no unresolved ambiguity and no exclusions added after results. Otherwise BLOCK. PASS only certifies this pilot-derived calibration, not code-review gains or candidate adoption."
+  },
+  "rejection": "Missing/duplicate/unexpected rows, invalid structured output, tool attempts, refusal events, identity substitution, missing protocol evidence or failed calls remain failures; never manufacture or substitute grades.",
+  "approval": "A real human must review the complete runtime, protocol, expected-label citations, private inputs and manifest. Approval must bind runtime_sha256, protocol_sha256 and preregistration_sha256. No approval writer or self-approval flag is provided. #44 approval is historical and cannot approve this new driver.",
+  "retention": "Private mode-700 artifacts outside git. Exact requests, schemas, raw events, trusted hook ledgers, final output, stderr and all failures get per-attempt hashes and an immutable run index. Only allowlisted evidence is copied; auth/config secrets are excluded. Public git contains hashes, tooling and rules, never raw answer keys. Keep original pilot bytes unchanged.",
+  "identity_and_spend": "Requested Astra High/Fast is configured provenance. Served identity/tier are null unless response-backed; reject observed substitution. API-equivalent spend stays unknown/null. Never redeem resets automatically.",
+  "corrections": "Any justified rubric correction requires a new version, new hashes, human approval and fresh calibration; baseline and candidate grades must then use that same protocol. Never pool old Fable or differently graded pilot rows."
+}

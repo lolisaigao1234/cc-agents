@@ -1,0 +1,12 @@
+{
+  "archive": "/home/ubuntu/cc-agents-artifacts/issue-46/astra-calibration-v1.tar.gz",
+  "sha256": "21357f7b9d9a5941cc312b87b2c5e7fa1e3236a41b3d7fd048c5edc06e2f5df5",
+  "bytes": 183365,
+  "files": 32,
+  "credential_pattern_matches": 0,
+  "raw_answer_keys": "restricted outside public git",
+  "private_directory": "/home/ubuntu/cc-agents-artifacts/issue-46/preregistration-v1",
+  "archive_members": 32,
+  "remote": null,
+  "retention": "Keep restricted; do not publish raw answer keys. Retain until #43 and comparison finish and a replacement is verified."
+}

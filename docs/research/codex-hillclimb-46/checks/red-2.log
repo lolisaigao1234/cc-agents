@@ -1,0 +1,37 @@
+✔ missing repeats and rejected calls block selection, without substituting grades (18.210382ms)
+✔ reports presentation pairs separately from repeat pairs and ignores explanatory prose (5.489322ms)
+✔ unanimous harmful or final-head errors still block against the answer key (9.318233ms)
+✖ historical runtime approval cannot approve a new driver or altered input bytes (1.541812ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 3
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 137.613913
+
+✖ failing tests:
+
+test at test/eval-calibration.test.mjs:44:1
+✖ historical runtime approval cannot approve a new driver or altered input bytes (1.541812ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /HUMAN approval/. Input:
+  
+  'TypeError: requireApproval is not a function'
+  
+      at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-271def49/test/eval-calibration.test.mjs:47:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: TypeError: requireApproval is not a function
+        at file:///home/ubuntu/.t3/worktrees/cc-agents/t3-271def49/test/eval-calibration.test.mjs:47:23
+        at getActual (node:assert:611:5)
+        at strict.throws (node:assert:759:24)
+        at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-271def49/test/eval-calibration.test.mjs:47:10)
+        at async Test.run (node:internal/test_runner/test:1409:7)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7),
+    expected: /HUMAN approval/,
+    operator: 'throws',
+    diff: 'simple'
+  }
