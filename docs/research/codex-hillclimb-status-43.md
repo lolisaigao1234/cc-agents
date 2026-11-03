@@ -1,6 +1,6 @@
 # Codex-only hillclimb #43: calibration BLOCK / INCONCLUSIVE
 
-Integration [PR #50](https://github.com/lolisaigao1234/cc-agents/pull/50) merged at `f18ce230c1650e1693836f26233b716f5129fe2d`. Followthrough branch: `43-codex-calibration-v3-followthrough`. The approved v3 calibration ran on 2026-11-03 and returned **BLOCK / INCONCLUSIVE**. The hillclimb remains incomplete; no baseline/candidate results or adoption decision exist.
+Integration [PR #50](https://github.com/lolisaigao1234/cc-agents/pull/50) merged at `f18ce230c1650e1693836f26233b716f5129fe2d`. Followthrough branch: `43-codex-calibration-v3-followthrough`. The approved v3 calibration ran on 2026-11-03 and returned **BLOCK / INCONCLUSIVE**. The current adoption decision is **inconclusive** because calibration failed. The hillclimb remains incomplete; no baseline/candidate results or candidate quality claim exist.
 
 | Ticket | State | Evidence / next gate |
 | --- | --- | --- |
@@ -40,4 +40,4 @@ The frozen `report` CLI independently reproduced the sealed result and exited **
 
 The native frontier remains #46: a maintainer must review the retained failures before deciding any remedy. Any changed runtime, prompt or rubric needs a new versioned snapshot, explicit approval and fresh calibration. Failed rows cannot be replaced to repair this result. #46 stays open and #48/#49 stay blocked; baseline/candidate execution cannot advance from this result. Raw calibration answers remain outside public git in a maintainer-access draft release; retrieval and hashes are in the actual result and artifact index. Preserve the earlier releases and never publish answer keys automatically.
 
-The deferred Opus/Astra comparison remains pinned to historical fingerprint `e2c423eb214f4e68d95cc36f9903edfcb74e6c1d4d70bfed8637ed980747c612` in its original checkout. No Claude restart, schedule change, reset redemption, product rollout or merge to the source eval branch/main was performed.
+The deferred Opus/Astra comparison remains pinned to historical fingerprint `e2c423eb214f4e68d95cc36f9903edfcb74e6c1d4d70bfed8637ed980747c612` in its original checkout. This followthrough made no Claude restart, schedule change, reset redemption or product rollout; its evidence branch has not been merged to the source eval branch/main.
