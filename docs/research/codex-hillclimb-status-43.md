@@ -1,19 +1,19 @@
-# Codex-only hillclimb #43: corrected packet reviewed; fresh execution approval pending
+# Codex-only hillclimb #43: calibration v5 PASS; baseline v3 material stop
 
-Integration [PR #50](https://github.com/lolisaigao1234/cc-agents/pull/50) merged at `f18ce230c1650e1693836f26233b716f5129fe2d`. Followthrough branch: `43-codex-calibration-v3-followthrough`. The approved [actual v4 calibration](codex-calibration-result-v4.md) returned a limited **PASS** on 2026-11-03: 75 valid grades, 138 successful retained requests and zero failures. The approved [v2 baseline-screen execution](codex-baseline-result-48-v2.md) stopped materially on 2026-11-04 with **3 scored keys, 1 failed key and 29 unstarted keys**. The baseline is incomplete, validated stage metrics and noise/uncertainty estimates are withheld, and adoption remains **INCONCLUSIVE**. No candidate or held-out result or candidate quality claim exists. The original v3 result remains **BLOCK / INCONCLUSIVE**.
+Integration [PR #50](https://github.com/lolisaigao1234/cc-agents/pull/50) merged at `f18ce230c1650e1693836f26233b716f5129fe2d`. Followthrough branch: `43-codex-calibration-v3-followthrough`. The approved [actual v5 calibration](codex-calibration-result-v5.md) returned a limited **PASS** on 2026-11-04: 75 valid grades, 138 completed Astra CLI calls and zero blockers. The approved [v3 baseline-screen execution](codex-baseline-result-48-v3.md) stopped materially with **7 scored keys, 1 failed key and 25 unstarted keys**. The failed findings request exceeded native capacity: **2,133,624 characters against 1,048,576**; no judge CLI launched for it. The baseline is incomplete, validated stage metrics and noise/uncertainty estimates are withheld, and adoption remains **INCONCLUSIVE**. No candidate or held-out result or candidate quality claim exists. Historical calibration v3 BLOCK, v4 PASS and baseline v2 INCONCLUSIVE are preserved and unpooled.
 
 | Ticket | State | Evidence / next gate |
 | --- | --- | --- |
 | #44 integration handoff | Delivered; closed | [Reproduction and retained pilot evidence](codex-hillclimb-handoff-44.md). Five scored keys and eight failed attempts retained. |
 | #45 readiness audit | Delivered; closed | [Five-case readiness matrix](codex-readiness-45.md). One confirmed temporary-root `.git` harness fault corrected; original product failures, guard denials and human requirements preserved. |
 | #47 controlled variant | Delivered; closed | [v13 support and deterministic checks](codex-evidence-before-fix-47.md). No quality claim from injected execution. |
-| #46 Astra calibration | Delivered: v4 PASS; PR #51 closes #46 | [Actual v4 result](codex-calibration-result-v4.md): 75/75 valid grades, 138/138 successful retained requests, zero failures, zero repeat/presentation disagreements and all probes passing 3/3. V3 remains BLOCK. |
-| #48 frozen repeated baseline | Open; v2 material stop preserved; v3 preparation reviewed | [Retained actual result](codex-baseline-result-48-v2.md): 3 scored / 1 failed / 29 unstarted. [Corrected packet](codex-hillclimb-48/approval.md) and [independent review](codex-hillclimb-review-48-v3.md) await exact v5 calibration and conditional v3 baseline approval. |
+| #46 Astra calibration | Delivered; closed; fresh v5 also PASS | [Actual v5 result](codex-calibration-result-v5.md): 75/75 valid grades, 138/138 completed CLI calls, zero blockers or repeat/presentation disagreements. Historical v4 PASS and v3 BLOCK remain unchanged. |
+| #48 frozen repeated baseline | Open; v3 material capacity stop | [Actual v3 result](codex-baseline-result-48-v3.md): 7 scored / 1 failed / 25 unstarted. Exact pin and frozen hashes verify. A separately reviewed/versioned capacity correction and new execution approval are required; no failed-key retry or pooling. |
 | #49 paired experiment and decision | Not started; blocked by #48 | No candidate, paired or held-out result exists; selection remains blocked. |
 
 The [v4 correction](codex-calibration-correction-v4.md) was approved and a whole fresh calibration completed under the unchanged frozen snapshot. All 30 input/source files, substantive expectations and the 75-grade/138-request schedule are unchanged. The sealed report reproduces **PASS / exit 0**, with zero disagreements across **75 repeat pairs** and **189 presentation pairs**, and oracle/null/uncertainty/wrong-target probes each **3/3**. The [full-send ledger](codex-calibration-full-send-v4.md) records authorization, proof and review. Preparation statements about zero calls and missing approval are historical.
 
-PR #51 delivered #46 acceptance and closed #46. The current frontier is exact approval for the reviewed correction packet: fresh v5 calibration, then only after actual PASS a wholly fresh v3 baseline. #49 remains blocked by the incomplete baseline. Earlier no-start and preparation statements below describe their historical snapshots. Closed prerequisites #44/#45/#47 and the limited calibration PASS do not approve changed runtime bytes or future experiments. #43 stays open until the remaining children deliver their evidence and the final decision is recorded. The source issue #39 remains open and unchanged.
+PR #51 delivered #46 acceptance and closed #46. PR #52 retains the approved v5 PASS, incomplete v3 baseline, correction implementation and full evidence. The current frontier is the native judge capacity defect; #49 remains blocked by the incomplete baseline. Earlier no-start and preparation statements below describe their historical snapshots. Closed prerequisites #44/#45/#47 and the limited calibration PASS do not approve changed runtime bytes or future experiments. #43 stays open until the remaining children deliver their evidence and the final decision is recorded. The source issue #39 remains open and unchanged.
 
 ## Review and historical verification
 
@@ -95,7 +95,7 @@ valid baseline-only results can disclose descriptive repeat variability. The nex
 step is real exact baseline-screen approval; #49 still waits for baseline evidence
 and its later separate approval. Adoption remains INCONCLUSIVE.
 
-## #48 v2 partial actual baseline and current frontier
+## Historical #48 v2 partial actual baseline
 
 The user approved the exact 33-key baseline-screen packet and delegated the native
 first-key `--approve-harness` flag. Four native runner invocations produced four
@@ -137,7 +137,10 @@ external-cache prerequisite. V2 remains historical and cannot resume or pool row
 under changed hashes. #48 remains open and incomplete, #49 remains blocked, and
 adoption remains **INCONCLUSIVE**.
 
-## Reviewed correction: calibration v5 and baseline v3
+## Reviewed correction preparation: calibration v5 and baseline v3
+
+This section records preparation at `65f7491`, before the separately approved
+execution below. Its missing-approval/no-call statements are historical.
 
 Implementation `07b0290787b7d59e307ccdf4f7b17c32d5061d26` merged into integration
 as `f2642e71d0206981bd6c6fac1058933bc9a30082`. Independent Standards and Spec
@@ -167,3 +170,43 @@ explicit delegation if the agent invokes the first native `--approve-harness`.
 Subscription auth, High/Fast and concurrency one remain fixed. Exposure,
 shared-source, partial-outcome and low-power limits remain; served identity/tier
 and spend remain unknown. Candidate/holdout runs still require later approval.
+
+## #48 v3 actual baseline and current frontier
+
+The human approved exact packet `65f7491` for fresh calibration v5 and,
+conditionally on actual PASS, 33 wholly fresh baseline v3 keys, with explicit
+first-key native-flag delegation. [Actual calibration](codex-calibration-result-v5.md)
+independently recomputes PASS: 75 grades, 138 completed Astra calls, zero blockers,
+zero disagreements across 75 repeat and 189 presentation pairs. Actual approval
+and calibration gates passed before the fresh baseline began.
+
+[Actual baseline](codex-baseline-result-48-v3.md) retains eight successful apps,
+seven scored rows and one local judge failure. `pr18-r0/rep1` produced a
+2,133,624-character findings request; the native 1,048,576-character guard retained
+the complete request and recorded `provider_call_attempted=false`. No judge CLI
+launched, no grade exists, and no retry, replacement, truncation or exclusion
+occurred. The 25 remaining keys are unstarted. Baseline calls: 34 Sol and 10
+Astra, all completed; no native/manual retries. Seven legitimate human stops and
+the failed app's three-round stop remain retained. Host-test logs are unavailable;
+retained booleans and agent test evidence are reported without reconstructing logs.
+
+The exact 176-member Matt pin, copied inputs, frozen identities and plans still
+verify. The earlier rendering correction made the happened v2 prompt fit but never
+guaranteed capacity for larger future workflows. `baseline.complete=false`; all
+validated stage aggregates, noise and variability/uncertainty remain null. No
+candidate or holdout ran. Served identity/tier and spend remain unknown.
+
+Source evidence commit `150581f5cb1f1f68ade40aacf47b54fe65a1f995` merged as
+`67c194d5ecd5bde19cb759198cdf2758be94aaf9`. It adds only seven sanitized
+report/index files. Parent independently downloaded and verified all **1,720 files
+and 397 directories**, exact sizes/hashes/kinds/modes, against restricted originals.
+Archive SHA256: `bb8a209a6fdd9290b65cb8f1126c2376287d6856b2f71e197faa2c1c86cb9fad`.
+The [actual index](codex-hillclimb-48-results-v3/actual-artifact-index.json) and
+[full-send review/proof](codex-hillclimb-full-send-52.md) retain retrieval and limits;
+the release stays unpublished. Historical evidence remains unchanged.
+
+#48 remains incomplete, #49 blocked and adoption **INCONCLUSIVE**. Any capacity
+correction requires its own reviewed version, fresh relevant calibration/baseline
+and exact execution approval. Existing permission does not cover changed hashes
+or a 25-key resume under changed bytes. No Claude, resets, schedules or product
+rollout occurred. The requested eval-branch target remains unchanged.
