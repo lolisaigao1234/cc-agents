@@ -1,0 +1,30 @@
+{
+  "stage": "UNAPPROVED_PREPARATION",
+  "live_model_calls": 0,
+  "baseline_rows": 0,
+  "candidate_rows": 0,
+  "holdout_rows": 0,
+  "baseline_noise_floor": null,
+  "adoption": "INCONCLUSIVE",
+  "covering_tests": {
+    "pass": 83,
+    "fail": 0,
+    "skip": 0
+  },
+  "protocol_tests": {
+    "pass": 9,
+    "fail": 0,
+    "skip": 0
+  },
+  "actual_v4_plan": "PASS/exit 0, unchanged bytes and membership",
+  "exposure_review": "PENDING; catalog full-file read taints certification",
+  "holdout_power": "four primary PR clusters; minimum p=1/16, cannot promote at alpha .05",
+  "broader_tests": "Not rerun: runtime unchanged. Parent evidence records two known suite failures and 55 typecheck diagnostics; no all-green claim.",
+  "flow_created": false,
+  "no_source_runtime_diff": true,
+  "parent_branch_merged": "43-codex-calibration-v3-followthrough; local and origin tips already ancestors of bd1ce2c",
+  "remote_mutations": false,
+  "private_evidence": "/home/ubuntu/cc-agents-artifacts/issue-48/preparation-v1",
+  "initial_operator_error": "Initial offline plan invocation omitted the plan subcommand; exit 2 before verification, retained as initial-plan-missing-subcommand.*; corrected invocation exit 0.",
+  "whitespace": "Scoped source/config/docs check passes. Original red/green *.log bytes retain their test-runner whitespace; logs are excluded from the whitespace check."
+}

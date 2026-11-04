@@ -1,0 +1,39 @@
+✔ exact cluster sign flips and confidence inversion match a worked subset example (1.575892ms)
+✔ paired report uses PR clusters, retains unknown usage, and passes a quarter-point worked gain (2.736101ms)
+✔ baseline repeat ranges are a noise floor, not independent comparison pairs (1.37885ms)
+✔ failed attempts, gaps and observed clean harm cannot become a numerical winner (2.470339ms)
+✔ exact human approval is stage-specific and cannot inherit calibration or omit exposure review (1.632053ms)
+✔ experiment gate detects newly visible helpers as well as changed bytes (4.438434ms)
+✖ native report reads runner rows and exposes substitution and missing retained evidence (12.464376ms)
+✔ offline plan schedules native rep prefixes without executing or approving anything (8.752667ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 7
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 139.228839
+
+✖ failing tests:
+
+test at docs/research/codex-hillclimb-48/protocol.test.mjs:90:1
+✖ native report reads runner rows and exposes substitution and missing retained evidence (12.464376ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(report.blockers.some(b => b.startsWith('observed serving substitution')))
+  
+      at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-fd4363cf/docs/research/codex-hillclimb-48/protocol.test.mjs:109:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

@@ -1,0 +1,17 @@
+✔ exact cluster sign flips and confidence inversion match a worked subset example (1.563252ms)
+✔ paired report uses PR clusters, retains unknown usage, and passes a quarter-point worked gain (2.726301ms)
+✔ baseline repeat ranges are a noise floor, not independent comparison pairs (1.30349ms)
+✔ failed attempts, gaps and observed clean harm cannot become a numerical winner (2.388939ms)
+✔ partial baseline reports show the scheduled repetition denominator and withhold the mean (1.30477ms)
+✔ exact human approval is stage-specific and cannot inherit calibration or omit exposure review (1.500931ms)
+✔ experiment gate detects newly visible helpers as well as changed bytes (3.80871ms)
+✔ native report reads runner rows and exposes substitution and missing retained evidence (8.670027ms)
+✔ offline plan schedules native rep prefixes without executing or approving anything (9.193951ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 135.026527

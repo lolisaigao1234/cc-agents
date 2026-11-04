@@ -1,0 +1,211 @@
+{
+  "version": "codex-hillclimb-48-v1",
+  "status": "UNAPPROVED_PREPARATION",
+  "parent_commit": "bd1ce2c4d6823fd4d0306c845aa2c5551788b513",
+  "inputs": [
+    {
+      "path": "docs/research/codex-hillclimb-48/cases.metadata.json",
+      "sha256": "d80e183515ebf1604f9f71448ffdf12a258dffbcaf1ddd68b5fe424f47b0e05e"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/cli.mjs",
+      "sha256": "74530a920c3b291057b31f769e272dd946a99272b2a4dd350563734138233d4a"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/credential-metadata.json",
+      "sha256": "24015966ccac3e2beaa70b5c2eb52bac483c85ac9b0aa022e33defc22958631d"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/environment-files.json",
+      "sha256": "0237c0755d31e493f596227cb8097f92054e0e416d35306d7922f237c01828f4"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/exposure.json",
+      "sha256": "cf1cadecfe68fbe107c835e0deeff3f93f8da5712c5ca0ec52c3388e333aeff4"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/flow-state.template.json",
+      "sha256": "f694e9b2de9eff3ade317df86f9a663100e733a636b49db3337a476e84d31395"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/freeze.mjs",
+      "sha256": "062e9336233c917ed812afec14b9649734e15f9ec133c6b70fad57ebc9c5e1d4"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/protocol.json",
+      "sha256": "12f7e74d60d582013eedce4ad0190640b68bfa24e2ee6dbf4c43d01abe88b8ba"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/protocol.md",
+      "sha256": "2e459828fe5c37c2f55eb63df02957ca3dd1d6718ef57f3905a30475d372d20e"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/protocol.mjs",
+      "sha256": "4d5fdff570174301fc36f431ac7e84c2d3de041d442224c0ecbd838350320f8a"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/protocol.test.mjs",
+      "sha256": "f31b219725ec0d3387a92d6881ee6fdd2a8f94e43e87aeba0390168fb41648eb"
+    }
+  ],
+  "variables": {
+    "CODEX_EVAL_HOME": "/home/ubuntu/.config/trace-eval/codex",
+    "TMPDIR": "/tmp",
+    "CODEX_BIN": "/home/ubuntu/.codex/packages/standalone/releases/0.166.0-aarch64-unknown-linux-musl/bin/codex",
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "LANG": "C.UTF-8",
+    "TZ": "UTC"
+  },
+  "expected_execution": {
+    "baseline": {
+      "judge": {
+        "agent": "codex",
+        "model": "gpt-6-astra",
+        "effort": "high",
+        "service_tier": "fast"
+      },
+      "effort": "high",
+      "serviceTier": "fast",
+      "modelVerification": "configured_only",
+      "codexVersion": "0.166.0",
+      "variant": {
+        "id": "baseline",
+        "workflow": "codex-baseline-v1",
+        "version": 1,
+        "content_sha256": "e2ca7a2e86df9c78571a80952c066789affec562560f89c53e21abcbf622e3e2"
+      }
+    },
+    "v13": {
+      "judge": {
+        "agent": "codex",
+        "model": "gpt-6-astra",
+        "effort": "high",
+        "service_tier": "fast"
+      },
+      "effort": "high",
+      "serviceTier": "fast",
+      "modelVerification": "configured_only",
+      "codexVersion": "0.166.0",
+      "variant": {
+        "id": "v13",
+        "workflow": "codex-evidence-before-fix-v1",
+        "version": 1,
+        "content_sha256": "daf18bd39385234b4393c3a9a9c7894a77281dc4e133034b9f8dbddc23c48d8e"
+      }
+    }
+  },
+  "calibration": {
+    "protected_harness_sha256": "85c479bbb24a186c09e08b9f13fa7464b93eb52f9754b7b55ebd36c6aa598144",
+    "runtime_sha256": "efbc6b80a2e54efbe62069293745b999c04f5973505bab6393e9a644f1031fe5",
+    "protocol_sha256": "8245fb69e10ea98675097b7c3daa000cc432190d1f75b285adacb9028411e31c",
+    "preregistration_sha256": "b86afcdc054113907f3b16ec947b74765defafc98950d5e6e7edf078f8f71d47"
+  },
+  "source_objects": [
+    {
+      "id": "pr14-r0",
+      "base": "ef95e2e41210e77472f3b86d87f996c25290e7d3",
+      "head": "c659ccb184919091e2aed3c58dd238925c7bdaa5"
+    },
+    {
+      "id": "pr16-r1",
+      "base": "4dc6c541abbac66fcc695be0121f79f6f317c425",
+      "head": "8b2a99f55f1ba27e0250a8b05c9d3db703696763"
+    },
+    {
+      "id": "pr17-r0",
+      "base": "03ceec2e8011c0b1cdb3e9494b361652c0c8b6aa",
+      "head": "da7ef1feba57b805b354251b3995fa4407f5d104"
+    },
+    {
+      "id": "pr18-r0",
+      "base": "a477e4ec285c7a81feb5efa18b50ab6caf979e09",
+      "head": "6d1202106bf25d7f90f6631b6f97ee314566eab0"
+    },
+    {
+      "id": "pr24",
+      "base": "5a1d1c560d9511905dc13e00d9b9e5add365c5bd",
+      "head": "0ad0f2d1f99c258cff0805a4074a344225842918"
+    },
+    {
+      "id": "pr35-r0",
+      "base": "8eddafd170613a6f8524d5fc3ea72cc32eeb256d",
+      "head": "52c688fe770563a318633200c26fac95f4b2db40"
+    },
+    {
+      "id": "clean-pr12",
+      "base": "6f72fdecde6cda429991cbd67b6617abaf9d2974",
+      "head": "ef95e2e41210e77472f3b86d87f996c25290e7d3"
+    },
+    {
+      "id": "clean-pr19",
+      "base": "7d9846858f69f40efc90e4eaa7e869ffadc0c7b0",
+      "head": "26c63d3649d76956a9c6e444711fa584a27f6b32"
+    },
+    {
+      "id": "clean-pr33",
+      "base": "33c09c26a97b4d788c92d0b1c1b069ed251ae88b",
+      "head": "8eddafd170613a6f8524d5fc3ea72cc32eeb256d"
+    },
+    {
+      "id": "conv-pr18",
+      "base": "a477e4ec285c7a81feb5efa18b50ab6caf979e09",
+      "head": "6d1202106bf25d7f90f6631b6f97ee314566eab0"
+    },
+    {
+      "id": "conv-pr19",
+      "base": "7d9846858f69f40efc90e4eaa7e869ffadc0c7b0",
+      "head": "16d6b059a04283123e6d383b094cba3ddee85534"
+    },
+    {
+      "id": "conv-pr33",
+      "base": "33c09c26a97b4d788c92d0b1c1b069ed251ae88b",
+      "head": "195172b212f85c6594c88739604435b310fd3a68"
+    },
+    {
+      "id": "pr20-r0",
+      "base": "26c63d3649d76956a9c6e444711fa584a27f6b32",
+      "head": "aec400b8445106e27e368d9f99389f0e20562807"
+    },
+    {
+      "id": "pr21-r0",
+      "base": "49555039cc942d5772ffe4d64833e85dd3f328ff",
+      "head": "b418246c03e699f52d3649f7e4fad10e1172db50"
+    },
+    {
+      "id": "pr26-r0",
+      "base": "0ad0f2d1f99c258cff0805a4074a344225842918",
+      "head": "2118d422df91951393096e1ab9627847b3489f9a"
+    },
+    {
+      "id": "pr38-int",
+      "base": "405c33da086697a21dd9ef26b5e6dc2bae3ad50b",
+      "head": "9b6eb4f4c647fc02d8d4abe0854e80777c5a8e9e"
+    },
+    {
+      "id": "clean-pr21",
+      "base": "49555039cc942d5772ffe4d64833e85dd3f328ff",
+      "head": "5a1d1c560d9511905dc13e00d9b9e5add365c5bd"
+    },
+    {
+      "id": "clean-pr26",
+      "base": "0ad0f2d1f99c258cff0805a4074a344225842918",
+      "head": "a1d9e98786512f83c2fae96e42d9cab6ad07eae6"
+    },
+    {
+      "id": "conv-pr20",
+      "base": "26c63d3649d76956a9c6e444711fa584a27f6b32",
+      "head": "aec400b8445106e27e368d9f99389f0e20562807"
+    },
+    {
+      "id": "conv-pr21",
+      "base": "49555039cc942d5772ffe4d64833e85dd3f328ff",
+      "head": "b418246c03e699f52d3649f7e4fad10e1172db50"
+    },
+    {
+      "id": "conv-pr26",
+      "base": "0ad0f2d1f99c258cff0805a4074a344225842918",
+      "head": "2118d422df91951393096e1ab9627847b3489f9a"
+    }
+  ],
+  "permission": "None. Human response and independent exposure review required before any authentication/model/replay operation."
+}
