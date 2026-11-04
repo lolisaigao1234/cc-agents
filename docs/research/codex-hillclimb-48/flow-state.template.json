@@ -24,6 +24,11 @@
   "banked_resets": {
     "automatic_redemption": false
   },
-  "experiment": "codex-hillclimb-48-v2",
-  "quality_and_latency_before_tokens": true
+  "experiment": "codex-hillclimb-48-v3",
+  "quality_and_latency_before_tokens": true,
+  "matt_plugin": {
+    "directory": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/plugin",
+    "manifest_path": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/manifest.json",
+    "manifest_sha256": "e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419"
+  }
 }

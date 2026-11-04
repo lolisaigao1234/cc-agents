@@ -50,19 +50,20 @@ test('actual integrated plan is runnable and CLI gates deny missing/changed appr
       copyFileSync(join(source, f.path), join(root, f.path));
     }
     mkdirSync(join(root, 'docs/research/codex-hillclimb-46'), { recursive: true });
+    mkdirSync(join(root, 'node_modules'));
     spawnSync('git', ['init', '-q', root]);
-    writeFileSync(join(privateRoot, 'bundle.json'), JSON.stringify({ version: 'astra-calibration-v4',
+    writeFileSync(join(privateRoot, 'bundle.json'), JSON.stringify({ version: 'astra-calibration-v5',
       units: Array.from({ length: 25 }, (_, i) => ({ id: `synthetic-${i}`, presentations: ['original'], expected: {} })) }));
-    const frozen = spawnSync(process.execPath, [join(root, 'evals/review/calibration/freeze-v4.mjs'), privateRoot], { cwd: root, encoding: 'utf8' });
+    const frozen = spawnSync(process.execPath, [join(root, 'evals/review/calibration/freeze-v5.mjs'), privateRoot], { cwd: root, encoding: 'utf8' });
     assert.equal(frozen.status, 0, frozen.stderr);
     const plan = invoke(['plan']);
     assert.equal(plan.status, 0, plan.stderr);
     const current = JSON.parse(plan.stdout);
     assert.equal(current.scheduled_grades, 75);
-    const explicit = invoke(['plan', '--version', 'v4']);
+    const explicit = invoke(['plan', '--version', 'v5']);
     assert.equal(explicit.status, 0, explicit.stderr);
     assert.equal(explicit.stdout, plan.stdout);
-    const historical = invoke(['plan', '--version', 'v3']);
+    const historical = invoke(['plan', '--version', 'v4']);
     assert.equal(historical.status, 2);
     assert.match(historical.stderr, /historical.*frozen commit/i);
     const missing = invoke(['run', '--output', output]);
@@ -79,7 +80,7 @@ test('actual integrated plan is runnable and CLI gates deny missing/changed appr
     rmSync(join(privateRoot, 'fixture-approval.json'));
     const changed = invoke(['run', '--output', output, '--approval', approval]);
     assert.equal(changed.status, 2); assert.match(changed.stderr, /HUMAN approval/);
-    const manifestPath = join(root, 'docs/research/codex-hillclimb-46/preregistration-v4.json');
+    const manifestPath = join(root, 'docs/research/codex-hillclimb-46/preregistration-v5.json');
     const manifestBytes = readFileSync(manifestPath);
     const manifest = JSON.parse(manifestBytes.toString());
     manifest.environment.node_sha256 = 'changed-prerequisite';

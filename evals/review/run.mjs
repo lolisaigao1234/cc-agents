@@ -36,6 +36,7 @@ import { selectCases } from './lib/cases.mjs';
 import { executionConfig } from './lib/config.mjs';
 import { lockCodexAuth, resolveCodex } from './lib/codex.mjs';
 import { runCodexAgent } from './lib/codex-agent.mjs';
+import { selectMattPlugin, copyMattPlugin } from './lib/matt-plugin.mjs';
 import { removeTree } from './lib/cleanup.mjs';
 import { retainAttempt } from './lib/attempt-evidence.mjs';
 import { createHash } from 'node:crypto';
@@ -194,9 +195,11 @@ async function setup(ctx) {
   cpSync(join(REPO_ROOT, 'plugins/trace'), trace, { recursive: true });
   const overlay = join(HERE, 'variants', ctx.variant, 'plugin');
   if (existsSync(overlay)) cpSync(overlay, trace, { recursive: true });
-  const mattVersion = readdirSync(MATT_CACHE).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).at(-1);
+  const mattVersion = ctx.mattPlugin ? `pin:${ctx.mattPlugin.manifest_sha256}`
+    : readdirSync(MATT_CACHE).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).at(-1);
   const matt = join(R.work, 'plugins/mattpocock-skills');
-  cpSync(join(MATT_CACHE, String(mattVersion)), matt, { recursive: true });
+  if (ctx.mattPlugin) copyMattPlugin(ctx.mattPlugin, matt);
+  else cpSync(join(MATT_CACHE, String(mattVersion)), matt, { recursive: true });
   R.pluginDirs = [trace, matt];
   R.variant = JSON.parse(readIfPresentAbs(join(HERE, 'variants', ctx.variant, 'variant.json')) ?? '{}');
   // The agent's effort, the human's own setting for Opus unless the arm says otherwise.
@@ -673,12 +676,13 @@ async function main() {
   }
   // Reject unsupported protocols before auth, setup, or any model call.
   const execution = executionConfig(st, args);
+  const mattPlugin = selectMattPlugin(st); // before setup/auth and harness approval writes
   checkHarness(statePath, st, args.approveHarness);
   // A flow's rows compare only against runs of the same agent and model.
   for (const [k, want] of [['agent', st.agent ?? 'claude'], ['model', st.model]]) {
     if (want != null && args[k] !== want) { eprint(`${statePath} is a ${k} '${want}' flow; got --${k} '${args[k]}'`); process.exit(2); }
   }
-  const ctx = { ...args, state: st, execution };
+  const ctx = { ...args, state: st, execution, mattPlugin };
   // Resume: which (id, rep) pairs already have a row?
   const resultsPath = join(vdir, 'results.jsonl');
   const done = new Set();

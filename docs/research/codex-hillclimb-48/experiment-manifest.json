@@ -1,10 +1,12 @@
 {
-  "version": "codex-hillclimb-48-v2",
+  "version": "codex-hillclimb-48-v3",
   "status": "UNAPPROVED_PREPARATION",
-  "parent_commit": "3b304129bbe04748b4cf2cf71806bb2cd5aeb2b1",
+  "parent_commit": "7b475390ef377fd978dc53598b7cb4cfcd2a81a1",
   "history": {
     "v1_commit": "36c1081983b93114073a9e334ae443f98633fbfe",
-    "v1_manifest_sha256": "dc42cc18e8192fbe5f7635dcf174e8dd64a17d981e55543f5a50d581815c288a",
+    "v2_commit": "b1dc97f18d46f2a54c2b1cf0a79f7a2143339f60",
+    "v2_actual_commit": "daa5f4bf581775c5214dc8228aedfbfdd5518136",
+    "v2_manifest_sha256": "86feea45091c2a86e2d1ac545b7b4abb48202548e74a3ae80182844188f5ca22",
     "outcomes_inherited": false,
     "approvals_inherited": false
   },
@@ -15,7 +17,7 @@
     },
     {
       "path": "docs/research/codex-hillclimb-48/cli.mjs",
-      "sha256": "1f00d1ccf68d99b34c440d846b5f02a6a79c69b47d0ecfae831cf9c03ec6675c"
+      "sha256": "589e9edc5d55e8a72f8d0d1646260240e8ac9655f101c71a27cd0702159c2e23"
     },
     {
       "path": "docs/research/codex-hillclimb-48/credential-metadata.json",
@@ -23,7 +25,7 @@
     },
     {
       "path": "docs/research/codex-hillclimb-48/environment-files.json",
-      "sha256": "0237c0755d31e493f596227cb8097f92054e0e416d35306d7922f237c01828f4"
+      "sha256": "2bfe5bbeecbb9a8b9fd6a98b9ce6ab39f1219d325955e18e12833a56c8d57972"
     },
     {
       "path": "docs/research/codex-hillclimb-48/exposure-review.md",
@@ -35,23 +37,27 @@
     },
     {
       "path": "docs/research/codex-hillclimb-48/flow-state.template.json",
-      "sha256": "6a543e3392533640d4dd1facd3ace87c128f6c7029af80367ffeaf56da596452"
+      "sha256": "c19f03736a2ab9d3216805a0361a60d2e68f013392c373c77641039600f37c5c"
     },
     {
       "path": "docs/research/codex-hillclimb-48/freeze.mjs",
-      "sha256": "b52c4cee12e38fab7d4bb76b7e48968e9a227b992ba2d9c756b981665c906ccf"
+      "sha256": "9f226600b4750ea444a19a15157cf5e36e2e0677db2262c9925d211cb42eda91"
     },
     {
       "path": "docs/research/codex-hillclimb-48/methods-review.md",
       "sha256": "34f220c474f18384952872b795988ee741437cf11b01e280d07502e11e7cf67f"
     },
     {
+      "path": "docs/research/codex-hillclimb-48/pin-matt.mjs",
+      "sha256": "0b6f352e90568db10a22929514180bef8d150ee9642d00d0a36c9857cbfacc8c"
+    },
+    {
       "path": "docs/research/codex-hillclimb-48/protocol.json",
-      "sha256": "8dc56d50a31612f72f6d80ffb1237030869c72a79ad1332404523cfb788c3090"
+      "sha256": "78cf3b2bb52462fbfb0acb74abf9d68a73776b814c4fe21977b4110cd60fef19"
     },
     {
       "path": "docs/research/codex-hillclimb-48/protocol.md",
-      "sha256": "5b0eb39a176c7172185c61bc10505ad2cd6a467a70fee5725887119bf349f081"
+      "sha256": "f1d5b9caaa68c60c46586c95068fffc957a56b5bb24bcd6a0cd6bbb76666a525"
     },
     {
       "path": "docs/research/codex-hillclimb-48/protocol.mjs",
@@ -59,7 +65,7 @@
     },
     {
       "path": "docs/research/codex-hillclimb-48/protocol.test.mjs",
-      "sha256": "a1738fd66981399c4f02f9543973b8fe2ac71bb5193be99a5656c766194355a4"
+      "sha256": "f0904222996e0297a7f55aaeaa5c080e22c2ddc3e37d38883d58ff2a4a2aa810"
     },
     {
       "path": "docs/research/codex-hillclimb-48/review-provenance.json",
@@ -72,7 +78,8 @@
     "CODEX_BIN": "/home/ubuntu/.codex/packages/standalone/releases/0.166.0-aarch64-unknown-linux-musl/bin/codex",
     "PATH": "/usr/local/bin:/usr/bin:/bin",
     "LANG": "C.UTF-8",
-    "TZ": "UTC"
+    "TZ": "UTC",
+    "CC_AGENTS_MATT_PLUGIN_DIR": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/plugin"
   },
   "expected_execution": {
     "baseline": {
@@ -113,10 +120,16 @@
     }
   },
   "calibration": {
-    "protected_harness_sha256": "85c479bbb24a186c09e08b9f13fa7464b93eb52f9754b7b55ebd36c6aa598144",
-    "runtime_sha256": "efbc6b80a2e54efbe62069293745b999c04f5973505bab6393e9a644f1031fe5",
-    "protocol_sha256": "8245fb69e10ea98675097b7c3daa000cc432190d1f75b285adacb9028411e31c",
-    "preregistration_sha256": "b86afcdc054113907f3b16ec947b74765defafc98950d5e6e7edf078f8f71d47"
+    "version": "astra-calibration-v5",
+    "private_root": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-calibration-v5",
+    "required_run": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-calibration-v5-run",
+    "required_selection": "PASS",
+    "required_grades": 75,
+    "expected_judge_requests": 138,
+    "protected_harness_sha256": "540bed650dbdb39fa71331cef884c692604e181f768f42fdb1194e7decb8a3c8",
+    "runtime_sha256": "bbf7c4b2b51f815848c50506b9819e74708e0813de95ded0766e1397bf8e8ca5",
+    "protocol_sha256": "e4b7baa79228113aa540f2c553030dafa063528ddec052070d17c52cbc829fa2",
+    "preregistration_sha256": "f338bb11d226261e0ca28f1306c06c16cfe3ab75e9f75382834bcf18151422d1"
   },
   "source_objects": [
     {
@@ -225,5 +238,5 @@
       "head": "2118d422df91951393096e1ab9627847b3489f9a"
     }
   ],
-  "permission": "None. Parent review and real human exact stage approval including disclosed exposure/readiness/inference limits required before authentication/model/replay. Independent provenance audits are bound inputs, not human clearance."
+  "permission": "None. New calibration-only and baseline-only approvals are distinct. Actual v5 PASS, review, exact human stage approval and fresh explicit native-first-flag delegation required before baseline auth/models. No inherited approval, results or conditional PASS."
 }

@@ -1,0 +1,16 @@
+{
+  "outcomes": [
+    {
+      "version": "original",
+      "exit": 2,
+      "result": "RED: ignored declared missing pin and reached auth boundary"
+    },
+    {
+      "version": "corrected",
+      "exit": 2,
+      "result": "GREEN: declared missing pin rejected before auth boundary"
+    }
+  ],
+  "credentials_or_model_calls": 0,
+  "synthetic_home_only": true
+}

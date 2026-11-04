@@ -1,0 +1,86 @@
+{
+  "version": "astra-calibration-v5 / codex-hillclimb-48-v3",
+  "issue": 48,
+  "access": "Unpublished maintainer-only draft. Never publish automatically. All older releases, approvals and actual evidence preserved.",
+  "release": {
+    "assets": [
+      {
+        "id": 710905185,
+        "name": "calibration-v5.tar.gz",
+        "size": 189511
+      },
+      {
+        "id": 710917217,
+        "name": "correction-v3-final-proof.tar.gz",
+        "size": 473000
+      },
+      {
+        "id": 710905186,
+        "name": "correction-v3-offline-proof.tar.gz",
+        "size": 466668
+      },
+      {
+        "id": 710905184,
+        "name": "matt-pin-v1.tar.gz",
+        "size": 282714
+      }
+    ],
+    "draft": true,
+    "html_url": "https://github.com/lolisaigao1234/cc-agents/releases/tag/untagged-31faec6f318ae5373df6",
+    "id": 434443974,
+    "tag_name": "cc-agents-48-correction-v3-preparation-20261104",
+    "target_commitish": "7b475390ef377fd978dc53598b7cb4cfcd2a81a1"
+  },
+  "assets": [
+    {
+      "name": "calibration-v5.tar.gz",
+      "bytes": 189511,
+      "sha256": "5c1fd2acc81d4ec555c5393d9547831dcbd673aa7908a8606c292debed7b9ead",
+      "members": 32,
+      "download_verified": true
+    },
+    {
+      "name": "matt-pin-v1.tar.gz",
+      "bytes": 282714,
+      "sha256": "3e977ab4e349dd90c714e78a2a346ba2e22a73d421aaa6ada9289d2d8537bd8a",
+      "members": 275,
+      "files_and_symlinks": 177,
+      "directories": 98,
+      "download_verified": true
+    },
+    {
+      "name": "correction-v3-offline-proof.tar.gz",
+      "bytes": 466668,
+      "sha256": "d5c667b34ca94b4e1396d76e901935e0e139bd81a7470fa14a974a8cceb4b176",
+      "members": 67,
+      "download_verified": true
+    },
+    {
+      "name": "correction-v3-final-proof.tar.gz",
+      "bytes": 473000,
+      "sha256": "9821b959e966e6dde3987f1af3a447cb8a5ffbc974f13ab7a48a76210281eaf7",
+      "members": 69,
+      "download_verified": true,
+      "purpose": "Final stable baseline/helper/gate proof; earlier offline-proof asset preserved as an intermediate unapproved preparation record."
+    }
+  ],
+  "download_proof": {
+    "private_calibration_members_verified": 32,
+    "pin_members_verified": 176,
+    "pin_control_manifest_verified": true,
+    "pin_file_kinds_modes_relative_targets_verified": true,
+    "initial_extraction_note": "Python data extraction filter drops directory modes; verified archive was re-extracted preserving the independently checked safe paths/kinds/modes/relative link. No source or archive change.",
+    "final_proof_members_verified": 69
+  },
+  "local_private_bundle": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-calibration-v5",
+  "local_pin": {
+    "directory": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/plugin",
+    "manifest_path": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/manifest.json",
+    "manifest_sha256": "e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419"
+  },
+  "local_private_proof": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-implementation",
+  "local_download": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-download",
+  "live_model_calls": 0,
+  "real_approval": null,
+  "target_note": "Draft targets existing parent commit; implementation stays local for parent review/merge, no push or PR mutation."
+}

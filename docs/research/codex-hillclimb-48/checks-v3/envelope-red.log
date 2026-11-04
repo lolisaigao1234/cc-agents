@@ -1,0 +1,39 @@
+✖ baseline: full semantic workflow reaches grade within envelope while raw audit stays intact (94.948748ms)
+✖ v13: full semantic workflow reaches grade within envelope while raw audit stays intact (86.867604ms)
+✔ native envelope counts Unicode scalars and retains genuine oversize failure without a transport call (341.896013ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 1
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 702.399612
+
+✖ failing tests:
+
+test at test/eval-judge-envelope.test.mjs:36:44
+✖ baseline: full semantic workflow reaches grade within envelope while raw audit stays intact (94.948748ms)
+  Error: native judge input_too_large: 1055521 characters exceeds 1048576
+      at ask (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-f1b876dc/evals/review/lib/grade.mjs:166:55)
+      at grade (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-f1b876dc/evals/review/lib/grade.mjs:199:19)
+      at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-f1b876dc/test/eval-judge-envelope.test.mjs:72:11)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    failure_class: 'native_envelope',
+    provider_call_attempted: false,
+    judge_calls: [ { request: [Object], status: 'failure', provider_call_attempted: false, message: 'native judge input_too_large: 1055521 characters exceeds 1048576', failure_class: 'native_envelope', model: undefined, requested_model: undefined, usage: undefined, raw_usage: undefined, judge_model: undefined, judge_requested_model: undefined, judge_usage: undefined, events: undefined, audit: undefined, transcript: undefined, judge_calls: undefined } ]
+  }
+
+test at test/eval-judge-envelope.test.mjs:36:44
+✖ v13: full semantic workflow reaches grade within envelope while raw audit stays intact (86.867604ms)
+  Error: native judge input_too_large: 1057201 characters exceeds 1048576
+      at ask (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-f1b876dc/evals/review/lib/grade.mjs:166:55)
+      at grade (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-f1b876dc/evals/review/lib/grade.mjs:199:19)
+      at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-f1b876dc/test/eval-judge-envelope.test.mjs:72:11)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    failure_class: 'native_envelope',
+    provider_call_attempted: false,
+    judge_calls: [ { request: [Object], status: 'failure', provider_call_attempted: false, message: 'native judge input_too_large: 1057201 characters exceeds 1048576', failure_class: 'native_envelope', model: undefined, requested_model: undefined, usage: undefined, raw_usage: undefined, judge_model: undefined, judge_requested_model: undefined, judge_usage: undefined, events: undefined, audit: undefined, transcript: undefined, judge_calls: undefined } ]
+  }

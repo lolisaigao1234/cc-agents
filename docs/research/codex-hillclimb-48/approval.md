@@ -1,176 +1,156 @@
-# #48 v2 exact baseline review packet — NOT APPROVED
+# #48 correction packet: calibration v5 then baseline v3 — UNAPPROVED
 
-Proposed first stage: **11 cases × 3 repetitions = 33 baseline-screen keys**.
-Later candidate screen has 33 keys; paired holdout has 30+30. Total 126 keys.
-Zero experiment rows/calls exist; no v1 outcomes or approvals inherit. Parent
-review/merge and a real human exact baseline-only response remain required.
+The concrete proposal is **75 fresh calibration grades / 138 expected Astra
+High/Fast requests**, concurrency one, followed only after actual v5 PASS by a
+**whole fresh 33-key Sol/Astra High/Fast baseline**. These are distinct approval
+scopes. No real response, conditional PASS, flow, approved state, flag invocation
+or new model call exists. Parent review and exact human approval remain required.
 
-Read [rules](protocol.md), [config/membership](protocol.json),
-[complete manifest](experiment-manifest.json), [exact proposed argv](plan.json),
-[exposure correction](exposure.json), [independent exposure audit](exposure-review.md),
-[methods audit/dispositions](methods-review.md), [review provenance](review-provenance.json)
-and [v2 checks](checks-v2/summary.json). The [handoff](handoff.md) identifies the work.
-
-V1 is preserved at immutable commit `36c1081983b93114073a9e334ae443f98633fbfe`,
-including its original helpers/manifest and byte-identical `checks/`. Reproduce
-that version from that commit, with the bound dependencies and private calibration
-inventory. Current helpers are v2 and must not be paired with v1 hashes. V1 had
-no experiment outcomes or approvals. The environment inventory is reused unchanged;
-no 9,000-line dependency-tree duplication or calibrated-runtime changes were needed.
+V4 PASS stays historical. V2 stays INCONCLUSIVE: three scored, one failed,
+29 unstarted, 17 native model CLI calls. Preserve all rows, failures, approvals,
+first-key native-flag history, source snapshots and private releases. No retry,
+regrade, 29-key resume, failed-key replacement or pooling is permitted under new
+bytes. Reproduce v2 preparation from `b1dc97f18d46f2a54c2b1cf0a79f7a2143339f60`
+and actual evidence from `daa5f4bf581775c5214dc8228aedfbfdd5518136`; v4 PASS from
+`bd1ce2c4d6823fd4d0306c845aa2c5551788b513`. Current CLI selects v5 only.
 
 | Identity | SHA256 |
 | --- | --- |
-| V2 complete experiment manifest | `86feea45091c2a86e2d1ac545b7b4abb48202548e74a3ae80182844188f5ca22` |
-| V2 protocol JSON | `8dc56d50a31612f72f6d80ffb1237030869c72a79ad1332404523cfb788c3090` |
-| V2 exact generated offline plan | `9401adab8086fc74a939b2e7e894bb87902416e9335164e07526fe97f70eaedf` |
-| Calibrated runtime, unchanged 150 members | `efbc6b80a2e54efbe62069293745b999c04f5973505bab6393e9a644f1031fe5` |
-| Protected harness, unchanged 119 members | `85c479bbb24a186c09e08b9f13fa7464b93eb52f9754b7b55ebd36c6aa598144` |
-| Calibration v4 protocol | `8245fb69e10ea98675097b7c3daa000cc432190d1f75b285adacb9028411e31c` |
-| Calibration v4 preregistration, including 32 private members | `b86afcdc054113907f3b16ec947b74765defafc98950d5e6e7edf078f8f71d47` |
-| Baseline workflow content, unchanged | `e2ca7a2e86df9c78571a80952c066789affec562560f89c53e21abcbf622e3e2` |
-| Sole v13 workflow content, unchanged | `daf18bd39385234b4393c3a9a9c7894a77281dc4e133034b9f8dbddc23c48d8e` |
+| Calibration v5 runtime (155 members) | `bbf7c4b2b51f815848c50506b9819e74708e0813de95ded0766e1397bf8e8ca5` |
+| Protected harness (120 members) | `540bed650dbdb39fa71331cef884c692604e181f768f42fdb1194e7decb8a3c8` |
+| Calibration v5 protocol | `e4b7baa79228113aa540f2c553030dafa063528ddec052070d17c52cbc829fa2` |
+| Calibration v5 preregistration (32 private members) | `f338bb11d226261e0ca28f1306c06c16cfe3ab75e9f75382834bcf18151422d1` |
+| Baseline v3 complete manifest (15 normative inputs) | `10a04f6ba925a0acfa9c785e6010c369e8831a19421227494a6d2f9cfb57e36d` |
+| Baseline v3 protocol | `78cf3b2bb52462fbfb0acb74abf9d68a73776b814c4fe21977b4110cd60fef19` |
+| Baseline v3 generated plan | `377b6d6c467a0037347251b8d9ac65867980a36fe79bde49552a4caf0b18f183` |
+| Matt pin/control manifest | `e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419` |
 
-The manifest binds 14 normative input files: source/helpers/tests, protocol,
-metadata, state template, exposure and actual independent review provenance,
-and the unchanged full environment inventory. The verifier detects altered bytes
-and new input membership; it also derives the split from immutable v1 plus metadata.
-`approval.md`, `handoff.md`, `plan.json`, `checks/` and `checks-v2/` are derived
-review/evidence artifacts, not alternate execution policy. Any new normative
-helper/command or changed code requires a fresh manifest and exact approval.
-No informal execution helper or approval-writing command exists.
+The full [v5 manifest](../codex-hillclimb-46/preregistration-v5.json) includes
+all current runtime/protected members, 257 installed dependency members,
+Node/Codex companions/system binary prerequisites and the exact 32-member
+private inventory. [Migration](../codex-hillclimb-46/migration-v5.json) preserves
+all 30 input/source files byte for byte, substantive labels/exclusions,
+presentations and ordering; only bundle/builder version metadata changes.
+The [v3 manifest](experiment-manifest.json) binds complete helper/test/environment
+identities, the immutable plugin, installed dependency/npm trees and binaries,
+calibration v5 gate, exact source objects and [null state template](flow-state.template.json).
+[Proposed argv](plan.json) remains 33/33/30/30 keys across the four stages.
+Candidate and paired-holdout approval remain later separate scopes.
 
-The pre-outcome metadata rule retains the original 21 selected eligible cases and
-all five pilots, moving the whole numerically smallest optional selected primary
-bug PR (PR14) to holdout. Screen is 5 bug/3 clean/3 convergence; holdout is 5/2/3.
-Primary PR groups are 5+5 and PR-disjoint. At five groups the unchanged one-sided
-95% sign-flip lower endpoint is min(D_g): every PR gain must exceed
-T=max(.05, observed baseline repeat-range N). Feasibility is not adequate power.
-Independent PRs and common symmetric shifts are assumptions, not established facts.
-Strict paired harm/round/fix/regression/test gates and any-failed-attempt
-INCONCLUSIVE policy remain unchanged, with their discretionary costs disclosed.
+Technical corrections only: omit exactly audit `active_model` and `token_usage`
+from the grader copy of typed workflow material, preserving every other field,
+record/order, tool input/response, finding/disposition/test/hook denial/human stop.
+Raw workflow/events/provenance/provider evidence and GitHub-only findings remain.
+The native envelope rejects genuine excess locally with a complete retained
+request/failure and no fabricated provider call. No truncation, lossy compression,
+summary model, fallback, tool-enabled judge or case exclusion. Competitor
+instructions/prompts/control flow and judge prompts/rubric/schemas/metrics are
+unchanged; no outcome-based quality tuning occurred.
 
-**Exposure limits must be included in any future human execution request.** The
-persisted incident contains all 57 catalog rows and answer-bearing fields for all
-reserved IDs. Original model-facing truncation remains unresolved. Original author
-label/note exposure and exposure-conditioned pool/split selection are recorded.
-No recorded post-incident candidate/workflow/runner/grader change or observed
-experiment outcomes exist. Shared source/history, crossing ancestry and unknown
-past exposure limit interpretation. No certified unseen/blind data, population
-independence or adequate-power claim is supportable. The bounded possible claim
-is a fixed untuned candidate validated on prereserved non-screen PR clusters within
-this finite benchmark, conditional on stated assumptions and comparability.
-Numerical PASS cannot settle provenance. Unsupported interpretation is INCONCLUSIVE.
+All four retained SCREENED inputs fit the production projection. The failed
+prompt is **1,068,777 → 1,040,422 Unicode characters**, 1,070,189 → 1,041,834 UTF-8
+bytes, leaving 8,154 characters. All 513 audit records, 213 tool inputs and 205
+tool responses survive with every semantic value equal. Raw prompt SHA256 stays
+`ff56553ec7ca21dccfdf9b6f9be5e945011639d9b6864d48b63ffdf4fa4595a1`;
+projected prompt SHA256 is
+`921ad6887c79128819f73d5311357977b019721af62a4156f97ab6fd7edb2c34`.
+Raw/projected screened material stays restricted. Offline fake-transport acceptance
+is not live compliance or grader-quality evidence, and future capacity is not guaranteed.
 
-The actual independent agent audits are bound records, not human clearance. V1's
-extra independent-human-maintainer review was an agent-invented proposal; no such
-review is fabricated or required via `holdout_acceptable=true`. The existing real
-human exact-stage approval, with authenticated source/stage/hash, remains binding.
-Nothing in this packet is an approval or a certification that exposure is acceptable.
+The new pin has exactly 176 logical members: 175 regular files, three executable,
+and relative `AGENTS.md -> CLAUDE.md`. It is built from the immutable v2 EXPECTED
+inventory, validating every original byte/type/target/source mode and copying only
+those members. Installed cache/settings/leases/auto-update remain untouched; the
+old cache probe remains red (177 vs 176, no original member changed). Pin identity
+binds exact membership, file kind, bytes, literal/resolved safe relative target,
+regular modes 0400/0500 and directory mode 0500. Control manifest lives outside
+the plugin. Native preflight checks env/state/manifest before auth or native approval
+writes, then verifies the copied run input. There is no pinned-flow cache fallback.
+Read-only modes protect against accidents; an operator-controlled parent with no
+concurrent writer is required. They are not kernel immutability or hostile same-uid protection.
 
-Requested Sol High/Fast, Astra High/Fast, subscription only, configured-only model
-verification, concurrency one. Served model/tier, usage and spend remain unknown.
-Per key: one native invocation, 5,400s scoring ceiling, 4,500s app allowance,
-<=3 reviews, bounded five app/five judge attempts and zero manual retries.
-33 baseline keys allow at most 1,650 Sol + 330 Astra CLI invocations including
-native retries, or 330+66 without retries. These are not billed-request guarantees.
-Every failure stays retained. No Claude, reset redemption or schedule changes.
+Pinned plugin directory:
+`/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/plugin`
 
-Five pilot snapshots have #45's full readiness audit; the other six screen and all
-ten holdout cases have metadata/object checks only. Preserve legitimate human stops,
-failing tests, missing rg and all #45 portability/timing/verification conditions.
-Do not drop a case or weaken a gate because of later readiness or quality outcomes.
-A complete valid baseline alone reports its raw recall triples, case ranges,
-PR repeats and macro repeat spread. These are descriptive variability, not
-three-repetition population confidence coverage. Invalid baseline evidence
-withholds validated aggregates/noise/completeness; absent candidates do not.
+Bound control manifest:
+`/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/manifest.json`
 
-Offline reproduction from this committed revision on the bound host:
+Every planned future native invocation must use `protocol.json`'s exact environment,
+including `CC_AGENTS_MATT_PLUGIN_DIR` above, and the bound state template.
+Preparation never writes the native digest. V2 delegation was v2-only. By default
+the human personally invokes the exact first planned v3 key with `--approve-harness`;
+that command starts execution and is not an offline approval command. If an agent
+is to execute it, the future human response must explicitly delegate that exact
+first command under these new hashes. Never forge/copy an approved state or re-run
+the first key. Reconcile every key and attempt before progressing.
+
+**Limits to disclose in the human request:** partial v2 outcomes are observed;
+v3 is not a wholly blind pre-outcome design. Cases, PR split, reps/order,
+metrics, noise floor, exact 95% sign flips, .05 minimum gain and every
+harm/round/fix/regression/test/failure gate are identical to v2. No selection,
+threshold or workflow change fits those outcomes. Original all-catalog exposure,
+unresolved original delivery truncation, postexposure pool selection, shared
+source/history, unknown past exposure, low power and unproved independent-PR /
+common symmetric-shift assumptions remain. Numerical PASS cannot certify
+provenance, unseen data or population independence. The sole v13 treatment and
+conditional finite-benchmark interpretation are unchanged. Preserve #45 readiness
+limits, legitimate human stops, adverse evidence and unknown usage. Requested
+identity is configured; served identity/tier/spend remain unknown unless response-backed.
+
+Verification: **89/89 eval/guard checks**, zero skips; **15/15 protocol checks**.
+Full suite: 204 pass, two historical failures, one intentional interactive-session
+skip. Typecheck: the same 55 historical diagnostics, none introduced. Public
+[check ledger](checks-v3/summary.json) records exact results, red/green regressions,
+projection conservation, pin identity, historical preservation and traced gates.
+Nine actual CLI probes and the screened projection probe have zero network
+connect calls and zero credential-path opens. Missing/stale approvals, historical
+version selection, pin env drift and absent actual v5 PASS reject before auth/output.
+Public native fixture tests additionally reject changed/missing/added pin members,
+unsafe modes/links/hardlinks and root indirection before the missing-token boundary.
+
+Offline review commands (no live execution is authorized):
 
 ```bash
-node --test docs/research/codex-hillclimb-48/protocol.test.mjs
+node evals/review/calibration/calibrate.mjs plan --version v5 --private /home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-calibration-v5
 node docs/research/codex-hillclimb-48/cli.mjs plan
 node docs/research/codex-hillclimb-48/cli.mjs gate --stage baseline-screen
-node docs/research/codex-hillclimb-48/cli.mjs report --split screen
-node evals/review/calibration/calibrate.mjs plan --version v4 --private /home/ubuntu/cc-agents-artifacts/issue-46/preregistration-v4
+node --test docs/research/codex-hillclimb-48/protocol.test.mjs
+CODEX_SANDBOX_TEST=1 node --test test/eval-*.test.mjs test/guard.test.mjs
 ```
 
-Expected exits: 0 (14 tests), 0, 2/HUMAN, 2/INCONCLUSIVE, 0 (v4 verification).
-Covering suite: `CODEX_SANDBOX_TEST=1 node --test test/eval-*.test.mjs test/guard.test.mjs`
-passes 83/83, zero skips. V4 plan output is byte-identical; actual calibration PASS
-is unchanged, not rerun. Two historical broad-suite failures and 55 typecheck
-diagnostics remain disclosed; those broad checks were not rerun.
+Expected plan exits 0; missing baseline approval exits 2/HUMAN. Even a synthetic
+matching baseline record in a disposable fixture stops on absent actual v5 PASS.
+No live result or approval is manufactured. Native `--dry-run` authenticates;
+it is used only by empty-HOME synthetic fixture tests, never for live approval.
 
-[Traced gates](checks-v2/gate-proof.json) show plan exit 0; missing approval,
-actual calibration approval and actual immutable v1 manifest passed as an approval
-all reject with exit 2/HUMAN. No actual v1 approval ever existed; stale exact hashes
-and wrong scope are separately rejected by explicitly synthetic public-interface
-tests. All six traced CLI checks have zero network connect calls and zero credential
-path opens. Both empty split reports are INCONCLUSIVE with null noise. No real flow
-or state exists. `run.mjs --dry-run` authenticates/accesses GitHub and was not used
-as an offline approval procedure.
+The parent may present both concrete scopes in **one conditional human question**:
 
-After parent review/merge, the parent may present the following concrete request
-with the committed revision link. This is proposed wording only, not a request
-sent by this implementer and not a decision recorded:
+> Do you approve calibration v5 for the exact runtime/protocol/preregistration
+> hashes above (75 fresh grades / 138 expected Astra High/Fast requests), and,
+> separately, only if that calibration actually PASSes, baseline-screen v3 for
+> its exact manifest/protocol/plan/pin (33 wholly fresh Sol/Astra High/Fast keys),
+> subscription authentication, concurrency one, frozen attempts/retention/gates,
+> with the disclosed exposure/readiness/shared-source/low-power limits and unknown
+> served identity/tier/spend? If you want the agent to execute the first baseline
+> key, explicitly delegate `--approve-harness` for that exact first planned v3 key.
+> Candidate, holdout, changed hashes, Claude, resets and schedules are excluded.
 
-> I approve baseline-screen only for #48 codex-hillclimb-48-v2, exact manifest
-> SHA256 86feea45091c2a86e2d1ac545b7b4abb48202548e74a3ae80182844188f5ca22 and protocol
-> SHA256 8dc56d50a31612f72f6d80ffb1237030869c72a79ad1332404523cfb788c3090:
-> 33 fresh Sol/Astra High/Fast keys, subscription authentication, concurrency one,
-> configured-only identity, unknown served model/tier/spend, with the frozen ceilings
-> and attempt/evidence policy. I understand the documented readiness limits,
-> original author label/note exposure, unresolved original response truncation,
-> postexposure pool selection, shared-source/history and unknown prior exposure.
-> Any later comparison supports only the stated conditional finite-benchmark claim,
-> with unproved PR independence/common-shift assumptions and low power; it does not
-> certify unseen/blind data or population independence. The actual independent agent
-> provenance/methods audits are records, not human clearance. This covers no
-> candidate, holdout, changed hashes, Claude, resets or schedules.
+This is proposed wording only. Calibration-only and baseline-only answers have
+distinct scopes. An actual explicit response may be faithfully transcribed into
+an exact bound approval record; the agent cannot invent or extend it. Calibration
+approval binds runtime/protocol/preregistration hashes; baseline approval binds
+manifest/protocol hashes and `baseline-screen-only` scope. The generated plan
+is independently hash-checked against this packet. Actual sealed v5 PASS is
+programmatically required by the baseline gate, not a promised conditional result.
+No real v5 or v3 approval has been recorded.
 
-Only an actual clear human response can be faithfully recorded as approval.
-Afterward, follow the [native human approval procedure](protocol.md): create only
-the fresh restricted screen flow with the null-harness template; the human reviews
-and personally runs the exact first planned baseline key with `--approve-harness`.
-That flag writes the native digest and proceeds to execution of that key. It is
-not an offline approval-only command and must never be invoked by the agent.
-Do not rerun that first key. Subsequent approved keys use the plan without that
-flag after evidence reconciliation. The experiment gate and native digest are
-both required. Candidate and paired-holdout approvals remain separate stages;
-the latter uses a distinct fresh native flow. No approved state has been written.
-
-Operational proof is retained at
-`/home/ubuntu/cc-agents-artifacts/issue-48/preparation-v2`, with a
-[hash-only index](checks-v2/private-artifact-index.json). No unique personal/raw
-model artifact was produced; committed source and hashes suffice, so no draft
-release was created. All v1 checks remain unchanged, including six trailing-
-whitespace lines in three raw red logs. Scoped whitespace checks exclude retained
-raw logs; no blanket green claim is made. No push, PR mutation, comment, watch,
-issue mutation, model/eval-authentication call or remote replay was performed.
-
-## Parent review and optional explicit native-command delegation
-
-Merged v2 preparation `e6606a8c329cb6fa2cbf6283ce514130adb98892` verifies the
-same manifest/protocol/plan identities above. The [parent review](../codex-hillclimb-review-48.md)
-records no actionable Spec issue or hard Standards violation, plus one deferred
-P3 maintenance note. These final report links do not change normative execution
-policy or the frozen helper bytes.
-
-The default native procedure above leaves the first `--approve-harness` invocation
-to the human. To have the agent execute all approved keys, the human may instead
-explicitly delegate that exact first-key command as part of the same concrete
-baseline response, for example:
-
-> I approve the exact v2 baseline-screen packet and disclosed limits above, and
-> explicitly authorize the agent to invoke `--approve-harness` for the first
-> planned baseline key in the fresh v2 screen flow, then run the remaining approved
-> baseline keys. This delegation applies only to this frozen manifest/protocol and
-> 33-key baseline stage. It approves no changed hashes, candidate, holdout, Claude,
-> reset redemption or schedule changes.
-
-This is an explicit user exception being requested, not permission already held
-and not an agent interpretation of ordinary baseline approval. Without that real
-explicit delegation, the human-only flag instruction remains in force. A real
-response must be faithfully recorded against these exact identities before any
-flow creation, credential access or native invocation. Never forge a digest or
-write an approved state directly; the native gate must compute and record it.
-The first approved invocation proceeds to actual execution; it is not a dry run.
+Restricted operational proof is at
+`/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-implementation`.
+[New unpublished draft retention](../codex-hillclimb-46/retention-v5.json) contains
+32 calibration members, the pin plus external manifest, and intermediate (67-file) plus final (69-file) offline proof
+including restricted screened projection. All four downloaded archives
+and every member verify; the extracted pin additionally verifies full modes,
+file kinds and relative targets. No credentials, auth, personal config/runtime
+archives, original catalog or heldout answers are included. Prior releases are
+unchanged. No push, PR mutation, issue comment/watch/closure, replay, model,
+eval-authentication, reset or schedule action was performed by this implementer.

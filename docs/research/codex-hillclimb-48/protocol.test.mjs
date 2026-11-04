@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { verifyBoundFiles, DIR } from './freeze.mjs';
-import { nativeReport } from './cli.mjs';
+import { nativeReport, requireCalibrationPass } from './cli.mjs';
 import { clusterUncertainty, makePlan, compareRows, requireApproval, sha, deriveV2Split } from './protocol.mjs';
 
 test('exact cluster sign flips and confidence inversion match a worked subset example', () => {
@@ -288,9 +288,9 @@ test('native report exposes descriptive coverage and evidence locators without a
 });
 
 
-test('v2 plan deterministically moves the smallest optional whole primary PR cluster and retains all pilots', () => {
+test('v3 retains the v2 plan that deterministically moves the smallest optional whole primary PR cluster and retains all pilots', () => {
   const protocol = JSON.parse(readFileSync(new URL('./protocol.json', import.meta.url)));
-  assert.equal(protocol.version, 'codex-hillclimb-48-v2');
+  assert.equal(protocol.version, 'codex-hillclimb-48-v3');
   const metadata = JSON.parse(readFileSync(new URL('./cases.metadata.json', import.meta.url)));
   const prior = { screen: [...protocol.screen, ...protocol.holdout.filter(c => c.cluster === 'pr14')],
     holdout: protocol.holdout.filter(c => c.cluster !== 'pr14'), pilot_ids: protocol.pilot_ids };
@@ -307,4 +307,14 @@ test('v2 plan deterministically moves the smallest optional whole primary PR clu
   const synthetic = deriveV2Split(meta, { ...prior, screen: [...prior.screen, { ...prior.screen.find(c => c.cluster === 'pr14'), id: 'conv-pr14', kind: 'convergence' }] });
   assert.ok(synthetic.holdout.some(c => c.id === 'conv-pr14'));
   assert.ok(!synthetic.screen.some(c => c.cluster === 'pr14'));
+});
+
+
+test('fresh baseline gate cannot inherit historical calibration PASS or manufacture a missing fresh run', () => {
+  const root = mkdtempSync(join(tmpdir(), 'calibration-prerequisite-'));
+  try {
+    const calibration = { version: 'astra-calibration-v5', required_selection: 'PASS', private_root: root, required_run: join(root, 'absent') };
+    assert.throws(() => requireCalibrationPass(root, { ...calibration, version: 'astra-calibration-v4' }));
+    assert.throws(() => requireCalibrationPass(root, calibration), /actual complete sealed calibration v5 PASS required/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
