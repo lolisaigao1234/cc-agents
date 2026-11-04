@@ -1,4 +1,4 @@
-# Codex-only hillclimb #43: partial baseline material stop; adoption INCONCLUSIVE
+# Codex-only hillclimb #43: corrected packet reviewed; fresh execution approval pending
 
 Integration [PR #50](https://github.com/lolisaigao1234/cc-agents/pull/50) merged at `f18ce230c1650e1693836f26233b716f5129fe2d`. Followthrough branch: `43-codex-calibration-v3-followthrough`. The approved [actual v4 calibration](codex-calibration-result-v4.md) returned a limited **PASS** on 2026-11-03: 75 valid grades, 138 successful retained requests and zero failures. The approved [v2 baseline-screen execution](codex-baseline-result-48-v2.md) stopped materially on 2026-11-04 with **3 scored keys, 1 failed key and 29 unstarted keys**. The baseline is incomplete, validated stage metrics and noise/uncertainty estimates are withheld, and adoption remains **INCONCLUSIVE**. No candidate or held-out result or candidate quality claim exists. The original v3 result remains **BLOCK / INCONCLUSIVE**.
 
@@ -8,12 +8,12 @@ Integration [PR #50](https://github.com/lolisaigao1234/cc-agents/pull/50) merged
 | #45 readiness audit | Delivered; closed | [Five-case readiness matrix](codex-readiness-45.md). One confirmed temporary-root `.git` harness fault corrected; original product failures, guard denials and human requirements preserved. |
 | #47 controlled variant | Delivered; closed | [v13 support and deterministic checks](codex-evidence-before-fix-47.md). No quality claim from injected execution. |
 | #46 Astra calibration | Delivered: v4 PASS; PR #51 closes #46 | [Actual v4 result](codex-calibration-result-v4.md): 75/75 valid grades, 138/138 successful retained requests, zero failures, zero repeat/presentation disagreements and all probes passing 3/3. V3 remains BLOCK. |
-| #48 frozen repeated baseline | Open; partial actual material stop | [Retained actual result](codex-baseline-result-48-v2.md): 3 scored / 1 failed / 29 unstarted. Judge input limit and external-cache membership block completion; offline correction is being prepared before any new snapshot or approval. |
+| #48 frozen repeated baseline | Open; v2 material stop preserved; v3 preparation reviewed | [Retained actual result](codex-baseline-result-48-v2.md): 3 scored / 1 failed / 29 unstarted. [Corrected packet](codex-hillclimb-48/approval.md) and [independent review](codex-hillclimb-review-48-v3.md) await exact v5 calibration and conditional v3 baseline approval. |
 | #49 paired experiment and decision | Not started; blocked by #48 | No candidate, paired or held-out result exists; selection remains blocked. |
 
 The [v4 correction](codex-calibration-correction-v4.md) was approved and a whole fresh calibration completed under the unchanged frozen snapshot. All 30 input/source files, substantive expectations and the 75-grade/138-request schedule are unchanged. The sealed report reproduces **PASS / exit 0**, with zero disagreements across **75 repeat pairs** and **189 presentation pairs**, and oracle/null/uncertainty/wrong-target probes each **3/3**. The [full-send ledger](codex-calibration-full-send-v4.md) records authorization, proof and review. Preparation statements about zero calls and missing approval are historical.
 
-PR #51 delivered #46 acceptance and closed #46. The current frontier is #48's material baseline blockers, with #49 blocked by the incomplete baseline. Earlier no-start and preparation statements below describe their historical snapshots. Closed prerequisites #44/#45/#47 and the limited calibration PASS do not approve changed runtime bytes or future experiments. #43 stays open until the remaining children deliver their evidence and the final decision is recorded. The source issue #39 remains open and unchanged.
+PR #51 delivered #46 acceptance and closed #46. The current frontier is exact approval for the reviewed correction packet: fresh v5 calibration, then only after actual PASS a wholly fresh v3 baseline. #49 remains blocked by the incomplete baseline. Earlier no-start and preparation statements below describe their historical snapshots. Closed prerequisites #44/#45/#47 and the limited calibration PASS do not approve changed runtime bytes or future experiments. #43 stays open until the remaining children deliver their evidence and the final decision is recorded. The source issue #39 remains open and unchanged.
 
 ## Review and historical verification
 
@@ -49,7 +49,7 @@ The deferred Opus/Astra comparison remains pinned to historical fingerprint `e2c
 The [correction and exact snapshot](codex-calibration-correction-v4.md) are merged
 into the integration branch. Historical independent Standards and Spec reviews found no
 actionable issues; see the [review and merged verification](codex-calibration-review-v4.md).
-The current plan verifies 150 runtime, 119 protected and 32 private members.
+The historical v4 plan verifies 150 runtime, 119 protected and 32 private members.
 All 30 input/source files and substantive expectations remain unchanged.
 
 | Frozen v4 identity | SHA256 |
@@ -63,7 +63,7 @@ Approved scope: calibration only, 75 fresh grades / 138 expected Astra High/Fast
 requests, subscription authentication, concurrency one, configured-only identity.
 Unobserved served model/tier and API-equivalent spend remain unknown/null. The
 actual v4 approval and result are retained separately from this frozen packet;
-v3 approval covers different bytes and remains rejected before auth. The current
+v3 approval covers different bytes and remains rejected before auth. The historical v4
 plan exits **0** and reproduces these hashes. Its frozen status text about missing
 approval and no live results describes preparation, while the separate sealed
 report exits **0 / PASS**. No protected runtime, README, manifest, protocol, test
@@ -110,7 +110,7 @@ the bound 176-member external cache had 177 members, with existing member bytes
 unchanged. A current read-only check still rejects live cache membership drift
 (`.in_use/461364` at verification time). No marker was removed, exempted or copied
 into a new bound snapshot. The old v2 experiment plan exits **2**, as expected;
-the current v4 calibration plan separately exits **0** with the unchanged runtime,
+the v4 calibration plan at that historical revision separately exits **0** with the unchanged runtime,
 protocol, preregistration and protected-harness hashes above. Its stdout SHA256 is
 `358321851475a4025f55fda886414cf873a22967bf7572689a5ec61d3805f1e4`.
 The sealed actual calibration PASS remains unchanged and was not rerun or pooled.
@@ -132,9 +132,38 @@ all 286 restricted originals and 12 post-seal receipts also verify. Archive SHA2
 Raw evidence remains in the unpublished maintainer-only draft release. The original
 zero-attempt preflight and its separate 47-file index remain historical and intact.
 
-An offline correction is being prepared for the judge input envelope and mutable
-external-cache prerequisite. Any changed runtime, prompt or protocol needs a new
-versioned snapshot, relevant calibration, a fresh comparable baseline and exact
-future human approval. No corrected packet or new execution approval is claimed.
-#48 remains open and incomplete, #49 remains blocked, and adoption remains
-**INCONCLUSIVE**.
+The offline correction below addresses the judge input envelope and mutable
+external-cache prerequisite. V2 remains historical and cannot resume or pool rows
+under changed hashes. #48 remains open and incomplete, #49 remains blocked, and
+adoption remains **INCONCLUSIVE**.
+
+## Reviewed correction: calibration v5 and baseline v3
+
+Implementation `07b0290787b7d59e307ccdf4f7b17c32d5061d26` merged into integration
+as `f2642e71d0206981bd6c6fac1058933bc9a30082`. Independent Standards and Spec
+reviews each found zero findings; see the [review and merged verification](codex-hillclimb-review-48-v3.md).
+The [exact packet](codex-hillclimb-48/approval.md) binds all new identities.
+
+The grader-only workflow projection removes exactly audit `active_model` and
+`token_usage`, retaining raw metadata and all substantive evidence. The retained
+failed request becomes 1,040,422 characters, 8,154 below the native limit; all
+four available screened inputs fit. Future capacity and live grader quality are
+not established by offline checks. An explicitly bound 176-member Matt copy is
+verified before native approval/authentication and after copying. Installed cache,
+leases and settings are untouched; its old inventory gate remains red.
+
+Both actual integrated offline plans match the packet. The production pin verifier
+and all 257 dependency members verify. Merged focused checks: 23 passed, including
+15 protocol checks. Implementer covering checks: 89 passed; full suite: 204 passed,
+two historical failures and one intentional skip. Typecheck retains the same 55
+historical diagnostics. Missing/stale approvals and absent sealed v5 PASS stop
+with zero network connects or credential-path opens. Historical v2 live/archive
+evidence and all 30 calibration input/source files remain unchanged.
+
+No new execution approval, model call, approved state or native flag exists.
+The next approval scopes are 75 fresh v5 calibration grades / 138 expected Astra
+requests, then only after actual PASS 33 wholly fresh baseline v3 keys, with fresh
+explicit delegation if the agent invokes the first native `--approve-harness`.
+Subscription auth, High/Fast and concurrency one remain fixed. Exposure,
+shared-source, partial-outcome and low-power limits remain; served identity/tier
+and spend remain unknown. Candidate/holdout runs still require later approval.

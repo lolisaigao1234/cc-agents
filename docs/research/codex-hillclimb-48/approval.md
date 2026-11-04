@@ -1,10 +1,15 @@
 # #48 correction packet: calibration v5 then baseline v3 — UNAPPROVED
 
+Parent integration review is complete: [Standards and Spec](../codex-hillclimb-review-48-v3.md)
+each found zero findings, and merged plans/identities/gates verify. This derived
+review note changes no bound input or execution permission. Exact human approval
+and actual fresh v5 PASS remain required below.
+
 The concrete proposal is **75 fresh calibration grades / 138 expected Astra
 High/Fast requests**, concurrency one, followed only after actual v5 PASS by a
 **whole fresh 33-key Sol/Astra High/Fast baseline**. These are distinct approval
 scopes. No real response, conditional PASS, flow, approved state, flag invocation
-or new model call exists. Parent review and exact human approval remain required.
+or new model call exists. Parent review is recorded above; exact human approval remains required.
 
 V4 PASS stays historical. V2 stays INCONCLUSIVE: three scored, one failed,
 29 unstarted, 17 native model CLI calls. Preserve all rows, failures, approvals,
