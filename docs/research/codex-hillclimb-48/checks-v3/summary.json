@@ -1,0 +1,104 @@
+{
+  "issue": 48,
+  "version": "codex-hillclimb-48-v3",
+  "status": "UNAPPROVED_PREPARATION",
+  "new_live_model_calls": 0,
+  "new_calibration_grades": 0,
+  "new_baseline_rows": 0,
+  "candidate_or_holdout_runs": 0,
+  "native_first_flag_invoked": false,
+  "approved_state_written": false,
+  "historical_v2": {
+    "scored": 3,
+    "failed": 1,
+    "unstarted": 29,
+    "model_cli_calls": 17,
+    "status": "INCONCLUSIVE",
+    "outcomes_inherited": false
+  },
+  "tests": {
+    "covering": {
+      "pass": 89,
+      "fail": 0,
+      "skip": 0
+    },
+    "protocol": {
+      "pass": 15,
+      "fail": 0,
+      "skip": 0
+    },
+    "full_suite": {
+      "pass": 204,
+      "fail": 2,
+      "skip": 1,
+      "historical_failures": [
+        "the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds",
+        "the vendored declarations come from the installed Claude Code"
+      ],
+      "intentional_skip": "no interactive session has loaded the mod from this checkout"
+    },
+    "typecheck": {
+      "diagnostics": 55,
+      "historical_unchanged": true,
+      "introduced": 0
+    }
+  },
+  "calibration_v5": {
+    "runtime_sha256": "bbf7c4b2b51f815848c50506b9819e74708e0813de95ded0766e1397bf8e8ca5",
+    "protected_harness_sha256": "540bed650dbdb39fa71331cef884c692604e181f768f42fdb1194e7decb8a3c8",
+    "protocol_sha256": "e4b7baa79228113aa540f2c553030dafa063528ddec052070d17c52cbc829fa2",
+    "preregistration_sha256": "f338bb11d226261e0ca28f1306c06c16cfe3ab75e9f75382834bcf18151422d1",
+    "runtime_files": 155,
+    "protected_files": 120,
+    "private_files": 32,
+    "unchanged_input_source_files": 30,
+    "bound_dependency_members": 257,
+    "scheduled_grades": 75,
+    "expected_requests": 138,
+    "actual_result": null,
+    "approval": null
+  },
+  "baseline_v3": {
+    "manifest_sha256": "10a04f6ba925a0acfa9c785e6010c369e8831a19421227494a6d2f9cfb57e36d",
+    "protocol_sha256": "78cf3b2bb52462fbfb0acb74abf9d68a73776b814c4fe21977b4110cd60fef19",
+    "plan_sha256": "377b6d6c467a0037347251b8d9ac65867980a36fe79bde49552a4caf0b18f183",
+    "inputs": 15,
+    "keys_by_stage": [
+      33,
+      33,
+      30,
+      30
+    ],
+    "source_pin": {
+      "directory": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/plugin",
+      "manifest_path": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/manifest.json",
+      "manifest_sha256": "e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419"
+    },
+    "approval": null,
+    "requires_actual_v5_PASS": true
+  },
+  "limits": [
+    "Observed partial v2 outcomes; not wholly blind pre-outcome design. No selection/gate/workflow quality tuning.",
+    "Original catalog exposure/truncation, postexposure pool selection, shared source/history, low power and unproved independent-PR/common-shift assumptions remain.",
+    "8,154 characters headroom only for happened prompt; no future capacity guarantee.",
+    "Offline fake-transport acceptance proves neither live compliance nor grader quality.",
+    "Read-only source modes are accidental-write protection; no hostile same-uid/racing-writer guarantee.",
+    "Requested serving identity/tier/spend remain unknown absent response evidence."
+  ],
+  "remaining": [
+    "Parent review/merge",
+    "Real exact calibration-v5-only approval",
+    "Whole fresh calibration actual PASS",
+    "Separate real exact 33-key baseline-v3 approval (possibly conditional on actual v5 PASS)",
+    "Fresh explicit first-key native-flag delegation if agent is to execute it"
+  ],
+  "private_root": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-implementation",
+  "remote_retention": {
+    "draft": true,
+    "url": "https://github.com/lolisaigao1234/cc-agents/releases/tag/untagged-31faec6f318ae5373df6",
+    "download_verified": true,
+    "asset_files_and_links": 345,
+    "pin_directories": 98,
+    "assets": 4
+  }
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Read-only offline commands. There is deliberately no run/approve subcommand.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { isDeepStrictEqual } from 'node:util';
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -98,6 +99,19 @@ export function nativeReport(flow, protocol, manifest, split) {
     api_equivalent_spend_usd: null, raw_review: 'PENDING independent attempt, human-stop, test and provenance review' };
 }
 
+// Read-only recomputation with the frozen driver: no auth/model import in report.
+export function requireCalibrationPass(root, calibration) {
+  assert.equal(calibration.version, 'astra-calibration-v5');
+  assert.equal(calibration.required_selection, 'PASS');
+  const result = spawnSync(process.execPath, [join(root, 'evals/review/calibration/calibrate.mjs'), 'report', '--version', 'v5',
+    '--private', calibration.private_root, '--output', calibration.required_run], { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 0, 'STOP: actual complete sealed calibration v5 PASS required before baseline; historical v4 PASS is insufficient');
+  const report = JSON.parse(result.stdout);
+  assert.ok(report.selection === 'PASS' && report.scheduled === 75 && report.received === 75 && report.blocker_count === 0 &&
+    report.identity_evidence.total_calls === 138, 'STOP: incomplete calibration v5 evidence');
+  return { selection: 'PASS', report_sha256: sha(readFileSync(join(calibration.required_run, 'report.json'))) };
+}
+
 async function main() {
   const [command, ...args] = process.argv.slice(2);
   const options = {};
@@ -111,13 +125,14 @@ async function main() {
     assert.equal(args.length, 0);
     const plan = makePlan(protocol);
     return { ...plan, ...current, calibration: manifest.calibration, variants: Object.fromEntries(Object.entries(manifest.expected_execution).map(([arm,c]) => [arm,c.variant])),
-      environment_variables: manifest.variables, status: 'UNAPPROVED v2; parent review and exact stage-specific human approval including disclosed provenance limits required' };
+      environment_variables: manifest.variables, status: 'UNAPPROVED v3; parent review and exact stage-specific human approval including disclosed provenance limits required' };
   }
   if (command === 'gate') {
     const stage = protocol.stages.find(s => s.id === options['--stage']); assert.ok(stage, 'unknown stage');
     assert.ok(!options['--split']);
     requireApproval(options['--approval'] ? json(options['--approval']) : null, current, stage.approval_scope);
-    return { structural_approval_match: true, execution_started: false, ...current,
+    const calibration = requireCalibrationPass(ROOT, manifest.calibration);
+    return { structural_approval_match: true, execution_started: false, calibration, ...current,
       remaining: 'Independently authenticate human provenance, verify prerequisite stage report and bound independent provenance review; human flow harness approval and per-key inventory reconciliation remain mandatory. No state written.' };
   }
   const split = options['--split'];

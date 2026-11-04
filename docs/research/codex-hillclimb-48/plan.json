@@ -1,7 +1,7 @@
 {
   "authorized": false,
   "execution": "No processes launched; argv arrays are proposals, requiring exact stage approval and per-key preflight.",
-  "protocol_sha256": "8dc56d50a31612f72f6d80ffb1237030869c72a79ad1332404523cfb788c3090",
+  "protocol_sha256": "78cf3b2bb52462fbfb0acb74abf9d68a73776b814c4fe21977b4110cd60fef19",
   "stages": [
     {
       "id": "baseline-screen",
@@ -12,11 +12,11 @@
         {
           "case_id": "pr16-r1",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr16-r1/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr16-r1/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -38,11 +38,11 @@
         {
           "case_id": "pr16-r1",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr16-r1/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr16-r1/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -64,11 +64,11 @@
         {
           "case_id": "pr16-r1",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr16-r1/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr16-r1/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -90,11 +90,11 @@
         {
           "case_id": "pr17-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr17-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr17-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -116,11 +116,11 @@
         {
           "case_id": "pr17-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr17-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr17-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -142,11 +142,11 @@
         {
           "case_id": "pr17-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr17-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr17-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -168,11 +168,11 @@
         {
           "case_id": "pr18-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr18-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr18-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -194,11 +194,11 @@
         {
           "case_id": "pr18-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr18-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr18-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -220,11 +220,11 @@
         {
           "case_id": "pr18-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr18-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr18-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -246,11 +246,11 @@
         {
           "case_id": "pr24",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr24/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr24/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -272,11 +272,11 @@
         {
           "case_id": "pr24",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr24/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr24/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -298,11 +298,11 @@
         {
           "case_id": "pr24",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr24/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr24/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -324,11 +324,11 @@
         {
           "case_id": "pr35-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr35-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr35-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -350,11 +350,11 @@
         {
           "case_id": "pr35-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr35-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr35-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -376,11 +376,11 @@
         {
           "case_id": "pr35-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/pr35-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/pr35-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -402,11 +402,11 @@
         {
           "case_id": "clean-pr12",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/clean-pr12/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/clean-pr12/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -428,11 +428,11 @@
         {
           "case_id": "clean-pr12",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/clean-pr12/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/clean-pr12/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -454,11 +454,11 @@
         {
           "case_id": "clean-pr12",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/clean-pr12/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/clean-pr12/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -480,11 +480,11 @@
         {
           "case_id": "clean-pr19",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/clean-pr19/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/clean-pr19/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -506,11 +506,11 @@
         {
           "case_id": "clean-pr19",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/clean-pr19/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/clean-pr19/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -532,11 +532,11 @@
         {
           "case_id": "clean-pr19",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/clean-pr19/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/clean-pr19/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -558,11 +558,11 @@
         {
           "case_id": "clean-pr33",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/clean-pr33/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/clean-pr33/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -584,11 +584,11 @@
         {
           "case_id": "clean-pr33",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/clean-pr33/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/clean-pr33/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -610,11 +610,11 @@
         {
           "case_id": "clean-pr33",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/clean-pr33/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/clean-pr33/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -636,11 +636,11 @@
         {
           "case_id": "conv-pr18",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/conv-pr18/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/conv-pr18/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -662,11 +662,11 @@
         {
           "case_id": "conv-pr18",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/conv-pr18/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/conv-pr18/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -688,11 +688,11 @@
         {
           "case_id": "conv-pr18",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/conv-pr18/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/conv-pr18/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -714,11 +714,11 @@
         {
           "case_id": "conv-pr19",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/conv-pr19/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/conv-pr19/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -740,11 +740,11 @@
         {
           "case_id": "conv-pr19",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/conv-pr19/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/conv-pr19/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -766,11 +766,11 @@
         {
           "case_id": "conv-pr19",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/conv-pr19/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/conv-pr19/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -792,11 +792,11 @@
         {
           "case_id": "conv-pr33",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/conv-pr33/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/conv-pr33/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -818,11 +818,11 @@
         {
           "case_id": "conv-pr33",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/conv-pr33/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/conv-pr33/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -844,11 +844,11 @@
         {
           "case_id": "conv-pr33",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/baseline/conv-pr33/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/baseline/conv-pr33/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -878,11 +878,11 @@
         {
           "case_id": "pr16-r1",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr16-r1/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr16-r1/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -904,11 +904,11 @@
         {
           "case_id": "pr16-r1",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr16-r1/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr16-r1/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -930,11 +930,11 @@
         {
           "case_id": "pr16-r1",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr16-r1/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr16-r1/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -956,11 +956,11 @@
         {
           "case_id": "pr17-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr17-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr17-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -982,11 +982,11 @@
         {
           "case_id": "pr17-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr17-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr17-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1008,11 +1008,11 @@
         {
           "case_id": "pr17-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr17-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr17-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1034,11 +1034,11 @@
         {
           "case_id": "pr18-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr18-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr18-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1060,11 +1060,11 @@
         {
           "case_id": "pr18-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr18-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr18-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1086,11 +1086,11 @@
         {
           "case_id": "pr18-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr18-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr18-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1112,11 +1112,11 @@
         {
           "case_id": "pr24",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr24/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr24/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1138,11 +1138,11 @@
         {
           "case_id": "pr24",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr24/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr24/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1164,11 +1164,11 @@
         {
           "case_id": "pr24",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr24/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr24/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1190,11 +1190,11 @@
         {
           "case_id": "pr35-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr35-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr35-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1216,11 +1216,11 @@
         {
           "case_id": "pr35-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr35-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr35-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1242,11 +1242,11 @@
         {
           "case_id": "pr35-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/pr35-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/pr35-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1268,11 +1268,11 @@
         {
           "case_id": "clean-pr12",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/clean-pr12/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/clean-pr12/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1294,11 +1294,11 @@
         {
           "case_id": "clean-pr12",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/clean-pr12/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/clean-pr12/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1320,11 +1320,11 @@
         {
           "case_id": "clean-pr12",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/clean-pr12/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/clean-pr12/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1346,11 +1346,11 @@
         {
           "case_id": "clean-pr19",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/clean-pr19/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/clean-pr19/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1372,11 +1372,11 @@
         {
           "case_id": "clean-pr19",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/clean-pr19/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/clean-pr19/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1398,11 +1398,11 @@
         {
           "case_id": "clean-pr19",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/clean-pr19/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/clean-pr19/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1424,11 +1424,11 @@
         {
           "case_id": "clean-pr33",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/clean-pr33/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/clean-pr33/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1450,11 +1450,11 @@
         {
           "case_id": "clean-pr33",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/clean-pr33/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/clean-pr33/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1476,11 +1476,11 @@
         {
           "case_id": "clean-pr33",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/clean-pr33/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/clean-pr33/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1502,11 +1502,11 @@
         {
           "case_id": "conv-pr18",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/conv-pr18/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/conv-pr18/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1528,11 +1528,11 @@
         {
           "case_id": "conv-pr18",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/conv-pr18/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/conv-pr18/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1554,11 +1554,11 @@
         {
           "case_id": "conv-pr18",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/conv-pr18/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/conv-pr18/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1580,11 +1580,11 @@
         {
           "case_id": "conv-pr19",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/conv-pr19/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/conv-pr19/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1606,11 +1606,11 @@
         {
           "case_id": "conv-pr19",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/conv-pr19/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/conv-pr19/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1632,11 +1632,11 @@
         {
           "case_id": "conv-pr19",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/conv-pr19/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/conv-pr19/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1658,11 +1658,11 @@
         {
           "case_id": "conv-pr33",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/conv-pr33/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/conv-pr33/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1684,11 +1684,11 @@
         {
           "case_id": "conv-pr33",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/conv-pr33/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/conv-pr33/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1710,11 +1710,11 @@
         {
           "case_id": "conv-pr33",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/screen/v13/conv-pr33/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/screen/v13/conv-pr33/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/screen",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/screen",
             "--agent",
             "codex",
             "--model",
@@ -1744,11 +1744,11 @@
         {
           "case_id": "pr14-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr14-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr14-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -1770,11 +1770,11 @@
         {
           "case_id": "pr14-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr14-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr14-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -1796,11 +1796,11 @@
         {
           "case_id": "pr14-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr14-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr14-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -1822,11 +1822,11 @@
         {
           "case_id": "pr20-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr20-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr20-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -1848,11 +1848,11 @@
         {
           "case_id": "pr20-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr20-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr20-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -1874,11 +1874,11 @@
         {
           "case_id": "pr20-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr20-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr20-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -1900,11 +1900,11 @@
         {
           "case_id": "pr21-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr21-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr21-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -1926,11 +1926,11 @@
         {
           "case_id": "pr21-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr21-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr21-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -1952,11 +1952,11 @@
         {
           "case_id": "pr21-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr21-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr21-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -1978,11 +1978,11 @@
         {
           "case_id": "pr26-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr26-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr26-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2004,11 +2004,11 @@
         {
           "case_id": "pr26-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr26-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr26-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2030,11 +2030,11 @@
         {
           "case_id": "pr26-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr26-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr26-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2056,11 +2056,11 @@
         {
           "case_id": "pr38-int",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr38-int/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr38-int/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2082,11 +2082,11 @@
         {
           "case_id": "pr38-int",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr38-int/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr38-int/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2108,11 +2108,11 @@
         {
           "case_id": "pr38-int",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/pr38-int/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/pr38-int/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2134,11 +2134,11 @@
         {
           "case_id": "clean-pr21",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/clean-pr21/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/clean-pr21/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2160,11 +2160,11 @@
         {
           "case_id": "clean-pr21",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/clean-pr21/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/clean-pr21/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2186,11 +2186,11 @@
         {
           "case_id": "clean-pr21",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/clean-pr21/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/clean-pr21/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2212,11 +2212,11 @@
         {
           "case_id": "clean-pr26",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/clean-pr26/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/clean-pr26/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2238,11 +2238,11 @@
         {
           "case_id": "clean-pr26",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/clean-pr26/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/clean-pr26/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2264,11 +2264,11 @@
         {
           "case_id": "clean-pr26",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/clean-pr26/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/clean-pr26/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2290,11 +2290,11 @@
         {
           "case_id": "conv-pr20",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/conv-pr20/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/conv-pr20/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2316,11 +2316,11 @@
         {
           "case_id": "conv-pr20",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/conv-pr20/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/conv-pr20/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2342,11 +2342,11 @@
         {
           "case_id": "conv-pr20",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/conv-pr20/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/conv-pr20/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2368,11 +2368,11 @@
         {
           "case_id": "conv-pr21",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/conv-pr21/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/conv-pr21/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2394,11 +2394,11 @@
         {
           "case_id": "conv-pr21",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/conv-pr21/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/conv-pr21/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2420,11 +2420,11 @@
         {
           "case_id": "conv-pr21",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/conv-pr21/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/conv-pr21/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2446,11 +2446,11 @@
         {
           "case_id": "conv-pr26",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/conv-pr26/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/conv-pr26/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2472,11 +2472,11 @@
         {
           "case_id": "conv-pr26",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/conv-pr26/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/conv-pr26/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2498,11 +2498,11 @@
         {
           "case_id": "conv-pr26",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/baseline/conv-pr26/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/baseline/conv-pr26/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2532,11 +2532,11 @@
         {
           "case_id": "pr14-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr14-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr14-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2558,11 +2558,11 @@
         {
           "case_id": "pr14-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr14-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr14-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2584,11 +2584,11 @@
         {
           "case_id": "pr14-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr14-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr14-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2610,11 +2610,11 @@
         {
           "case_id": "pr20-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr20-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr20-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2636,11 +2636,11 @@
         {
           "case_id": "pr20-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr20-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr20-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2662,11 +2662,11 @@
         {
           "case_id": "pr20-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr20-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr20-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2688,11 +2688,11 @@
         {
           "case_id": "pr21-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr21-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr21-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2714,11 +2714,11 @@
         {
           "case_id": "pr21-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr21-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr21-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2740,11 +2740,11 @@
         {
           "case_id": "pr21-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr21-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr21-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2766,11 +2766,11 @@
         {
           "case_id": "pr26-r0",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr26-r0/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr26-r0/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2792,11 +2792,11 @@
         {
           "case_id": "pr26-r0",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr26-r0/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr26-r0/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2818,11 +2818,11 @@
         {
           "case_id": "pr26-r0",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr26-r0/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr26-r0/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2844,11 +2844,11 @@
         {
           "case_id": "pr38-int",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr38-int/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr38-int/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2870,11 +2870,11 @@
         {
           "case_id": "pr38-int",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr38-int/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr38-int/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2896,11 +2896,11 @@
         {
           "case_id": "pr38-int",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/pr38-int/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/pr38-int/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2922,11 +2922,11 @@
         {
           "case_id": "clean-pr21",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/clean-pr21/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/clean-pr21/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2948,11 +2948,11 @@
         {
           "case_id": "clean-pr21",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/clean-pr21/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/clean-pr21/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -2974,11 +2974,11 @@
         {
           "case_id": "clean-pr21",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/clean-pr21/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/clean-pr21/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3000,11 +3000,11 @@
         {
           "case_id": "clean-pr26",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/clean-pr26/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/clean-pr26/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3026,11 +3026,11 @@
         {
           "case_id": "clean-pr26",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/clean-pr26/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/clean-pr26/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3052,11 +3052,11 @@
         {
           "case_id": "clean-pr26",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/clean-pr26/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/clean-pr26/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3078,11 +3078,11 @@
         {
           "case_id": "conv-pr20",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/conv-pr20/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/conv-pr20/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3104,11 +3104,11 @@
         {
           "case_id": "conv-pr20",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/conv-pr20/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/conv-pr20/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3130,11 +3130,11 @@
         {
           "case_id": "conv-pr20",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/conv-pr20/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/conv-pr20/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3156,11 +3156,11 @@
         {
           "case_id": "conv-pr21",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/conv-pr21/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/conv-pr21/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3182,11 +3182,11 @@
         {
           "case_id": "conv-pr21",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/conv-pr21/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/conv-pr21/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3208,11 +3208,11 @@
         {
           "case_id": "conv-pr21",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/conv-pr21/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/conv-pr21/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3234,11 +3234,11 @@
         {
           "case_id": "conv-pr26",
           "rep": 0,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/conv-pr26/0",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/conv-pr26/0",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3260,11 +3260,11 @@
         {
           "case_id": "conv-pr26",
           "rep": 1,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/conv-pr26/1",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/conv-pr26/1",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3286,11 +3286,11 @@
         {
           "case_id": "conv-pr26",
           "rep": 2,
-          "key": "d83a692054ee0a36fe92408558b2c56fbc922e69f50d55970807c7103ab0c4ae/holdout/v13/conv-pr26/2",
+          "key": "a8c6b5ee6569600c770bd9b5a90e9695352c40207e155f4bf7e755be953ba13f/holdout/v13/conv-pr26/2",
           "argv": [
             "evals/review/run.mjs",
             "--flow",
-            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2/holdout",
+            "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3/holdout",
             "--agent",
             "codex",
             "--model",
@@ -3312,12 +3312,18 @@
       ]
     }
   ],
-  "manifest_sha256": "86feea45091c2a86e2d1ac545b7b4abb48202548e74a3ae80182844188f5ca22",
+  "manifest_sha256": "10a04f6ba925a0acfa9c785e6010c369e8831a19421227494a6d2f9cfb57e36d",
   "calibration": {
-    "protected_harness_sha256": "85c479bbb24a186c09e08b9f13fa7464b93eb52f9754b7b55ebd36c6aa598144",
-    "runtime_sha256": "efbc6b80a2e54efbe62069293745b999c04f5973505bab6393e9a644f1031fe5",
-    "protocol_sha256": "8245fb69e10ea98675097b7c3daa000cc432190d1f75b285adacb9028411e31c",
-    "preregistration_sha256": "b86afcdc054113907f3b16ec947b74765defafc98950d5e6e7edf078f8f71d47"
+    "version": "astra-calibration-v5",
+    "private_root": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-calibration-v5",
+    "required_run": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-calibration-v5-run",
+    "required_selection": "PASS",
+    "required_grades": 75,
+    "expected_judge_requests": 138,
+    "protected_harness_sha256": "540bed650dbdb39fa71331cef884c692604e181f768f42fdb1194e7decb8a3c8",
+    "runtime_sha256": "bbf7c4b2b51f815848c50506b9819e74708e0813de95ded0766e1397bf8e8ca5",
+    "protocol_sha256": "e4b7baa79228113aa540f2c553030dafa063528ddec052070d17c52cbc829fa2",
+    "preregistration_sha256": "f338bb11d226261e0ca28f1306c06c16cfe3ab75e9f75382834bcf18151422d1"
   },
   "variants": {
     "baseline": {
@@ -3339,7 +3345,8 @@
     "CODEX_BIN": "/home/ubuntu/.codex/packages/standalone/releases/0.166.0-aarch64-unknown-linux-musl/bin/codex",
     "PATH": "/usr/local/bin:/usr/bin:/bin",
     "LANG": "C.UTF-8",
-    "TZ": "UTC"
+    "TZ": "UTC",
+    "CC_AGENTS_MATT_PLUGIN_DIR": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/plugin"
   },
-  "status": "UNAPPROVED v2; parent review and exact stage-specific human approval including disclosed provenance limits required"
+  "status": "UNAPPROVED v3; parent review and exact stage-specific human approval including disclosed provenance limits required"
 }

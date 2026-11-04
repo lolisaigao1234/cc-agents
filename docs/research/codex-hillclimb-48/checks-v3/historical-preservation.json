@@ -1,0 +1,385 @@
+{
+  "from": "7b475390ef377fd978dc53598b7cb4cfcd2a81a1",
+  "unchanged": [
+    {
+      "path": "evals/review/variants/v1/change.md",
+      "sha256": "8cbd610e694f3a3731b3e4766bfc85e10514753a1a0947d883fe8e81a9979253",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v1/plugin/hooks/hooks.json",
+      "sha256": "cf2df07d2e45f5ba141f191b0062937a06477d74410df6986d31a5c11c1dd48a",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v1/plugin/scripts/variant/checks.mjs",
+      "sha256": "5c88a02f064962551e908da8aca9b9d74e2905b714dfbce2960ab2dfa0b7aaac",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v1/plugin/scripts/variant/common.mjs",
+      "sha256": "fde502be7f7e8d7407d18ac74f5133327bbf9648cd38ab970b53b0c80d1ad880",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v1/plugin/scripts/variant/typecheck-on-edit.mjs",
+      "sha256": "e8d4de0551f2c61c51701bbf26b105a9499f24fd7f42cd783148192a10763e6b",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v1/plugin/skills/trace/SKILL.md",
+      "sha256": "b91bd49f664a91e03d1d22f8c155080b11d9ac4b70b4dce46eb9261b82deb2ad",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v1/repo-append/CLAUDE.md",
+      "sha256": "4ae974f3bdaece78d1b20d4ca620c315554ff7018525946924334b5ce58b40b3",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v1/variant.json",
+      "sha256": "72c5711ac4ddd421d0a9a5843213c2f70ee214ca18f170bc2293cae22963c4d4",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v10/change.md",
+      "sha256": "bda48ec8e85ce60ab7aaba623cd3912e381186c91987550a385192c11e9914d6",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v10/plugin/skills/trace/SKILL.md",
+      "sha256": "b988a0e06c80ce5b17979f174e5e34bad556ea952334c0422421b6dc1c9c8b09",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v10/repo/.claude/workflows/latent-sweep.js",
+      "sha256": "cbd305fb2aadee2603fa4d08f4cc620a3229e76681cdb48b7f7b055e9d83d123",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v10/variant.json",
+      "sha256": "5a71bc705f5e327c85fe1b954e40086a3ef648955c56925f213bbbe91c56a059",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v11/change.md",
+      "sha256": "d9cafc03698f2ec7e4bec7188c6acf44849c118ed429cd02ee96fa426351e671",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v11/variant.json",
+      "sha256": "20d3db490178b1ab867bc628b970bf3d830551fc4d43e63e801642acd32b2523",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v12/change.md",
+      "sha256": "c6b7dd61878045f267e948c883228b2fca13c5cb92ce8ad9a66c65399d3bf89d",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v12/plugin/skills/trace/SKILL.md",
+      "sha256": "806a205dd8e7f81ae62521f3412b550a01e9c68404e6bd56d8ca24ac093b54f1",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v12/variant.json",
+      "sha256": "c0876301b9adce7ffbbf259201fa8b564075c186d36c544808c3398e4972da24",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v13/change.md",
+      "sha256": "3ac6e93c06ec4f662d870ff9eba8db3836e90684ab17f79902b593290e37bc35",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v13/variant.json",
+      "sha256": "daf18bd39385234b4393c3a9a9c7894a77281dc4e133034b9f8dbddc23c48d8e",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v2/change.md",
+      "sha256": "f9a05978b9a3e05454e53ea060ecd34d80764515f76ca896810be1fd4f868285",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v2/plugin/hooks/hooks.json",
+      "sha256": "5791b3aa83b76d2226073bc0d31e03e8453d5821ef45972e3486b46573c239bd",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v2/plugin/scripts/variant/review-context.mjs",
+      "sha256": "ffc948a0501098a7aa0f7973ea49b1b775a7eb9ad2103590a952df6612d2864d",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v2/plugin/skills/trace/SKILL.md",
+      "sha256": "6edc2c4ca47958d08a9d430d54e7793352cd2a5c731022fe7d1d6f33f67cad4e",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v2/repo-append/.gitignore",
+      "sha256": "d96a9fff957d92f1f7b37c3a66836373f9965a2406d3d4d1c889526da474a2ec",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v2/repo-append/CLAUDE.md",
+      "sha256": "906b990a6d91b9be57df503ab124c02bfaa8219c44e757f03a32c761e904bfe5",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v2/repo/REVIEW.md",
+      "sha256": "db48566d76fd32898a76c00477d2eae61d3a319f5cf6ba2af9da506033f2f812",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v2/variant.json",
+      "sha256": "5479298db4c2ce734c96c0442a4afaf7544c7b9be4f69241b2d04e4c7008c28c",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v3/change.md",
+      "sha256": "6d3b464ee41484bac8dc5fbc03ebb2f0f01048247184de43e45bb339b60eeb95",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v3/plugin/skills/trace/SKILL.md",
+      "sha256": "d08a0cd65e8a2147d9a93d6830bb28b23f2326dd1360b4489db923e1cfdf6e2f",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v3/repo-append/CLAUDE.md",
+      "sha256": "270ab43b49e9b0db346dad879ac8c7c86fd17168218ecd9185919b5effd4be11",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v3/repo/.claude/workflows/review-finders.js",
+      "sha256": "bd0150926cb82bc2512553449b35d4a0d76d1001b93ceb792e53088070fae02c",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v3/variant.json",
+      "sha256": "9829259e292eca9cff0f9342298595d1c74022fda3795a94c523d18029c65c82",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v4/change.md",
+      "sha256": "e22ab7f0d2bd49ec829da033072aefa9479b8bb9ff03567f24cc7a3d43077394",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v4/plugin/skills/trace/SKILL.md",
+      "sha256": "1e01febd332f17e726aa5cf1433e8dc8e24aeacf2a94043eccb17f426ca130c5",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v4/repo-append/CLAUDE.md",
+      "sha256": "f67175d34ae8f6db45117015e7129203b54720bc092fec23b173a8affd78012f",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v4/repo/.claude/workflows/verify-findings.js",
+      "sha256": "1204cfce85d2fa2b533e57e60fd5bd6b12315130e90aabfd1cf71e337c8a7988",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v4/repo/REVIEW.md",
+      "sha256": "ca3a823c9334136ca5c988c9e0cf5d80934afd6a5985cefc8e12691e0709cbf1",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v4/variant.json",
+      "sha256": "8457ba1dc665e586cb07a41534fffc12e6d01139fac5d70e762f70cdad6c15fe",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v5/change.md",
+      "sha256": "ed29c3ba5989c3e3bb8ad308d78957bb958d4f9c81ad5e60bbb9feac377a718d",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v5/plugin/hooks/hooks.json",
+      "sha256": "f9338c1efad939be4a80ffc8baeea39785890a7dc3cb3557bd136947cc02c249",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v5/plugin/scripts/variant/findings.mjs",
+      "sha256": "84c0748183aa302aef32d5a12ffc0f270edeaaae1540598bbc873babe530fe55",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v5/plugin/skills/trace/SKILL.md",
+      "sha256": "8c3b4a46fd047c973c38f8e2fd60628f77e5c9e84dc87d78c8ce6205af1ee3d4",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v5/variant.json",
+      "sha256": "f566b4bba35f8921469327f40a0c9c1babf67f9f830f93c0a96011d72ec88393",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v6/change.md",
+      "sha256": "efa8afeef2875da73af1b356ecfa4b9036ac990bad30f5c131ac9cc90412f58d",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v6/plugin/hooks/hooks.json",
+      "sha256": "1de04319ab773ead8fe5df61b541bc5eb289e4084edee3c207d38c00640ae68f",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v6/plugin/scripts/variant/rounds.mjs",
+      "sha256": "e977cd2f2640314ad70ff635e46515e4d32c6da18a3bc6b2eb7a122bd385a078",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v6/plugin/skills/trace/SKILL.md",
+      "sha256": "807984c39bc5885073b3de78afb56d5ec5520329097beb3bddbb3a505d0e8515",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v6/variant.json",
+      "sha256": "cc86b924b0fb838f83d720662916bd01976cc8d7ab2f215952b592abec388e15",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v7/change.md",
+      "sha256": "8419abe898f5a36ad16bcb693e28c68bec0150479871dc8339dfc522db9aab99",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v7/plugin/hooks/hooks.json",
+      "sha256": "aee8d78260e855b795ecf0c2a828f3b4919deec8f40d35524b10ffe84cfbf664",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v7/plugin/scripts/variant/commit-review.mjs",
+      "sha256": "b6b5058535e2a4951dce8f42e9cb9d40477d9d7dc704c44d684b212c51b38332",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v7/plugin/skills/trace/SKILL.md",
+      "sha256": "a0fba02c0acfbca6f8655661747b7870ac7722698a84152d8ada188a6b48c60b",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v7/variant.json",
+      "sha256": "8524faf083ee334892bb2fdf60c34243b32515b3473be4ab356056b89d202b4a",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v8/change.md",
+      "sha256": "8381ce48e18cd28c0b006217eee3a6a1bb523a705a4f3523fdc69cd02f2b8e67",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v8/plugin/skills/trace/SKILL.md",
+      "sha256": "1ee02bae6e65e7c58c3454319734c3c59c0ce98437fcf0c410dff14c336f4f0f",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v8/repo/.claude/risk-tiers.md",
+      "sha256": "6b4319b033f21327f8cd78f115056492c96b24d5ac3fa0d33da83ee65e755210",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v8/repo/.claude/workflows/risk-tier.js",
+      "sha256": "9cc7f098efb22ca96e12deeb4b103620db244667537b081043839dc89cd3cdb6",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v8/variant.json",
+      "sha256": "65caf56fee146b82cce6c93f399c78e1fc21bd06ef70b957c95fe227462911a6",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v9/change.md",
+      "sha256": "a7e518450c71d718bffe08deabc538bd95c1629342a85e0f9e44c89a9ae25354",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/variants/v9/variant.json",
+      "sha256": "eca053765cd9620fabcd8bdc5ea6012c5e55d47845cfe278228635c70c0cac1b",
+      "unchanged": true
+    },
+    {
+      "path": "docs/research/codex-hillclimb-46/preregistration-v3.json",
+      "sha256": "ac64a64239e0c4fc69b62d2c1fcab2deb2ba7ec200026f9e7bf22ca15dc3c6b7",
+      "unchanged": true
+    },
+    {
+      "path": "docs/research/codex-hillclimb-46/preregistration-v4.json",
+      "sha256": "b86afcdc054113907f3b16ec947b74765defafc98950d5e6e7edf078f8f71d47",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/calibration/protocol-v3.json",
+      "sha256": "28128a0fa40ef15b19c45844d21b2025f581ffe4dcafdd2def9465da90e3f06b",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/calibration/protocol-v4.json",
+      "sha256": "8245fb69e10ea98675097b7c3daa000cc432190d1f75b285adacb9028411e31c",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/calibration/freeze-v3.mjs",
+      "sha256": "29cf15e62f712f764718ae88a6974c5a74cdaee5e6a1f7510c121c02b35ea1b2",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/calibration/freeze-v4.mjs",
+      "sha256": "321066e466b266bb2e6ad49f3509b5f066d373a234286e2790a97051bc1b30cd",
+      "unchanged": true
+    },
+    {
+      "path": "docs/research/codex-baseline-result-48-v2.md",
+      "sha256": "97aade7c455ba81b864c6bbfd70757fefad340d9324180f2b41dec43fbcd5090",
+      "unchanged": true
+    },
+    {
+      "path": "docs/research/codex-calibration-result-v3.md",
+      "sha256": "85b5ac62e9ddf4ab1220955f0e9c2156474fe1f010070f700f933da504d0feab",
+      "unchanged": true
+    },
+    {
+      "path": "docs/research/codex-calibration-result-v4.md",
+      "sha256": "d229d66ad520b4ab6772d9a05b45b08d8f020bf2b7a124c4aa2ff3eabec2910b",
+      "unchanged": true
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/protocol.mjs",
+      "sha256": "5372801863ab0aa399aef070116a8a275d7c941f424bf99af8b2b1339176ebb6",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/lib/codex-variants.mjs",
+      "sha256": "aca29602523bd606ad4c67b063fb36c620bf3ff9d26b7ba299ae02fb3bdb9a85",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/lib/attempt-evidence.mjs",
+      "sha256": "5ace9f26ddff77fecfddba4f6fd828be4a967e19a5c6ed30148c6dd86801d3a5",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/lib/codex.mjs",
+      "sha256": "4c99414492a3af141bd9a85cb3da3dd1ff21eee25757b652d0cad13b6eacc88d",
+      "unchanged": true
+    }
+  ],
+  "judge_system_prompts_schemas_rubric_prefix_unchanged": true,
+  "v2_protocol_fields_unchanged": [
+    "screen",
+    "holdout",
+    "repetitions",
+    "pilot_ids",
+    "exclusions",
+    "identity",
+    "limits",
+    "stages",
+    "analysis",
+    "split_revision"
+  ],
+  "quality_tuning": false,
+  "inherited_results": false
+}

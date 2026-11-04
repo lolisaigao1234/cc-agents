@@ -1,0 +1,62 @@
+{
+  "checks": [
+    {
+      "label": "calibration-plan",
+      "exit": 0,
+      "network_connect_calls": 0,
+      "credential_path_opens": 0
+    },
+    {
+      "label": "baseline-plan",
+      "exit": 0,
+      "network_connect_calls": 0,
+      "credential_path_opens": 0
+    },
+    {
+      "label": "calibration-missing",
+      "exit": 2,
+      "network_connect_calls": 0,
+      "credential_path_opens": 0
+    },
+    {
+      "label": "calibration-stale-v4",
+      "exit": 2,
+      "network_connect_calls": 0,
+      "credential_path_opens": 0
+    },
+    {
+      "label": "calibration-historical-v4",
+      "exit": 2,
+      "network_connect_calls": 0,
+      "credential_path_opens": 0
+    },
+    {
+      "label": "baseline-missing",
+      "exit": 2,
+      "network_connect_calls": 0,
+      "credential_path_opens": 0
+    },
+    {
+      "label": "baseline-stale-v2",
+      "exit": 2,
+      "network_connect_calls": 0,
+      "credential_path_opens": 0
+    },
+    {
+      "label": "baseline-synthetic-still-needs-actual-v5",
+      "exit": 2,
+      "network_connect_calls": 0,
+      "credential_path_opens": 0
+    },
+    {
+      "label": "baseline-pin-env-mutation",
+      "exit": 2,
+      "network_connect_calls": 0,
+      "credential_path_opens": 0
+    }
+  ],
+  "new_run_outputs_created": false,
+  "real_approval_created": false,
+  "native_flag_invoked": false,
+  "models_or_authentication": 0
+}

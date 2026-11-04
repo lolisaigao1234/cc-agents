@@ -44,6 +44,15 @@ const instructions = `This is an eval adapter for the trace's Review and Update 
 Read the repository instructions, GLOSSARY.md, every active ADR, and the linked issue and comments yourself in each fresh session. Read required files in full with one literal cat -- <path> command per file; partial output earns no read credit. Re-read after compaction. Respect all trace hook denials.
 Do not call Claude, Copilot, Workflow, or slash commands. The harness supplies separate bug and standards/spec review sessions and controls rounds. Do not spawn agents or run another model CLI. Keep all work in this replay. The issue's acceptance criteria govern the change. Do not merge or close anything. No human can answer; when a decision is required, report asked_human and stop.`;
 
+// Grader rendering only. Keep the authoritative workflow, events and provenance
+// intact: these two hook diagnostics are neither review evidence nor served proof.
+/** @param {any} workflow */
+export function workflowForGrader(workflow) {
+  return { ...workflow, calls: workflow.calls.map(/** @param {any} call */ call => ({ ...call,
+    ...(Array.isArray(call.audit) ? { audit: call.audit.map(/** @param {any} event */ ({ active_model, token_usage, ...evidence }) => evidence) } : {}),
+  })) };
+}
+
 /** @param {any} o @param {(runtime: any, request: any) => Promise<any>} [execute] */
 export async function runCodexAgent(o, execute = codexExec) {
   const variant = codexVariant(o.variant);
@@ -122,7 +131,7 @@ export async function runCodexAgent(o, execute = codexExec) {
   final = update.output.summary;
   const workflow = { variant: variant.identity, calls: calls.map(c => c.recorded), asked_human: stop || update.output.asked_human };
   turns.push({ role: 'codex_workflow', content: workflow });
-  material.push(`=== CODEX WORKFLOW RECORD (all findings and dispositions, including rejected/unresolved) ===\n${JSON.stringify(workflow)}`);
+  material.push(`=== CODEX WORKFLOW RECORD (all findings and dispositions, including rejected/unresolved) ===\n${JSON.stringify(workflowForGrader(workflow))}`);
   const d = codexDigest(events, o.leak, o.seen);
   const servedMain = [...new Set(calls.flatMap(c => c.servedMain))];
   return { ...d, events, turns, material: [...material, final], servedMain, usage: sumUsage(calls.map(c => c.usage)),

@@ -1,6 +1,6 @@
 {
-  "version": "codex-hillclimb-48-v2",
-  "parent_commit": "3b304129bbe04748b4cf2cf71806bb2cd5aeb2b1",
+  "version": "codex-hillclimb-48-v3",
+  "parent_commit": "7b475390ef377fd978dc53598b7cb4cfcd2a81a1",
   "issue": 48,
   "repetitions": 3,
   "screen": [
@@ -447,14 +447,15 @@
       "approval_scope": "paired-holdout-only"
     }
   ],
-  "flow_root": "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2",
+  "flow_root": "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3",
   "environment_variables": {
     "CODEX_EVAL_HOME": "/home/ubuntu/.config/trace-eval/codex",
     "TMPDIR": "/tmp",
     "CODEX_BIN": "/home/ubuntu/.codex/packages/standalone/releases/0.166.0-aarch64-unknown-linux-musl/bin/codex",
     "PATH": "/usr/local/bin:/usr/bin:/bin",
     "LANG": "C.UTF-8",
-    "TZ": "UTC"
+    "TZ": "UTC",
+    "CC_AGENTS_MATT_PLUGIN_DIR": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/plugin"
   },
   "analysis": {
     "primary_kind": "bug",
@@ -480,15 +481,23 @@
     "independent_provenance_review": "review-provenance.json and sanitized exposure-review.md/methods-review.md; factual agent audits, not human clearance"
   },
   "supersedes": {
-    "version": "codex-hillclimb-48-v1",
-    "immutable_commit": "36c1081983b93114073a9e334ae443f98633fbfe",
-    "outcomes": 0,
-    "approval": "none; no rows or approvals inherited"
+    "version": "codex-hillclimb-48-v2",
+    "immutable_preparation_commit": "b1dc97f18d46f2a54c2b1cf0a79f7a2143339f60",
+    "immutable_actual_commit": "daa5f4bf581775c5214dc8228aedfbfdd5518136",
+    "actual_status": "INCONCLUSIVE: 3 scored, 1 failed, 29 unstarted; 17 native model CLI calls. No result or approval inherited."
   },
   "split_revision": {
     "rule": "deriveV2Split(cases.metadata.json, immutable v1 protocol): numerically smallest selected screen nonpilot primary bug PR; move its entire cluster",
     "moved_cluster": "pr14",
     "pool_count": 21,
     "original_selection_limit": "V1 selected this pool after author exposure and explicitly conditioned its split on exposure status. V2 repairs only the partition and lattice barrier; it does not establish author blindness, unseen data, or independence."
+  },
+  "runtime_revision": {
+    "reason": "Technical rendering/native-envelope and immutable source-loading corrections only; competitor instructions/prompts/control flow and all rubric/schema/metric/analysis gates unchanged.",
+    "outcome_exposure": "Partial v2 outcomes were observed. V3 is not a wholly blind pre-outcome design; no selection, threshold, workflow or quality tuning follows those outcomes.",
+    "freshness": "Whole fresh 33-key baseline after whole fresh calibration v5 PASS; never resume 29 keys, replace failed key or pool 3 historical scores.",
+    "native_harness": "Null template only. V2 first-flag delegation was v2-only; future agent invocation requires fresh explicit human delegation.",
+    "source_pin": "Exact immutable Matt manifest and directory in environment/state, verified before setup/auth and after copy; never mutable newest-cache selection in this flow.",
+    "calibration": "Actual v5 PASS required before any baseline approval gate can pass. No v5 run or approval exists."
   }
 }
