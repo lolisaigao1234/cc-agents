@@ -69,3 +69,25 @@ approval and no live results describes preparation, while the separate sealed
 report exits **0 / PASS**. No protected runtime, README, manifest, protocol, test
 or private bundle bytes changed. #48/#49 still require their own future frozen
 experiment protocols and approvals; calibration does not authorize those calls.
+
+## #48 v2 baseline preparation
+
+[Draft PR #52](https://github.com/lolisaigao1234/cc-agents/pull/52) contains the
+[exact v2 baseline packet](codex-hillclimb-48/approval.md) and
+[parent preparation review](codex-hillclimb-review-48.md). Screen: 11 cases with
+three reps, 33 keys per arm. Reserved validation: 10 cases, 30 keys per arm.
+Five primary PR groups per split permit the unchanged conditional 95% gate to
+pass mathematically; power remains low and independence is unproved. All pilots
+remain in screen. No baseline/candidate/holdout run or approved flow exists.
+
+The catalog-read incident exposed answer-bearing author context. V2 records the
+full persisted catalog, unknown original response truncation and postexposure pool
+selection. Exact v13/runtime bytes remain unchanged. The bounded potential claim
+is fixed-candidate validation within this finite benchmark, not certified unseen
+or blind data. These limits are part of the proposed real approval request.
+
+The offline plan and 14 protocol tests pass after merge. Calibration v4 still
+verifies unchanged. Invalid baseline evidence now withholds completeness/noise;
+valid baseline-only results can disclose descriptive repeat variability. The next
+step is real exact baseline-screen approval; #49 still waits for baseline evidence
+and its later separate approval. Adoption remains INCONCLUSIVE.

@@ -146,3 +146,31 @@ release was created. All v1 checks remain unchanged, including six trailing-
 whitespace lines in three raw red logs. Scoped whitespace checks exclude retained
 raw logs; no blanket green claim is made. No push, PR mutation, comment, watch,
 issue mutation, model/eval-authentication call or remote replay was performed.
+
+## Parent review and optional explicit native-command delegation
+
+Merged v2 preparation `e6606a8c329cb6fa2cbf6283ce514130adb98892` verifies the
+same manifest/protocol/plan identities above. The [parent review](../codex-hillclimb-review-48.md)
+records no actionable Spec issue or hard Standards violation, plus one deferred
+P3 maintenance note. These final report links do not change normative execution
+policy or the frozen helper bytes.
+
+The default native procedure above leaves the first `--approve-harness` invocation
+to the human. To have the agent execute all approved keys, the human may instead
+explicitly delegate that exact first-key command as part of the same concrete
+baseline response, for example:
+
+> I approve the exact v2 baseline-screen packet and disclosed limits above, and
+> explicitly authorize the agent to invoke `--approve-harness` for the first
+> planned baseline key in the fresh v2 screen flow, then run the remaining approved
+> baseline keys. This delegation applies only to this frozen manifest/protocol and
+> 33-key baseline stage. It approves no changed hashes, candidate, holdout, Claude,
+> reset redemption or schedule changes.
+
+This is an explicit user exception being requested, not permission already held
+and not an agent interpretation of ordinary baseline approval. Without that real
+explicit delegation, the human-only flag instruction remains in force. A real
+response must be faithfully recorded against these exact identities before any
+flow creation, credential access or native invocation. Never forge a digest or
+write an approved state directly; the native gate must compute and record it.
+The first approved invocation proceeds to actual execution; it is not a dry run.
