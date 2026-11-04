@@ -1,7 +1,13 @@
 {
-  "version": "codex-hillclimb-48-v1",
+  "version": "codex-hillclimb-48-v2",
   "status": "UNAPPROVED_PREPARATION",
-  "parent_commit": "bd1ce2c4d6823fd4d0306c845aa2c5551788b513",
+  "parent_commit": "3b304129bbe04748b4cf2cf71806bb2cd5aeb2b1",
+  "history": {
+    "v1_commit": "36c1081983b93114073a9e334ae443f98633fbfe",
+    "v1_manifest_sha256": "dc42cc18e8192fbe5f7635dcf174e8dd64a17d981e55543f5a50d581815c288a",
+    "outcomes_inherited": false,
+    "approvals_inherited": false
+  },
   "inputs": [
     {
       "path": "docs/research/codex-hillclimb-48/cases.metadata.json",
@@ -9,7 +15,7 @@
     },
     {
       "path": "docs/research/codex-hillclimb-48/cli.mjs",
-      "sha256": "74530a920c3b291057b31f769e272dd946a99272b2a4dd350563734138233d4a"
+      "sha256": "1f00d1ccf68d99b34c440d846b5f02a6a79c69b47d0ecfae831cf9c03ec6675c"
     },
     {
       "path": "docs/research/codex-hillclimb-48/credential-metadata.json",
@@ -20,32 +26,44 @@
       "sha256": "0237c0755d31e493f596227cb8097f92054e0e416d35306d7922f237c01828f4"
     },
     {
+      "path": "docs/research/codex-hillclimb-48/exposure-review.md",
+      "sha256": "966189da0ffc3b78ee34d4e8c5d7713c8e50a98913d2d0debfd2d5e8e7af50b6"
+    },
+    {
       "path": "docs/research/codex-hillclimb-48/exposure.json",
-      "sha256": "cf1cadecfe68fbe107c835e0deeff3f93f8da5712c5ca0ec52c3388e333aeff4"
+      "sha256": "32d92b2a5d3e6a707ae5bda9ce977cf9df79983373315f8769b8f3b94af51737"
     },
     {
       "path": "docs/research/codex-hillclimb-48/flow-state.template.json",
-      "sha256": "f694e9b2de9eff3ade317df86f9a663100e733a636b49db3337a476e84d31395"
+      "sha256": "6a543e3392533640d4dd1facd3ace87c128f6c7029af80367ffeaf56da596452"
     },
     {
       "path": "docs/research/codex-hillclimb-48/freeze.mjs",
-      "sha256": "062e9336233c917ed812afec14b9649734e15f9ec133c6b70fad57ebc9c5e1d4"
+      "sha256": "b52c4cee12e38fab7d4bb76b7e48968e9a227b992ba2d9c756b981665c906ccf"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/methods-review.md",
+      "sha256": "34f220c474f18384952872b795988ee741437cf11b01e280d07502e11e7cf67f"
     },
     {
       "path": "docs/research/codex-hillclimb-48/protocol.json",
-      "sha256": "12f7e74d60d582013eedce4ad0190640b68bfa24e2ee6dbf4c43d01abe88b8ba"
+      "sha256": "8dc56d50a31612f72f6d80ffb1237030869c72a79ad1332404523cfb788c3090"
     },
     {
       "path": "docs/research/codex-hillclimb-48/protocol.md",
-      "sha256": "2e459828fe5c37c2f55eb63df02957ca3dd1d6718ef57f3905a30475d372d20e"
+      "sha256": "5b0eb39a176c7172185c61bc10505ad2cd6a467a70fee5725887119bf349f081"
     },
     {
       "path": "docs/research/codex-hillclimb-48/protocol.mjs",
-      "sha256": "4d5fdff570174301fc36f431ac7e84c2d3de041d442224c0ecbd838350320f8a"
+      "sha256": "5372801863ab0aa399aef070116a8a275d7c941f424bf99af8b2b1339176ebb6"
     },
     {
       "path": "docs/research/codex-hillclimb-48/protocol.test.mjs",
-      "sha256": "f31b219725ec0d3387a92d6881ee6fdd2a8f94e43e87aeba0390168fb41648eb"
+      "sha256": "a1738fd66981399c4f02f9543973b8fe2ac71bb5193be99a5656c766194355a4"
+    },
+    {
+      "path": "docs/research/codex-hillclimb-48/review-provenance.json",
+      "sha256": "ae12d943d4125bfeed3da18f1358c44fa1a1e6c0be6cdbe30dc9330c8c23d8cc"
     }
   ],
   "variables": {
@@ -102,11 +120,6 @@
   },
   "source_objects": [
     {
-      "id": "pr14-r0",
-      "base": "ef95e2e41210e77472f3b86d87f996c25290e7d3",
-      "head": "c659ccb184919091e2aed3c58dd238925c7bdaa5"
-    },
-    {
       "id": "pr16-r1",
       "base": "4dc6c541abbac66fcc695be0121f79f6f317c425",
       "head": "8b2a99f55f1ba27e0250a8b05c9d3db703696763"
@@ -162,6 +175,11 @@
       "head": "195172b212f85c6594c88739604435b310fd3a68"
     },
     {
+      "id": "pr14-r0",
+      "base": "ef95e2e41210e77472f3b86d87f996c25290e7d3",
+      "head": "c659ccb184919091e2aed3c58dd238925c7bdaa5"
+    },
+    {
       "id": "pr20-r0",
       "base": "26c63d3649d76956a9c6e444711fa584a27f6b32",
       "head": "aec400b8445106e27e368d9f99389f0e20562807"
@@ -207,5 +225,5 @@
       "head": "2118d422df91951393096e1ab9627847b3489f9a"
     }
   ],
-  "permission": "None. Human response and independent exposure review required before any authentication/model/replay operation."
+  "permission": "None. Parent review and real human exact stage approval including disclosed exposure/readiness/inference limits required before authentication/model/replay. Independent provenance audits are bound inputs, not human clearance."
 }

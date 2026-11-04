@@ -1,0 +1,42 @@
+{
+  "comparison_commit": "36c1081983b93114073a9e334ae443f98633fbfe",
+  "calibrated_runtime_members": 150,
+  "protected_harness_members": 119,
+  "private_members": 32,
+  "bound_normative_inputs": 14,
+  "files": [
+    {
+      "path": "evals/review/variants/v13/variant.json",
+      "sha256": "daf18bd39385234b4393c3a9a9c7894a77281dc4e133034b9f8dbddc23c48d8e",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/lib/codex-agent.mjs",
+      "sha256": "1f104a8490bc4db8bbc83a225084fd555be5b1d81dc045f591ebcf0807600955",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/lib/codex-variants.mjs",
+      "sha256": "aca29602523bd606ad4c67b063fb36c620bf3ff9d26b7ba299ae02fb3bdb9a85",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/run.mjs",
+      "sha256": "a50f094e53469c5738b7cc8d1d85d604ae8756eeabe75dab5e584481c083b7d8",
+      "unchanged": true
+    },
+    {
+      "path": "evals/review/lib/grade.mjs",
+      "sha256": "cc50f3202e0b423646565b92938866b8b81085def18605af94f2ce5d926d72e2",
+      "unchanged": true
+    }
+  ],
+  "calibration_v4_plan_byte_identical": true,
+  "v1_checks_and_calibrated_paths_diff_empty": true,
+  "v1_raw_logs_with_trailing_whitespace": [
+    "red-5.log",
+    "red-7.log",
+    "red-8.log"
+  ],
+  "v1_raw_trailing_whitespace_lines": 6
+}

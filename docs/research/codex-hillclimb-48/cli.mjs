@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Read-only offline commands. There is deliberately no run/approve subcommand.
 import assert from 'node:assert/strict';
+import { isDeepStrictEqual } from 'node:util';
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,74 +21,81 @@ function lines(path) {
 }
 
 export function nativeReport(flow, protocol, manifest, split) {
-  const rows = [], failures = [], issues = [], sources = [];
+  const rows = [], failures = [], issues = [], sources = [], evidence = [];
   if (existsSync(flow)) {
     assert.equal(realpathSync(flow), resolve(flow), 'flow symlink');
     assert.equal(lstatSync(flow).mode & 0o077, 0, 'restricted flow permissions required');
   }
   for (const arm of ['baseline', 'v13']) {
     const dir = join(flow, arm), native = lines(join(dir, 'results.jsonl'));
-    failures.push(...lines(join(dir, 'errors.jsonl')));
+    const issue = (message, row) => issues.push({ arm, message, ...(row ? { case_id: row.prompt_id, rep: row.rep } : {}) });
+    failures.push(...lines(join(dir, 'errors.jsonl')).map(f => ({ ...f, arm })));
     for (const file of ['results.jsonl','errors.jsonl']) if (existsSync(join(dir, file)))
       sources.push({ path: `${arm}/${file}`, sha256: sha(readFileSync(join(dir, file))) });
     for (const r of native) {
       assert.ok(protocol[split].some(c => c.id === r.prompt_id) && Number.isInteger(r.rep) && [0,1,2].includes(r.rep), 'unexpected native key');
-      assert.deepEqual(r.meta?.execution_config, manifest.expected_execution[arm], 'incomparable native execution identity');
-      assert.deepEqual(r.meta?.codex?.variant, manifest.expected_execution[arm].variant, 'native variant mismatch');
+      if (!isDeepStrictEqual(r.meta?.execution_config, manifest.expected_execution[arm])) issue('incomparable native execution identity', r);
+      if (!isDeepStrictEqual(r.meta?.codex?.variant, manifest.expected_execution[arm].variant)) issue('native variant mismatch', r);
       const calls = r.meta?.codex?.calls ?? [], judge = r.meta?.judge_provenance?.calls ?? [];
       for (const call of [...calls, ...judge]) {
         try { assertModel(call.requested_model, call.served_model ? [call.served_model] : [], 'configured_only'); }
-        catch { issues.push(`observed serving substitution: ${arm}/${r.prompt_id}/${r.rep}`); }
+        catch { issue(`observed serving substitution: ${r.prompt_id}/${r.rep}`, r); }
         if (call.observed_service_tier != null && !['fast', 'priority'].includes(call.observed_service_tier))
-          issues.push(`observed tier substitution: ${arm}/${r.prompt_id}/${r.rep}`);
+          issue(`observed tier substitution: ${r.prompt_id}/${r.rep}`, r);
       }
       if (!calls.length || !judge.length || calls.some(c => c.requested_model !== 'gpt-6.1-sol' || c.effort !== 'high' || c.service_tier !== 'fast') ||
         judge.some(c => c.requested_model !== 'gpt-6-astra' || c.effort !== 'high' || c.service_tier !== 'fast' || c.audit?.some(e => e.event === 'PreToolUse')))
-        issues.push(`protocol provenance: ${arm}/${r.prompt_id}/${r.rep}`);
-      if (r.meta?.retries || r.meta?.judge_retries || r.meta?.failed_attempts?.length) failures.push({ kind: 'native_retry' });
+        issue(`protocol provenance: ${r.prompt_id}/${r.rep}`, r);
+      if (r.meta?.retries || r.meta?.judge_retries || r.meta?.failed_attempts?.length) failures.push({ arm, kind: 'native_retry' });
       const grade = r.grade ?? {};
       rows.push({ arm, case_id: r.prompt_id, rep: r.rep, status: r.status,
         recall: grade.recall ?? null, fixed: grade.fixed ?? null, reintroduced: grade.reintroduced ?? null,
         harmful: grade.harmful, noise: grade.noise, rounds: grade.reviews,
+        precision: grade.precision ?? null, reviews_to_pass: r.reviews_to_pass ?? null, hook_denials: r.hook_denials ?? null,
         asked_human: r.asked_human, tests_before: r.meta?.tests?.before, tests_after: r.meta?.tests?.after,
         latency_s: r.latency_s, in_tokens: r.in_tokens ?? null, out_tokens: r.out_tokens ?? null });
+      evidence.push({ arm, case_id: r.prompt_id, rep: r.rep,
+        trace: `${arm}/traces/${r.prompt_id}_rep${r.rep}.json`,
+        judge_input: `${arm}/judge-inputs/${r.prompt_id}_rep${r.rep}.json`,
+        agent_events: `${arm}/codex-events/${r.prompt_id}_rep${r.rep}.jsonl`,
+        judge_events: `${arm}/codex-events/${r.prompt_id}_rep${r.rep}_judge.jsonl`,
+        attempts: `${arm}/attempts/${r.prompt_id}_rep${r.rep}` });
       // Native success may precede a failed post-row write. Check these too.
       for (const path of [`traces/${r.prompt_id}_rep${r.rep}.json`, `judge-inputs/${r.prompt_id}_rep${r.rep}.json`,
         `codex-events/${r.prompt_id}_rep${r.rep}.jsonl`, `codex-events/${r.prompt_id}_rep${r.rep}_judge.jsonl`,
         ...(arm === 'baseline' ? [`ref/${r.prompt_id}`] : [])])
-        if (!existsSync(join(dir, path))) issues.push(`missing retained evidence: ${arm}/${path}`);
+        if (!existsSync(join(dir, path))) issue(`missing retained evidence: ${path}`, r);
       const keyDir = join(dir, 'attempts', `${r.prompt_id}_rep${r.rep}`);
-      if (!existsSync(keyDir)) issues.push(`missing key attempts: ${arm}/${r.prompt_id}/${r.rep}`);
+      if (!existsSync(keyDir)) issue(`missing key attempts: ${r.prompt_id}/${r.rep}`, r);
       else {
         const names = readdirSync(keyDir);
         if (!names.some(n => n.startsWith('agent-')) || !names.some(n => n.startsWith('judge-')))
-          issues.push(`missing agent/judge attempts: ${arm}/${r.prompt_id}/${r.rep}`);
+          issue(`missing agent/judge attempts: ${r.prompt_id}/${r.rep}`, r);
       }
     }
     const attempts = join(dir, 'attempts');
-    if (native.length && !existsSync(attempts)) issues.push(`missing attempts: ${arm}`);
+    if (native.length && !existsSync(attempts)) issue('missing attempts');
     if (existsSync(attempts)) for (const key of readdirSync(attempts)) {
       const match = /^(.*)_rep([0-2])$/.exec(key);
       assert.ok(match && protocol[split].some(c => c.id === match[1]), 'unexpected retained attempt key');
       assert.equal(realpathSync(join(attempts, key)), join(attempts, key), 'attempt symlink');
-      if (!match || !native.some(r => r.prompt_id === match[1] && r.rep === Number(match[2]))) issues.push(`unscored attempted key: ${arm}/${key}`);
+      if (!match || !native.some(r => r.prompt_id === match[1] && r.rep === Number(match[2]))) issue(`unscored attempted key: ${key}`);
       for (const name of readdirSync(join(attempts, key))) {
         assert.match(name, /^(agent|judge)-[a-zA-Z0-9]+$/);
         const attempt = join(attempts, key, name);
         assert.equal(realpathSync(attempt), attempt, 'attempt directory symlink');
-        if (existsSync(join(attempt, 'failure.json'))) failures.push({ kind: 'retained_failure' });
-        if (!existsSync(join(attempt, 'index.json'))) { issues.push(`unsealed attempt: ${arm}/${key}/${name}`); continue; }
+        if (existsSync(join(attempt, 'failure.json'))) failures.push({ arm, kind: 'retained_failure' });
+        if (!existsSync(join(attempt, 'index.json'))) { issue(`unsealed attempt: ${key}/${name}`); continue; }
         const actual = treeInventory(attempt).filter(f => f.path !== 'index.json').map(({path,sha256}) => ({path,sha256}));
-        assert.deepEqual(actual, json(join(attempt, 'index.json')).files, 'changed retained attempt membership/bytes');
+        if (!isDeepStrictEqual(actual, json(join(attempt, 'index.json')).files)) issue(`changed retained attempt membership/bytes: ${key}/${name}`);
       }
     }
   }
-  const result = compareRows(protocol, split, rows, failures);
-  if (issues.length) { result.gate = 'INCONCLUSIVE'; result.blockers.push(...issues); }
-  return { ...result, sources, failure_evidence_records: failures.length,
+  const result = compareRows(protocol, split, rows, failures, issues);
+  return { ...result, sources, normalized_rows: rows, evidence, failure_evidence_records: failures.length,
     failure_count_note: 'Sidecars/retry markers/retained failures can refer to the same attempt; these counts are not independent or summed usage.',
     observed_served_identity: 'Consult retained per-call provenance; configured settings alone are not observed identity.',
-    api_equivalent_spend_usd: null, raw_review: 'PENDING independent attempt, human-stop, test and exposure review' };
+    api_equivalent_spend_usd: null, raw_review: 'PENDING independent attempt, human-stop, test and provenance review' };
 }
 
 async function main() {
@@ -103,14 +111,14 @@ async function main() {
     assert.equal(args.length, 0);
     const plan = makePlan(protocol);
     return { ...plan, ...current, calibration: manifest.calibration, variants: Object.fromEntries(Object.entries(manifest.expected_execution).map(([arm,c]) => [arm,c.variant])),
-      environment_variables: manifest.variables, status: 'UNAPPROVED; exposure clearance and exact stage-specific human approval required' };
+      environment_variables: manifest.variables, status: 'UNAPPROVED v2; parent review and exact stage-specific human approval including disclosed provenance limits required' };
   }
   if (command === 'gate') {
     const stage = protocol.stages.find(s => s.id === options['--stage']); assert.ok(stage, 'unknown stage');
     assert.ok(!options['--split']);
     requireApproval(options['--approval'] ? json(options['--approval']) : null, current, stage.approval_scope);
     return { structural_approval_match: true, execution_started: false, ...current,
-      remaining: 'Independently authenticate human provenance, verify prerequisite stage report and exposure review; human flow harness approval and per-key inventory reconciliation remain mandatory. No state written.' };
+      remaining: 'Independently authenticate human provenance, verify prerequisite stage report and bound independent provenance review; human flow harness approval and per-key inventory reconciliation remain mandatory. No state written.' };
   }
   const split = options['--split'];
   assert.ok(['screen','holdout'].includes(split) && args.length === 2, 'report needs exactly --split screen|holdout');

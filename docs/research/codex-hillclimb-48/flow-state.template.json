@@ -24,6 +24,6 @@
   "banked_resets": {
     "automatic_redemption": false
   },
-  "experiment": "codex-hillclimb-48-v1",
+  "experiment": "codex-hillclimb-48-v2",
   "quality_and_latency_before_tokens": true
 }

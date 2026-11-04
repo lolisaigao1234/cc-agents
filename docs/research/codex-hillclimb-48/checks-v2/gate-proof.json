@@ -1,0 +1,90 @@
+{
+  "plan": {
+    "argv": [
+      "node",
+      "docs/research/codex-hillclimb-48/cli.mjs",
+      "plan"
+    ],
+    "exit": 0,
+    "stdout_sha256": "9401adab8086fc74a939b2e7e894bb87902416e9335164e07526fe97f70eaedf",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "network_connect_calls": 0,
+    "credential_path_opens": 0
+  },
+  "missing-approval": {
+    "argv": [
+      "node",
+      "docs/research/codex-hillclimb-48/cli.mjs",
+      "gate",
+      "--stage",
+      "baseline-screen"
+    ],
+    "exit": 2,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "d682bff114470cb38fdbebbd8d3991f016368638cb311908e3a3a9b1388942b0",
+    "network_connect_calls": 0,
+    "credential_path_opens": 0
+  },
+  "v1-manifest-not-approval": {
+    "argv": [
+      "node",
+      "docs/research/codex-hillclimb-48/cli.mjs",
+      "gate",
+      "--stage",
+      "baseline-screen",
+      "--approval",
+      "/home/ubuntu/cc-agents-artifacts/issue-48/preparation-v2/v1-manifest-not-approval.json"
+    ],
+    "exit": 2,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "d682bff114470cb38fdbebbd8d3991f016368638cb311908e3a3a9b1388942b0",
+    "network_connect_calls": 0,
+    "credential_path_opens": 0
+  },
+  "calibration-approval-rejected": {
+    "argv": [
+      "node",
+      "docs/research/codex-hillclimb-48/cli.mjs",
+      "gate",
+      "--stage",
+      "baseline-screen",
+      "--approval",
+      "/home/ubuntu/cc-agents-artifacts/issue-46/approval-v4-full-send-20261103.json"
+    ],
+    "exit": 2,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "d682bff114470cb38fdbebbd8d3991f016368638cb311908e3a3a9b1388942b0",
+    "network_connect_calls": 0,
+    "credential_path_opens": 0
+  },
+  "empty-screen-report": {
+    "argv": [
+      "node",
+      "docs/research/codex-hillclimb-48/cli.mjs",
+      "report",
+      "--split",
+      "screen"
+    ],
+    "exit": 2,
+    "stdout_sha256": "c616690dfcaefbc0efc875101f88bf5f4677ce19f545a898c9d0153ca39b38b9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "network_connect_calls": 0,
+    "credential_path_opens": 0
+  },
+  "empty-holdout-report": {
+    "argv": [
+      "node",
+      "docs/research/codex-hillclimb-48/cli.mjs",
+      "report",
+      "--split",
+      "holdout"
+    ],
+    "exit": 2,
+    "stdout_sha256": "9e6ce9e8e574e05d9883d6ce6356b8a1dbef58c848a894e8d2cbefbeed315543",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "network_connect_calls": 0,
+    "credential_path_opens": 0
+  },
+  "flow_created": false,
+  "stale_v1_note": "No actual v1 approval ever existed. The actual immutable v1 manifest is rejected as approval; public-interface synthetic tests separately reject stale hash/scope and missing real source fields. This proof creates no approval."
+}

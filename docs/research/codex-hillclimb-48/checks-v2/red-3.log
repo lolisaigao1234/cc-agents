@@ -1,0 +1,20 @@
+✖ baseline-only variability reports raw triples and PR-weighted replicate spread, not confidence coverage (3.139704ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 105.170059
+
+✖ failing tests:
+
+test at docs/research/codex-hillclimb-48/protocol.test.mjs:223:1
+✖ baseline-only variability reports raw triples and PR-weighted replicate spread, not confidence coverage (3.139704ms)
+  TypeError [Error]: Cannot read properties of undefined (reading 'interpretation')
+      at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-f250e28e/docs/research/codex-hillclimb-48/protocol.test.mjs:239:18)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)

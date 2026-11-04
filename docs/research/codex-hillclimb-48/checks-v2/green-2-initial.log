@@ -1,0 +1,31 @@
+✖ native report reads runner rows and exposes substitution and missing retained evidence (19.139749ms)
+✔ native baseline provenance and evidence determine readiness before any candidate exists (137.851753ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 256.79028
+
+✖ failing tests:
+
+test at docs/research/codex-hillclimb-48/protocol.test.mjs:126:1
+✖ native report reads runner rows and exposes substitution and missing retained evidence (19.139749ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(report.blockers.some(b => b.startsWith('missing retained evidence')))
+  
+      at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-f250e28e/docs/research/codex-hillclimb-48/protocol.test.mjs:146:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

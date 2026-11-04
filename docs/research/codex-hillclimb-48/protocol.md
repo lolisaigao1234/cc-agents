@@ -1,57 +1,79 @@
-# Frozen preparation protocol for #48 and the later #49 comparison
+# Frozen v2 preparation protocol for #48 and the later #49 comparison
 
-Version `codex-hillclimb-48-v1`, prepared 2026-11-04. This is a proposal for
-review, not approval or a completed baseline. Calibration v4 PASS is a prerequisite
-only. Adoption is INCONCLUSIVE. No baseline, candidate, holdout or Claude calls
-are permitted by this document. The parent owns publication, approval and #49.
+Version `codex-hillclimb-48-v2`, prepared 2026-11-04 from parent integration
+`3b304129bbe04748b4cf2cf71806bb2cd5aeb2b1`. This is fresh pre-outcome preparation,
+not approval or a completed baseline. Calibration v4 PASS is a prerequisite only.
+Adoption is INCONCLUSIVE; no baseline, candidate, holdout or Claude calls are
+permitted by this document. The parent owns review, publication, approval and #49.
 
-## Fixed sample and exposure
+## Version history, fixed sample and exposure
 
-`protocol.json` is the exact ordered membership. All five pilot cases remain.
-Screen: 12 cases, six bug / three clean / three convergence, 36 rows per arm.
-Holdout: nine cases, four bug / two clean / three convergence, 27 rows per arm.
-Three independent fresh sessions/replays per case/arm, repetition labels 0–2;
-no shared model session or guaranteed random seed. All repetitions are scored.
-Pair by case and repetition label, not by a claim of common randomness.
+V1 remains reproducible at immutable commit
+`36c1081983b93114073a9e334ae443f98633fbfe`, including its original manifest,
+protocol, helpers, raw check bytes/hashes and incident claims. To reproduce it,
+use that commit with its bound host/dependencies/private calibration inventory;
+do not combine current helpers with the v1 manifest. No v1 experiment rows or
+approvals exist or inherit. Current paths advance to v2 under a fresh manifest.
+`checks/` remains byte-identical v1 evidence; `checks-v2/` is separate evidence.
 
-The screen deliberately oversamples bug cases for recall while matching clean
-and convergence control counts. It covers edit/commit/doc gates, documentation,
-deadline behavior and repeated review. It is a fixed purposive sample, not a
-random repository benchmark. No sample-size expansion after outcomes. Additional
-screen cases were selected by kind/PR identity and historical metadata, not
-candidate grades. Other catalog entries and exclusions remain listed; none of
-the five pilot cases is removed for readiness or quality.
+`protocol.json` is the exact ordered membership. `deriveV2Split` in the bound
+numeric helper reads only `cases.metadata.json` and immutable v1 selected membership.
+It retains the 21 selected eligible cases, reserves all pilot clusters in screen,
+and chooses the numerically smallest optional selected screen primary bug PR.
+It moves that entire PR cluster to the front of the prior holdout. This selects
+PR14 (`pr14-r0`); no truth, difficulty, grade or candidate outcome enters the rule.
+The freezer independently verifies both lists against that derivation. The rule
+repairs the partition and arithmetic barrier before outcomes; it does not undo
+original postexposure pool selection or certify blindness.
 
-Screen groups: PR12,14,16,17,18,19,24,33,35 (nine PRs). PR18 has bug/convergence,
-PR19 clean/convergence, PR33 clean/convergence. Primary bug recall has six PR
-groups. Holdout groups: PR20,21,26,38 (four PRs); PR20 has bug/convergence,
-PR21 and PR26 each bug/clean/convergence. Primary holdout recall has four groups.
-IDs and PR groups are disjoint across splits. Shared PR cases and repetitions
-are never treated as independent trials. The existing dropped pr30 and harm-excluded clean-pr28 were removed on eligibility
-metadata before freeze. Four holdout bug groups have a minimum one-sided exact
-p of 1/16 and cannot pass 0.05. Thus v1 cannot support promotion: even otherwise
-passing heldout point gains remain INCONCLUSIVE. This is a design limitation,
-not permission to relax thresholds, add cases after results or claim a win.
-A new protocol with new eligible blind data is needed for a promotable design.
+Screen: 11 cases, five bug / three clean / three convergence, 33 rows per arm.
+Holdout: ten cases, five bug / two clean / three convergence, 30 rows per arm.
+All five pilot cases remain in screen. The full design remains 126 keys.
+Three fresh sessions/replays per case/arm, repetition labels 0–2; no shared model
+session or guaranteed random seed. All repetitions are scored. Pair by case and
+repetition label, without a claim of common randomness or statistical independence.
 
-Independence is an assumption, not a dataset fact: all cases share a repository,
-libraries, historical bugs and ancestry. For example PR26's base is PR24's head;
-later snapshots contain earlier product work. Disjoint PRs do not prove disjoint
-defects or training exposure. No raw heldout findings, traces, adjudications,
-bug records or judge responses may be opened for tuning. Metadata and hashes
-may reserve cases. The exact v13 was implemented before this preparation.
+Screen groups: PR12,16,17,18,19,24,33,35 (eight PRs). Primary bug PRs are
+16/17/18/24/35. Holdout groups and primary bug PRs: 14/20/21/26/38 (five).
+Bug/convergence and clean/convergence cases within a PR remain dependent.
+IDs and PR groups are disjoint across splits. The existing dropped pr30 and
+harm-excluded clean-pr28 remain excluded on eligibility metadata before outcomes.
+The original purposive pool is retained for continuity and bug/clean/convergence
+coverage, not as a random repository sample. No sample expansion after outcomes.
 
-**Exposure incident:** the implementer mistakenly requested the entire
-`data/cases.json` with `cat` before projecting metadata. Returned text was
-truncated, but labels/notes for several non-heldout families were displayed.
-The reserved rows' labels were not visible in the displayed excerpt. We cannot
-certify an untouched holdout from that fact: the entire catalog file was accessed,
-and prior-session exposure is unknown. `exposure.json` preserves the incident.
-Before baseline approval an independent maintainer must audit the session/tool
-transcript and prior provenance, with a recorded conclusion about this limited
-holdout. If supportable blindness cannot be established, v1 stops INCONCLUSIVE;
-no swapping cases after results. A new dataset/protocol needs new review before
-outcomes. Neither an agent assertion nor calibration PASS resolves this gate.
+At G=5, minimum exact one-sided p=1/32 and lower95=min(D_g). Passing is possible
+only if every primary PR gain clears T. This removes v1's four-group lattice
+barrier without lowering the 95% gate; it is still low power, not adequate-power
+certification. Independent-PR/common symmetric-shift assumptions remain unproved.
+
+All cases share source/history, possible defect families and ancestry; PR26's base
+is PR24's head. PR disjointness does not imply independent data. Past sessions and
+training exposure remain unknown. Never open raw heldout findings, traces,
+adjudications, bug records or judge responses for tuning. Fresh implementer used
+only the permitted metadata projection and the supplied audits, read in full.
+
+**Exposure correction:** original preparation requested the entire catalog before
+projecting metadata. The independent audit found all 57 catalog rows in persisted
+activity, with answer-bearing fields for every reserved ID. Original model-facing
+truncation is unresolved; v1's displayed-excerpt claim is unverified self-report.
+The original author acknowledged label/note exposure and explicitly conditioned
+its split on exposure status. No recorded post-incident v13/workflow/runner/grader
+changes or observed experiment outcomes exist. Preserve that distinction.
+
+[Incident record](exposure.json), [independent exposure audit](exposure-review.md),
+[methods audit](methods-review.md) and [review provenance](review-provenance.json)
+are normative inputs. These are actual independent agent audits, not human
+clearance or certification. V1's extra-human-maintainer clearance was an invented
+proposal, not a user requirement; v2 removes `holdout_acceptable=true` and requires
+no fabricated reviewer signature. The existing real human exact-stage approval
+must transparently include these provenance limits before authentication/models.
+
+The bounded possible claim is a fixed untuned candidate validated on prereserved
+non-screen PR clusters within this finite benchmark under the stated assumptions,
+with shared-source, author-exposure, postexposure selection and unknown-past-exposure
+limitations. No certified unseen/blind data or population independence is claimed.
+A numeric pass cannot settle provenance; unsupported comparability or provenance
+requires INCONCLUSIVE. Human approval cannot retroactively make the catalog blind.
 
 ## Configuration and immutable inputs
 
@@ -67,12 +89,12 @@ unknown remains null. Observed substitution fails. No fallback backend or tier.
 
 The manifest binds the calibrated 150-member runtime and 119-member protected
 harness, calibration protocol/preregistration/private membership, this protocol,
-flow-state template, numeric helper/tests/freezer, metadata/exposure records and
-external environment inventory. Directory membership is verified against git,
+flow-state template, numeric helper/tests/freezer, independent review records,
+metadata/exposure records and external environment inventory. Directory membership is verified against git,
 including untracked nonignored files. Helpers stay here because they are new
-experiment machinery, not dependencies of the calibrated runtime. They have their
-own full approval gate; no runtime file is relocated and no protected inventory
-is edited to evade verification. The actual calibration v4 plan must still pass.
+experiment machinery, not dependencies of the calibrated runtime. They are bound
+by the existing real human exact-stage approval gate; no runtime file is relocated
+and no protected inventory is edited to evade verification. The actual calibration v4 plan must still pass.
 
 Environment freeze binds platform/architecture, Node and Codex 0.166.0 including
 companions, system tools, npm launcher/runtime, installed Matt 1.3.2 full tree,
@@ -92,8 +114,22 @@ Fresh restricted flows are reserved at the paths in `protocol.json`; no approved
 state or real flow is created by preparation. The state template has null
 `harness_sha`. The human approves each exact new flow after reviewing the complete
 experiment packet. Existing calibration/historical `_state.json` approval is
-never copied. Agent execution must not use `--approve-harness`. `run.mjs
---dry-run` authenticates and accesses GitHub; it is not an offline check.
+never copied. Agent execution must not use `--approve-harness`.
+After an actual exact baseline approval, an authorized operator may create only
+the fresh restricted screen flow and install the unapproved template as
+`_state.json`; preserve the null harness_sha. The human reviews the exact manifest,
+helper/environment identities, state and first baseline-screen key argv. Only the
+human may append `--approve-harness` to that exact first key command from plan.json
+and run it personally from the repository root with the frozen environment.
+This native flag writes harness_sha and then proceeds to authentication/execution
+of that key; it is not an offline approval-only command. That first key must not
+then be invoked again. Retain its approval provenance and all evidence; subsequent
+agent invocations use the unchanged plan without the flag after per-key preflight.
+The native digest is narrower than the experiment manifest, so neither replaces
+the other. Candidate and holdout stages still require their separate real exact
+scope approvals; holdout is a distinct fresh native flow requiring its own human
+review. No agent writes an approved state, copies a historical approval, or uses an
+execution helper to bypass this sequence. `run.mjs --dry-run` authenticates and accesses GitHub; it is not an offline check.
 
 Offline `plan` prints proposed argv only. Execute baseline screen first. Seal its
 report/noise estimate before separately approving the sole candidate screen.
@@ -122,7 +158,7 @@ key, only transient 429/529/5xx/overload/rate-limit, jittered exponential backof
 bounded by the case deadline. A whole app retry can create another private replay;
 a grading retry can repeat a completed first grade. All remain separate retained
 attempts; successful retries never erase failure evidence. A failed attempt makes
-the adoption evidence INCONCLUSIVE under v1, even if native scoring later succeeds.
+the adoption evidence INCONCLUSIVE under v2, even if native scoring later succeeds.
 No discretionary replacement/regrading, majority vote or hidden failure pooling.
 
 Case scoring ceiling 5,400 seconds includes replay, tests, agent and grading.
@@ -131,10 +167,10 @@ deadline minus five seconds. Host tests have existing 600-second process limits.
 At most three review rounds; Update preserves legitimate human stops. Up to ten
 Sol calls per app attempt, two Astra calls per grading attempt: up to 50 Sol +
 10 Astra per key with native retries, not a promise of billed-request counts or
-internal provider retry visibility. Baseline screen has 36 keys (at most 1,800
-Sol + 360 Astra CLI invocations); both screen arms 72; both holdout arms 54;
+internal provider retry visibility. Baseline screen has 33 keys (at most 1,650
+Sol + 330 Astra CLI invocations); both screen arms 66; both holdout arms 60;
 entire future design 126 keys (at most 6,300 Sol + 1,260 Astra). Without retries
-baseline screen has at most 360 Sol + 72 Astra. No token/output cap; the mandatory
+baseline screen has at most 330 Sol + 66 Astra. No token/output cap; the mandatory
 `--budget-usd 40` argument is a legacy Claude limit and does not price/cap Codex.
 
 Deadline scoring rejection drains in-flight retention/cleanup before the next
@@ -164,8 +200,24 @@ that PR for each rep), and let D_g be the mean paired v13-minus-baseline recall
 over cases/reps in that PR. Noise N is the equal-PR mean of each case's baseline
 `max(rep recall) - min(rep recall)` (case ranges average within PR first).
 Three repeats give a descriptive observed floor, not a population variance bound.
+Before candidate results exist, the validated baseline report publishes each primary
+case's raw recalls in rep0/1/2 order and min/max/range; each primary PR's
+per-repetition case mean; the three equal-PR macro recalls and their min/max/range.
+This empirical descriptive variability supplies no population confidence coverage
+from three repetitions or proof of PR independence. The macro recall range is
+reported separately from N and does not replace it. Incomplete or invalid baseline
+key/metric/native identity/provenance/evidence/failed-attempt validation withholds
+baseline.complete and all validated aggregates/noise/variability (null), with
+scheduled, received and valid-key denominators and reasons. Missing/invalid
+candidate rows do not invalidate an otherwise complete valid baseline. The same
+validation contract runs before normalized-row and native-report aggregation.
+Per-case known counts use unique valid scheduled rows; invalid raw numeric rows
+and evidence locators remain visible without manufacturing scores. Test coverage
+reports known/scheduled and observed pass/fail counts, not a claim of readiness.
+
 Do not use the three pairwise differences per case as independent observations.
-Freeze minimum practical gain 0.05 absolute recall. Threshold T = max(0.05,N).
+Retain the discretionary minimum practical gain 0.05 absolute recall, as chosen
+before outcomes to require a five-point meaningful improvement. Threshold T = max(0.05,N).
 Screen and holdout each use their own fresh baseline N with this same formula.
 
 Uncertainty: enumerate all 2^G sign flips of the G PR differences under the
@@ -187,7 +239,11 @@ case/rep must have v13 harmful <= baseline; every case/rep must have v13 rounds
 reintroduced fraction, or new host true-to-false test break is accepted.
 No missing metric or changed metric coverage can imply success. Harm and rounds
 use observed per-key non-increase, not a claim of population noninferiority.
-Human stops are not an adverse score to suppress: independently verify their
+These per-key dominance rules and any-failed-attempt INCONCLUSIVE are deliberate
+strict policy choices retained by the parent, beyond the issues' minimum rules.
+They can reject equal-mean stochastic arms due to rep pairing and can withhold
+adoption after a successfully recovered bounded retry. Do not call those costs
+issue-mandated or change them after outcomes. Human stops are not an adverse score to suppress: independently verify their
 legitimacy and preservation of rejected findings, unresolved decisions and tests.
 An illegitimate disappearance blocks adoption. Latency/usage are descriptive:
 quality/latency precede token savings; no post-result latency cutoff is introduced.
@@ -199,13 +255,13 @@ unresolved identity/exposure/retention/readiness/security issue is INCONCLUSIVE,
 with the denominator/gap reported. Screen PASS is provisional only. PROMOTE is
 allowed only after both splits pass for the exact unchanged final v13 and the
 independent evidence/human-stop review is recorded. Otherwise reject or report
-inconclusive reasons. No later prompt revision inherits results, thresholds,
+inconclusive reasons. These preparation choices grant no population guarantee. No later prompt revision inherits results, thresholds,
 exclusions or holdout wins. No Opus/Fable/pilot/v3/v4 calibration grades are pooled.
 
 ## Readiness, retention and gate
 
-Only the five pilot snapshots have the #45 full offline audit. Seven new screen
-and all nine reserved holdout cases have metadata/object availability checks,
+Only the five pilot snapshots have the #45 full offline audit. Six new screen
+and all ten reserved holdout cases have metadata/object availability checks,
 not a claim of passing tests or live readiness. The #45 matrix remains binding:
 pr16-r1 retains protected Node/live verification human requirements; pr24 has
 declared baseline failures; pr35-r0's five passing suites remain unverified;
@@ -240,7 +296,7 @@ releases. This preparation's source/config/checks are committed and reproducible
 local private checks hold only operational logs and hashes, no new raw answers.
 
 The next gate is parent review/merge, unchanged v4 plan and experiment freeze
-verification, independent exposure review, then a real human response bound to
+verification, the bound independent provenance audits, then a real human response bound to
 the manifest/protocol/complete helper+environment identity for baseline-screen
 only. Candidate and paired holdout approvals remain separate. Missing/stale/wrong
 scope approval must stop before authentication, state/output creation or models.

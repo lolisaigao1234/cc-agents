@@ -1,0 +1,21 @@
+{
+  "reviewed_commit": "36c1081983b93114073a9e334ae443f98633fbfe",
+  "date": "2026-11-04",
+  "kind": "actual independent agent audits; not human approval, exposure clearance or blindness certification",
+  "implementer": "fresh revision from supplied sanitized audits and metadata projection; no subagents",
+  "authority": "Parent pre-outcome v2 decisions in task; no prior v1 outcomes or approvals",
+  "exposure": {
+    "source_path": "/home/ubuntu/cc-agents-artifacts/issue-48/review-notes/exposure-review.md",
+    "source_bytes": 13334,
+    "source_sha256": "fd3f72e4fb298e40aa39641bdec8566b7dac829e05cce354a21f9015f30a4f31",
+    "public_path": "exposure-review.md",
+    "public_sha256": "966189da0ffc3b78ee34d4e8c5d7713c8e50a98913d2d0debfd2d5e8e7af50b6"
+  },
+  "methods": {
+    "source_path": "/home/ubuntu/cc-agents-artifacts/issue-48/review-notes/methods-review.md",
+    "source_bytes": 14472,
+    "source_sha256": "a9358982d817608b54b2fbef201199faef06dd82e01938f3ad9d49d222e67ada",
+    "public_path": "methods-review.md",
+    "public_sha256": "34f220c474f18384952872b795988ee741437cf11b01e280d07502e11e7cf67f"
+  }
+}

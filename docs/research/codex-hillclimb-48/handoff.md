@@ -1,100 +1,126 @@
-# #48 implementation handoff: preparation complete, execution unapproved
+# #48 v2 implementation handoff — execution remains unapproved
 
-This worktree began clean and exactly at parent merge
-`bd1ce2c4d6823fd4d0306c845aa2c5551788b513` (merged PR #51). Required ancestry
-was checked before work. Both local and freshly fetched
-`43-codex-calibration-v3-followthrough` tips at
-`7d3d2a7b818b14045a7a6ccf0eb8991bed489339` were merged before handoff:
-both were already ancestors. No other branch, tstack work, source eval checkout,
-credentials, personal configuration, schedules or prior artifacts were changed.
+Fresh implementer began clean at integration merge
+`3b304129bbe04748b4cf2cf71806bb2cd5aeb2b1`, confirmed immutable v1 commit
+`36c1081983b93114073a9e334ae443f98633fbfe` is an ancestor, and read CLAUDE,
+GLOSSARY, active ADRs, issues #48/#49 spec+comments via JSON, implement-spec/TDD
+skills and both independent private audits in full. No subagents were used.
+Local and freshly fetched `43-codex-calibration-v3-followthrough` tips were merged;
+both remain `3b30412` and were already ancestors. The parent owns draft PR #52;
+this implementer made no push, PR mutation, comment, watch or issue mutation.
 
-Deliverables are [exact review/approval packet](approval.md),
-[frozen rules](protocol.md), [membership/config](protocol.json),
-[complete manifest](experiment-manifest.json), [offline plan](plan.json),
-[read-only CLI](cli.mjs), [numeric analysis](protocol.mjs),
-[public-interface tests](protocol.test.mjs) and [check ledger](checks/summary.json).
-No protected README or calibrated runner/grader/schema/metrics/v13 bytes changed.
+V1 remains reproducible at its immutable commit, with original manifest, helpers,
+incident claims, all check bytes and SHA256 history unchanged. V1 had zero
+experiment outcomes or approvals. Current directory advances to fresh
+`codex-hillclimb-48-v2`; no v1 row or approval inherits. Installed environment
+inventory remains byte-identical; full dependency trees were not duplicated.
 
-## Sample and material limits
+Review [exact packet](approval.md), [protocol](protocol.md), [config](protocol.json),
+[manifest](experiment-manifest.json), [plan](plan.json), [public tests](protocol.test.mjs),
+[check ledger](checks-v2/summary.json), [exposure correction](exposure.json),
+[exposure audit](exposure-review.md), [methods audit/dispositions](methods-review.md)
+and [review provenance](review-provenance.json). All 14 normative source/helper/test,
+metadata/config/state, independent-review and environment inputs are bound.
+New helper membership and altered bytes are rejected. The freezer also checks
+v2 membership against immutable v1 and the permitted metadata projection.
 
-- Screen: 12 cases, 6 bug / 3 clean / 3 convergence; three reps per arm, 36
-  baseline keys, later 36 candidate keys. Nine PR groups, six primary bug groups.
-  All five pilot cases remain, including their human stops and failing tests.
-- Reserved holdout: nine IDs, 4 bug / 2 clean / 3 convergence; three reps per
-  arm, later 27 + 27 keys. Four PR groups, all disjoint from screen groups.
-- The full proposal has 126 keys; none has run. Known-eligible dropped/harm
-  flags excluded pr30/clean-pr28 before freeze; no outcome-dependent exclusions.
-- **The holdout is underpowered for promotion:** four primary PR groups give
-  minimum exact p=1/16, exceeding .05. V1 cannot support PROMOTE. A new version
-  with additional eligible blind data must precede any adoption-capable baseline.
-- **Blindness is uncertified:** the implementer accidentally requested the full
-  catalog before projecting metadata. The displayed truncated excerpt exposed
-  labels/notes outside reserved IDs, but full-file access conservatively taints
-  the catalog. See [incident/provenance gate](exposure.json). Independent review
-  is required before baseline approval; if unsupported, stop INCONCLUSIVE.
-  No raw heldout findings, traces, bug records, adjudications or judge outputs
-  were inspected. No candidate instructions were changed or calibration answers
-  used for tuning. Shared repository ancestry/defect exposure remains a limit.
-- Only five cases have #45's full readiness audit. Seven additional screen and
-  all nine reserved holdout cases have metadata/full commit-object availability
-  checks. Future failing tests cannot justify dropping them or waiving criteria.
+The metadata-only rule retains v1's 21 selected eligible cases and all five
+pilots in screen. It moves the entire numerically smallest optional selected
+screen primary bug PR: PR14 (`pr14-r0`). Screen has 11 cases (5 bug/3 clean/3
+convergence), 33 keys per arm, eight total PR groups and five primary PR groups.
+Holdout has 10 (5/2/3), 30 keys per arm and five primary groups. PR groups remain
+disjoint; total stays 126 keys. The original pool/split was chosen postexposure
+and explicitly conditioned on exposure status. This rule repairs the partition
+and lattice barrier only; it does not supply new data or author blindness.
 
-The protocol fixes macro aggregation by PR, a baseline repeat-range noise floor,
-minimum five-percentage-point recall gain, exact cluster sign flips/common-shift
-lower confidence bound, strict paired clean-harm/round/fix/regression/test gates,
-and validation of the sole exact final v13 identity. Missing/invalid evidence or
-failed attempts blocks adoption; no dependent pair is counted as an independent
-trial. Raw human-stop/test/disposition review remains mandatory. Requested Sol
-High/Fast and Astra High/Fast use subscription auth and concurrency one;
-configured-only identity and unknown served identity/tier/spend remain explicit.
+The conditional exact one-sided 95% PR sign-flip inversion, threshold
+T=max(.05, baseline N), noise formula, strict paired harm/round/fix/regression/test
+rules, sole v13 identity and failure policy remain unchanged. At G=5,
+lower95=min(D_g); every primary PR gain must clear T. A pass is mathematically
+possible but power remains low. Common symmetric shift/independent PR assumptions
+are not proved. These discretionary strict rules can reject equal-mean stochastic
+arms or withhold adoption after a recovered native retry; no weaker rule was added.
 
-## Frozen identities
+Baseline summary bug is fixed through the public normalized-row/native-report
+interfaces. Exact keys, metrics and per-arm native identity/provenance/evidence
+issues are validated before aggregate/noise/completeness calculation. Invalid,
+duplicate, unexpected, failed or evidence-invalid baseline rows cannot certify a
+ready baseline. Missing/invalid candidate rows or candidate failures do not hide
+a valid baseline alone. Raw numeric rows, native source hashes, failed evidence
+and artifact locators stay available; no replacement score is manufactured.
 
-| Identity | SHA256 |
+Before candidate results, baseline reporting now shows raw primary case recall
+triples and ranges, PR per-rep case means and PR-weighted macro recall at reps
+0/1/2 with observed min/max/range. This is empirical descriptive variability,
+not population confidence coverage from three repetitions. Invalid/incomplete
+baseline summaries are null with scheduled/received/valid denominators. The native
+report also exposes precision, first-clean-round, hook-denial and before/after-test
+coverage; full human-stop/test/disposition/attempt review remains necessary.
+
+The persisted incident includes all 57 catalog rows and answer-bearing fields for
+every reserved ID. Original model-facing truncation is unresolved; original author
+label/note exposure and exposure-conditioned selection remain in the record. There
+is no recorded post-incident v13/workflow/runner/grader tuning and no experiment
+outcome informed v2. Shared repository/source/history, crossing ancestry and
+unknown past exposure limit interpretation. Possible validation concerns the
+fixed untuned candidate on prereserved non-screen PR clusters in this finite
+benchmark, conditional on the stated assumptions. It is not certified unseen/blind
+data, population independence or adequate power. Numeric PASS cannot settle
+provenance; unsupported comparability/interpretation is INCONCLUSIVE.
+
+The actual independent agent provenance/methods audits are recorded and hash-bound.
+V1's added independent-human-maintainer clearance was an agent-authored proposal,
+not a user rule or completed human review. V2 removes that extra mechanism;
+no `holdout_acceptable=true` record or reviewer approval was invented. The existing
+real human exact-stage source/stage/hash gate remains, with these limitations
+included transparently in the proposed human request.
+
+| New identity | SHA256 |
 | --- | --- |
-| Experiment manifest | `dc42cc18e8192fbe5f7635dcf174e8dd64a17d981e55543f5a50d581815c288a` |
-| Experiment protocol JSON | `12f7e74d60d582013eedce4ad0190640b68bfa24e2ee6dbf4c43d01abe88b8ba` |
-| Generated plan | `a52f8cfe3e5234186062601935c95fea4b820eff6379d712b7b4e09cdb58057f` |
-| Calibrated runtime (150) | `efbc6b80a2e54efbe62069293745b999c04f5973505bab6393e9a644f1031fe5` |
-| Protected harness (119) | `85c479bbb24a186c09e08b9f13fa7464b93eb52f9754b7b55ebd36c6aa598144` |
-| Baseline workflow content | `e2ca7a2e86df9c78571a80952c066789affec562560f89c53e21abcbf622e3e2` |
-| V13 workflow content | `daf18bd39385234b4393c3a9a9c7894a77281dc4e133034b9f8dbddc23c48d8e` |
+| Experiment manifest | `86feea45091c2a86e2d1ac545b7b4abb48202548e74a3ae80182844188f5ca22` |
+| Protocol JSON | `8dc56d50a31612f72f6d80ffb1237030869c72a79ad1332404523cfb788c3090` |
+| Exact generated plan | `9401adab8086fc74a939b2e7e894bb87902416e9335164e07526fe97f70eaedf` |
 
-Full helper, config and external environment identities are recursively bound in
-the manifest. The original v4 private bundle and git-visible calibrated membership
-still verify. The derived approval packet/plan/checks cannot change runtime policy.
+[Unchanged identities](checks-v2/unchanged-identities.json) prove v13, baseline
+adapter, runner and grader bytes match v1. Calibrated runtime 150 members,
+protected harness 119 and private 32 still verify. Baseline workflow content is
+`e2ca7a2e86df9c78571a80952c066789affec562560f89c53e21abcbf622e3e2`;
+v13 is `daf18bd39385234b4393c3a9a9c7894a77281dc4e133034b9f8dbddc23c48d8e`.
+No eval/plugin/test/package content or calibrated membership changed. Actual v4
+plan exits 0 and is byte-identical to retained v1 check output. Calibration v4
+actual PASS evidence is unchanged; no calibration/model/report rerun occurred.
 
-## Verification and next gate
+Verification: 14/14 protocol tests, zero skips; 83/83 covering eval/guard tests,
+zero skips, including existing opt-in no-model sandbox checks. Six red→green
+slices are retained separately from v1: invalid baseline validation, native
+identity/evidence readiness, independently worked descriptive variability, native
+report coverage, deterministic split/plan, and removal of invented clearance while
+preserving real exact approval. Native positive fixtures honestly model synthetic
+retained files/indexes/provenance; they claim no real run. Initial disabled-sandbox
+and old blocker-prefix assertion logs remain disclosed. Two historical broad
+failures and 55 unchanged typecheck diagnostics were not rerun or repaired.
 
-Nine offline tests pass, zero skips. Retained red/green slices cover independent
-worked inference, native-prefix planning, paired aggregation, baseline noise,
-failure/gap/harm rejection, exact scoped approval, native-row normalization and
-missing evidence/substitution, and incomplete denominators/candidate summaries.
-A regression checks both extra helper membership and changed-byte rejection.
-The unchanged eval/guard suite passes **83/83**, zero failures/skips, including
-actual pinned no-model sandboxes. No full-suite or typecheck rerun was needed for
-this isolated preparation; two historical broad failures and 55 diagnostics
-remain disclosed and no all-green check claim is made.
+Actual plan and repeated plan outputs match. [Traced CLI gates](checks-v2/gate-proof.json)
+show missing approval, actual calibration approval and actual immutable v1 manifest
+supplied as approval reject with exit 2/HUMAN; no actual v1 approval ever existed.
+Synthetic interface tests independently reject stale hash/wrong scope/missing
+real-source fields. All six traced checks have zero connects and zero credential
+path opens. Empty screen/holdout reports are INCONCLUSIVE, zero rows/null noise;
+no real flow/state was created. Offline CLI has no run/approve command.
 
-Actual offline plan exits 0 and reproduces its frozen output. Actual missing
-approval and the actual calibration-only approval both exit 2/HUMAN. Strace
-shows **zero network connect calls and zero credential-path opens** for all
-three checks; the future flow remains absent. Empty report exits 2/INCONCLUSIVE,
-zero baseline rows and null noise. Actual unchanged calibration v4 plan exits 0.
-Protected `evals/`, plugin, test and package diff against bd1ce2c is empty.
+Operational proof is outside git at
+`/home/ubuntu/cc-agents-artifacts/issue-48/preparation-v2`, indexed by
+[hashes](checks-v2/private-artifact-index.json). V1 checks retain six trailing-
+whitespace lines in three raw red logs, unchanged. Scoped whitespace checks
+exclude retained raw logs; no blanket green claim is made. No unique personal/raw
+model artifact was produced; no new draft release is necessary. Earlier private
+calibration releases remain untouched. No eval credential read/login, baseline,
+candidate, holdout, Claude/model call, remote eval repository, reset or schedule
+change occurred.
 
-Operational logs are fresh outside git at
-`/home/ubuntu/cc-agents-artifacts/issue-48/preparation-v1`, with a committed
-[hash-only index](checks/private-artifact-index.json). Reproducible checks and
-normative inputs are committed; no new private answer/model artifact requiring a
-draft release was produced. Previous restricted calibration releases are retained.
-
-Parent should review the exposure and power limits before presenting any spending
-request. Exact future approval is absent. If a limited exploratory baseline is
-still wanted after independent exposure review, the packet contains a concrete
-baseline-only request and native unapproved state template. An adoption-capable
-design instead needs new eligible blind data and a fresh pre-outcome freeze.
-No run/approval-writing helper exists, no approved state was written, and no
-models, remote replays, reset redemption, PR/push/comment/watch or issue closure
-occurred. #48's live-baseline acceptance remains pending; #49 remains blocked,
-#43 remains open, and adoption remains **INCONCLUSIVE**.
+Next: parent merges/reviews this revision, then presents the concrete exact
+baseline-screen-only packet to the real human. No execution is authorized yet.
+The protocol documents the native human-only first-key `--approve-harness`
+procedure without an agent invoking it or writing approved state. Candidate screen
+and paired holdout remain separate later exact approvals. #48 baseline acceptance
+is pending, #49 remains blocked, #43 remains open, adoption is INCONCLUSIVE.

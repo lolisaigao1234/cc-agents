@@ -1,30 +1,24 @@
 {
-  "incident": "During preparation a cat of data/cases.json was requested instead of a metadata projection. The tool truncated its returned text; no bugs.json, adjudicated.json, raw heldout findings, traces, judge inputs or responses were opened. Entire catalog file access is conservatively tainted; file access alone cannot establish blindness.",
-  "visibly_exposed_families": [
-    "pr14",
-    "pr15",
-    "pr16",
-    "pr17",
-    "pr18",
-    "pr19",
-    "pr33",
-    "pr35",
-    "clean-fix families"
-  ],
-  "reserved_ids": [
-    "pr20-r0",
-    "pr21-r0",
-    "pr26-r0",
-    "pr38-int",
-    "clean-pr21",
-    "clean-pr26",
-    "conv-pr20",
-    "conv-pr21",
-    "conv-pr26"
-  ],
-  "reserved_row_labels_seen_in_displayed_excerpt": false,
+  "version": "codex-hillclimb-48-v2",
+  "original_record": {
+    "commit": "36c1081983b93114073a9e334ae443f98633fbfe",
+    "path": "docs/research/codex-hillclimb-48/exposure.json",
+    "preservation": "Original incident claims and entire v1 proposal/checks remain immutable in git; current correction does not silently relabel v1."
+  },
+  "incident": "Original preparation requested cat of full catalog before metadata projection; author acknowledged labels/notes and conditioned split on exposure status. No original catalog is reopened by this revision.",
+  "persisted_activity": {
+    "all_catalog_rows": 57,
+    "all_original_reserved_ids_present": true,
+    "answer_bearing_fields_for_every_reserved_id": true,
+    "original_model_facing_truncation": "unresolved; stored stdout is not proof of original delivery"
+  },
+  "original_author_claim": "V1 said reserved labels were absent from the displayed excerpt. This is unverified self-report; v2 does not assert it as fact.",
   "certified_unexposed": false,
-  "historical_exposure": "No claim about earlier sessions or model pretraining. Shared repository source/history and inherited pre-existing defect context cross PR boundaries. V13 predates this preparation and its exact bytes are frozen; no tuning after incident.",
-  "required_resolution": "Before baseline approval, independent maintainer reviews this session/tool transcript and prior exposure provenance and records whether these reserved rows remain valid for a limited heldout comparison. If not supportable, stop v1 as INCONCLUSIVE. A new pre-outcome protocol needs new data/identities/review; never silently replace or drop cases. A baseline-only exploratory approval cannot license promotion.",
-  "eligibility_before_freeze": "pr30 dropped and clean-pr28 harm-excluded were removed before any outcomes/freeze using metadata booleans only."
+  "historical_exposure": "Unknown past sessions/training; shared source/history and crossing ancestry; PR-disjointness does not establish independent defects/data.",
+  "split_causality": "Original pool/split chosen after exposure and explicitly conditioned on exposure status. V2 keeps the 21 selected cases; metadata/pilot-only numerically smallest optional primary PR14 whole-cluster move repairs partition and lattice barrier, not blindness/independence.",
+  "candidate": "Exact v13 and runtime predate incident and remain unchanged; no recorded post-incident tuning or observed experiment outcomes.",
+  "review_record": "review-provenance.json; exposure-review.md and methods-review.md are actual independent agent audit summaries, not human clearance.",
+  "bounded_claim": "Fixed untuned candidate validated on prereserved non-screen PR clusters within this finite benchmark, conditional on stated assumptions and comparability; shared-source/author-exposure/unknown-past-exposure limits. No certified unseen/blind data, population independence or adequate-power claim.",
+  "execution_gate": "Parent review, then existing real human exact baseline-only approval must transparently disclose these limits. No approvals created; no fabricated extra human reviewer or holdout_acceptable flag.",
+  "eligibility_before_outcomes": "V1 excluded dropped pr30 and harm-excluded clean-pr28 by metadata; v2 preserves eligible pool and all five pilot cases."
 }
