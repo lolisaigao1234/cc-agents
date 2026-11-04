@@ -1,0 +1,30 @@
+✔ exact cluster sign flips and confidence inversion match a worked subset example (1.543372ms)
+✖ paired report uses PR clusters, retains unknown usage, and passes a quarter-point worked gain (2.956623ms)
+✔ baseline repeat ranges are a noise floor, not independent comparison pairs (1.29489ms)
+✔ failed attempts, gaps and observed clean harm cannot become a numerical winner (3.027543ms)
+✔ partial baseline reports show the scheduled repetition denominator and withhold the mean (1.27801ms)
+✔ exact human approval is stage-specific and cannot inherit calibration or omit exposure review (1.540172ms)
+✔ experiment gate detects newly visible helpers as well as changed bytes (3.94703ms)
+✔ native report reads runner rows and exposes substitution and missing retained evidence (12.542497ms)
+✔ offline plan schedules native rep prefixes without executing or approving anything (9.274712ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 8
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 146.604938
+
+✖ failing tests:
+
+test at docs/research/codex-hillclimb-48/protocol.test.mjs:35:1
+✖ paired report uses PR clusters, retains unknown usage, and passes a quarter-point worked gain (2.956623ms)
+  TypeError [Error]: Cannot read properties of undefined (reading 'per_case')
+      at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-fd4363cf/docs/research/codex-hillclimb-48/protocol.test.mjs:44:28)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)

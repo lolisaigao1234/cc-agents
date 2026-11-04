@@ -1,0 +1,30 @@
+{
+  "incident": "During preparation a cat of data/cases.json was requested instead of a metadata projection. The tool truncated its returned text; no bugs.json, adjudicated.json, raw heldout findings, traces, judge inputs or responses were opened. Entire catalog file access is conservatively tainted; file access alone cannot establish blindness.",
+  "visibly_exposed_families": [
+    "pr14",
+    "pr15",
+    "pr16",
+    "pr17",
+    "pr18",
+    "pr19",
+    "pr33",
+    "pr35",
+    "clean-fix families"
+  ],
+  "reserved_ids": [
+    "pr20-r0",
+    "pr21-r0",
+    "pr26-r0",
+    "pr38-int",
+    "clean-pr21",
+    "clean-pr26",
+    "conv-pr20",
+    "conv-pr21",
+    "conv-pr26"
+  ],
+  "reserved_row_labels_seen_in_displayed_excerpt": false,
+  "certified_unexposed": false,
+  "historical_exposure": "No claim about earlier sessions or model pretraining. Shared repository source/history and inherited pre-existing defect context cross PR boundaries. V13 predates this preparation and its exact bytes are frozen; no tuning after incident.",
+  "required_resolution": "Before baseline approval, independent maintainer reviews this session/tool transcript and prior exposure provenance and records whether these reserved rows remain valid for a limited heldout comparison. If not supportable, stop v1 as INCONCLUSIVE. A new pre-outcome protocol needs new data/identities/review; never silently replace or drop cases. A baseline-only exploratory approval cannot license promotion.",
+  "eligibility_before_freeze": "pr30 dropped and clean-pr28 harm-excluded were removed before any outcomes/freeze using metadata booleans only."
+}

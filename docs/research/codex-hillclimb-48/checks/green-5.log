@@ -1,0 +1,13 @@
+✔ exact cluster sign flips and confidence inversion match a worked subset example (1.490172ms)
+✔ paired report uses PR clusters, retains unknown usage, and passes a quarter-point worked gain (4.117592ms)
+✔ baseline repeat ranges are a noise floor, not independent comparison pairs (1.316291ms)
+✔ failed attempts, gaps and observed clean harm cannot become a numerical winner (2.306938ms)
+✔ offline plan schedules native rep prefixes without executing or approving anything (3.95327ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 102.796274

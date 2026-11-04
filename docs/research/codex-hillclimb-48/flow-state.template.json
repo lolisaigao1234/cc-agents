@@ -1,0 +1,29 @@
+{
+  "agent": "codex",
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "service_tier": "fast",
+  "judge": {
+    "agent": "codex",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "service_tier": "fast"
+  },
+  "model_verification": "configured_only",
+  "codex_version": "0.166.0",
+  "subscription_only": true,
+  "concurrency": 1,
+  "harness_paths": [
+    "evals/review/lib",
+    "evals/review/data",
+    "evals/review/variants",
+    "plugins/trace"
+  ],
+  "harness_sha": null,
+  "requirements": {},
+  "banked_resets": {
+    "automatic_redemption": false
+  },
+  "experiment": "codex-hillclimb-48-v1",
+  "quality_and_latency_before_tokens": true
+}

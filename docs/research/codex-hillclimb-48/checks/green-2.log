@@ -1,0 +1,10 @@
+✔ exact cluster sign flips and confidence inversion match a worked subset example (1.37841ms)
+✔ offline plan schedules native rep prefixes without executing or approving anything (5.001918ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 95.820897

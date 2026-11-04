@@ -1,0 +1,47 @@
+✔ exact cluster sign flips and confidence inversion match a worked subset example (1.573972ms)
+✔ paired report uses PR clusters, retains unknown usage, and passes a quarter-point worked gain (2.816501ms)
+✔ baseline repeat ranges are a noise floor, not independent comparison pairs (1.33193ms)
+✔ failed attempts, gaps and observed clean harm cannot become a numerical winner (2.446579ms)
+✖ partial baseline reports show the scheduled repetition denominator and withhold the mean (2.58786ms)
+✔ exact human approval is stage-specific and cannot inherit calibration or omit exposure review (1.154248ms)
+✔ experiment gate detects newly visible helpers as well as changed bytes (3.357666ms)
+✔ native report reads runner rows and exposes substitution and missing retained evidence (8.928469ms)
+✔ offline plan schedules native rep prefixes without executing or approving anything (9.118311ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 8
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 135.601731
+
+✖ failing tests:
+
+test at docs/research/codex-hillclimb-48/protocol.test.mjs:66:1
+✖ partial baseline reports show the scheduled repetition denominator and withhold the mean (2.58786ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      known: 2,
+  +   mean: 0.25,
+  +   scheduled: 2
+  -   mean: null,
+  -   scheduled: 3
+    }
+  
+      at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-fd4363cf/docs/research/codex-hillclimb-48/protocol.test.mjs:69:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { known: 2, scheduled: 2, mean: 0.25 },
+    expected: { known: 2, scheduled: 3, mean: null },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
