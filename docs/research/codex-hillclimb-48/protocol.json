@@ -1,20 +1,9 @@
 {
-  "version": "codex-hillclimb-48-v1",
-  "parent_commit": "bd1ce2c4d6823fd4d0306c845aa2c5551788b513",
+  "version": "codex-hillclimb-48-v2",
+  "parent_commit": "3b304129bbe04748b4cf2cf71806bb2cd5aeb2b1",
   "issue": 48,
   "repetitions": 3,
   "screen": [
-    {
-      "id": "pr14-r0",
-      "kind": "bug",
-      "mode": "diff",
-      "base": "ef95e2e",
-      "head": "c659ccb",
-      "issue": 4,
-      "cluster": "pr14",
-      "dropped": false,
-      "exclude_from_harm": false
-    },
     {
       "id": "pr16-r1",
       "kind": "bug",
@@ -139,6 +128,17 @@
   ],
   "holdout": [
     {
+      "id": "pr14-r0",
+      "kind": "bug",
+      "mode": "diff",
+      "base": "ef95e2e",
+      "head": "c659ccb",
+      "issue": 4,
+      "cluster": "pr14",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
       "id": "pr20-r0",
       "kind": "bug",
       "mode": "diff",
@@ -248,139 +248,139 @@
   "excluded": [
     {
       "id": "pr15-r0",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr15-r1",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr16-r0",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr16-r2",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr17-r1",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr17-r2",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr18-r1",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr18-r2",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr19-r0",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr20-r1",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr33-r2",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr33-r3",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr38-halt0",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr38-halt1",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr38-halt2",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "sweep-405c33d",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "legacy-ql-06b80d8",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "legacy-ql-bc70d1c",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "legacy-ql-fe4dde9",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "legacy-ql-ledger",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "clean-pr18",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "clean-pr33-r1",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "clean-pr35",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "clean-fix-56ec0ee",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "clean-fix-09cb725",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "clean-fix-37f9b30",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "clean-fix-3575482",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "clean-pr2",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "conv-pr15",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "conv-pr16",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "conv-pr17",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "conv-pr35",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "conv-pr38-int",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "conv-pr38-halt",
-      "reason": "Outside fixed diff/issue-anchored PR-stratum sample; no outcome-based removal. Exposed families PR15/PR17/PR18 not eligible for holdout; shared screen PR families not eligible for holdout; sweep/legacy/no-issue are different tasks."
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
     },
     {
       "id": "pr30",
@@ -447,7 +447,7 @@
       "approval_scope": "paired-holdout-only"
     }
   ],
-  "flow_root": "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v1",
+  "flow_root": "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v2",
   "environment_variables": {
     "CODEX_EVAL_HOME": "/home/ubuntu/.config/trace-eval/codex",
     "TMPDIR": "/tmp",
@@ -469,12 +469,26 @@
     "incomplete": "INCONCLUSIVE on any missing/duplicate/invalid/truncated row, unresolved retention/security/identity/exposure problem or any failed attempt (even followed by success); no exclusions or replacements",
     "reject": "complete comparable evidence with recall delta <= threshold or harm/round/fix/regression/test gate violation; positive point gain with insufficient lower bound is INCONCLUSIVE",
     "promote": "conditional finite-benchmark PROMOTE only after screen and holdout pass and independent evidence/human-stop review, no product rollout",
-    "power_limit": "Holdout has four primary PR groups: exact one-sided p minimum 1/16 > .05. Therefore no promotion is possible under v1, even with positive point gains; otherwise passing evidence remains INCONCLUSIVE. New eligible blind data requires a new pre-outcome protocol, never threshold weakening or reuse after tuning."
+    "power_limit": "Five primary PR groups per split: minimum exact p=1/32; lower95=min(D_g). PASS requires every primary PR gain > T. Mathematically feasible, still low power; common-shift symmetry and PR independence are unproved. No adequate-power, unseen-data or population-independence claim.",
+    "baseline_variability": "Before candidate results: primary case raw recalls at reps 0/1/2 and min/max/range; PR per-rep case means; equal-PR macro recall for each rep and min/max/range. Empirical descriptive variability, not population confidence coverage from three repetitions. Null validated summaries on any baseline key/metric/provenance/evidence failure; candidate gaps do not invalidate a valid baseline.",
+    "claim": "Fixed untuned candidate validated on prereserved non-screen PR clusters within this finite benchmark, conditional on the stated assumptions; shared source/history, experiment-author exposure, postexposure pool selection and unknown prior exposure limit interpretation. Numerical PASS cannot certify provenance."
   },
   "approval": {
     "status": "NOT_APPROVED",
     "calibration_approval_inherited": false,
-    "exposure_review_required": true,
-    "new_case_readiness": "Only five pilot snapshots have the #45 audit; seven additional screen and all nine reserved holdout cases have metadata/git-object validation only. No exclusion for later poor tests/outcomes."
+    "new_case_readiness": "Only five pilot snapshots have the #45 audit; six additional screen and all ten reserved holdout cases have metadata/git-object validation only. No exclusion for later poor tests/outcomes.",
+    "independent_provenance_review": "review-provenance.json and sanitized exposure-review.md/methods-review.md; factual agent audits, not human clearance"
+  },
+  "supersedes": {
+    "version": "codex-hillclimb-48-v1",
+    "immutable_commit": "36c1081983b93114073a9e334ae443f98633fbfe",
+    "outcomes": 0,
+    "approval": "none; no rows or approvals inherited"
+  },
+  "split_revision": {
+    "rule": "deriveV2Split(cases.metadata.json, immutable v1 protocol): numerically smallest selected screen nonpilot primary bug PR; move its entire cluster",
+    "moved_cluster": "pr14",
+    "pool_count": 21,
+    "original_selection_limit": "V1 selected this pool after author exposure and explicitly conditioned its split on exposure status. V2 repairs only the partition and lattice barrier; it does not establish author blindness, unseen data, or independence."
   }
 }

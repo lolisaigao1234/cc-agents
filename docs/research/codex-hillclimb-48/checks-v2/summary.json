@@ -1,0 +1,63 @@
+{
+  "version": "codex-hillclimb-48-v2",
+  "stage": "UNAPPROVED_PREPARATION",
+  "live_model_calls": 0,
+  "baseline_rows": 0,
+  "candidate_rows": 0,
+  "holdout_rows": 0,
+  "baseline_noise_floor": null,
+  "adoption": "INCONCLUSIVE",
+  "protocol_tests": {
+    "pass": 14,
+    "fail": 0,
+    "skip": 0
+  },
+  "covering_tests": {
+    "pass": 83,
+    "fail": 0,
+    "skip": 0,
+    "command": "CODEX_SANDBOX_TEST=1 node --test test/eval-*.test.mjs test/guard.test.mjs"
+  },
+  "actual_v4_plan": "verification PASS/exit 0; byte-identical to v1 check; actual calibration v4 PASS result unchanged, not rerun",
+  "exposure_review": "actual independent agent audits recorded/bound; no blind-data certification or human clearance",
+  "split": {
+    "screen_cases": 11,
+    "screen_kinds": [
+      5,
+      3,
+      3
+    ],
+    "holdout_cases": 10,
+    "holdout_kinds": [
+      5,
+      2,
+      3
+    ],
+    "keys_per_stage": [
+      33,
+      33,
+      30,
+      30
+    ],
+    "total_keys": 126,
+    "primary_prs_per_split": [
+      5,
+      5
+    ],
+    "moved_cluster": "pr14",
+    "all_pilots_retained": true
+  },
+  "inference": "unchanged conditional exact sign-flip 95%; at five groups lower95=min(D_g), every primary PR gain must clear T=max(.05,N). Still low power; assumptions not proven.",
+  "broader_tests": "Not rerun: two historical broad failures and 55 unchanged typecheck diagnostics remain disclosed.",
+  "flow_created": false,
+  "approved_state_created": false,
+  "remote_mutations": false,
+  "private_evidence": "/home/ubuntu/cc-agents-artifacts/issue-48/preparation-v2",
+  "parent_tips_merged": "local and freshly fetched origin 43-codex-calibration-v3-followthrough both 3b304129bbe04748b4cf2cf71806bb2cd5aeb2b1; already ancestors",
+  "initial_check_corrections": [
+    "Initial covering command lacked CODEX_SANDBOX_TEST=1: 79 pass/4 skips; rerun with required no-model sandbox checks gives 83 pass/0 skips. Both logs retained.",
+    "First green-2 had an assertion using the old blocker prefix; adjusted to accept the new per-arm prefix, rerun passed. Initial failure retained.",
+    "Initial check-ledger assembly ran from checks rather than repository root and failed before changes; corrected root invocation succeeded."
+  ],
+  "whitespace": "Scoped whitespace check excludes retained raw logs. Six trailing-whitespace lines in three v1 red logs remain byte-identical; no blanket diff-check-green claim."
+}

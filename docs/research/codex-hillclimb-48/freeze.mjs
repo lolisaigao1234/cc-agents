@@ -4,7 +4,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, writeFi
 import { execFileSync } from 'node:child_process';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sha } from './protocol.mjs';
+import { sha, deriveV2Split } from './protocol.mjs';
 import { executionConfig } from '../../../evals/review/lib/config.mjs';
 import { verifySnapshot, verifyEnvironment } from '../../../evals/review/calibration/snapshot.mjs';
 
@@ -13,9 +13,12 @@ export const DIR = 'docs/research/codex-hillclimb-48';
 export const PRIVATE_V4 = '/home/ubuntu/cc-agents-artifacts/issue-46/preregistration-v4';
 export const json = path => JSON.parse(readFileSync(path, 'utf8'));
 const derived = new Set(['experiment-manifest.json', 'approval.md', 'plan.json', 'handoff.md']);
+export const V1_COMMIT = '36c1081983b93114073a9e334ae443f98633fbfe';
+const V1_MANIFEST_SHA = 'dc42cc18e8192fbe5f7635dcf174e8dd64a17d981e55543f5a50d581815c288a';
+const atV1 = (root, name) => execFileSync('git', ['show', `${V1_COMMIT}:${DIR}/${name}`], { cwd: root });
 
 export function inputNames(root) {
-  return readdirSync(join(root, DIR)).filter(name => !derived.has(name) && name !== 'checks').sort();
+  return readdirSync(join(root, DIR)).filter(name => !derived.has(name) && !['checks','checks-v2'].includes(name)).sort();
 }
 
 // Hash only known non-secret dependency trees. Preserve symlink identities too.
@@ -44,6 +47,20 @@ export function verifyBoundFiles(root, files) {
 export function verifyExperiment(root = ROOT) {
   const m = json(join(root, DIR, 'experiment-manifest.json'));
   verifyBoundFiles(root, m.inputs);
+  const protocol = json(join(root, DIR, 'protocol.json'));
+  assert.equal(m.version, 'codex-hillclimb-48-v2');
+  assert.equal(protocol.version, m.version);
+  assert.equal(sha(atV1(root, 'experiment-manifest.json')), V1_MANIFEST_SHA, 'immutable v1 manifest');
+  const prior = JSON.parse(atV1(root, 'protocol.json'));
+  const split = deriveV2Split(json(join(root, DIR, 'cases.metadata.json')), prior);
+  assert.deepEqual(protocol.screen, split.screen, 'v2 screen must follow metadata rule');
+  assert.deepEqual(protocol.holdout, split.holdout, 'v2 holdout must follow metadata rule');
+  assert.deepEqual(protocol.pilot_ids, prior.pilot_ids, 'all pilot membership retained');
+  assert.equal(protocol.split_revision.moved_cluster, split.moved_cluster);
+  const review = json(join(root, DIR, 'review-provenance.json'));
+  assert.equal(sha(readFileSync(join(root, DIR, 'exposure-review.md'))), review.exposure.public_sha256);
+  assert.equal(sha(readFileSync(join(root, DIR, 'methods-review.md'))), review.methods.public_sha256);
+
   const v4path = join(root, 'docs/research/codex-hillclimb-46/preregistration-v4.json');
   assert.equal(sha(readFileSync(v4path)), m.calibration.preregistration_sha256, 'changed v4 preregistration');
   const v4 = json(v4path);
@@ -56,30 +73,25 @@ export function verifyExperiment(root = ROOT) {
   assert.equal(versions.at(-1), env.matt_version, 'runner would select a different Matt plugin');
   assert.equal(process.env.TMPDIR ?? '/tmp', m.variables.TMPDIR, 'changed TMPDIR');
   for (const key of ['CODEX_BIN', 'CODEX_EVAL_HOME']) if (process.env[key]) assert.equal(process.env[key], m.variables[key], `changed ${key}`);
-  return { manifest: m, protocol: json(join(root, DIR, 'protocol.json')),
+  return { manifest: m, protocol,
     current: { manifest_sha256: sha(readFileSync(join(root, DIR, 'experiment-manifest.json'))),
       protocol_sha256: sha(readFileSync(join(root, DIR, 'protocol.json'))) } };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  assert.equal(process.argv[2], '--write-new-preparation', 'explicit preparation-only freezer flag required');
-  assert.ok(!existsSync(join(ROOT, DIR, 'experiment-manifest.json')), 'never overwrite a frozen experiment');
+  assert.equal(process.argv[2], '--write-v2-preparation', 'explicit v1-to-v2 preparation-only freezer flag required');
+  assert.equal(sha(readFileSync(join(ROOT, DIR, 'experiment-manifest.json'))), V1_MANIFEST_SHA,
+    'only the exact unapproved v1 proposal can advance here; v2 must never be silently overwritten');
   const protocol = json(join(ROOT, DIR, 'protocol.json'));
   const v4 = json(join(ROOT, 'docs/research/codex-hillclimb-46/preregistration-v4.json'));
   verifySnapshot(ROOT, PRIVATE_V4, v4); verifyEnvironment(v4.environment);
-  const mattCache = '/home/ubuntu/.claude/plugins/cache/mattpocock/mattpocock-skills';
-  assert.equal(readdirSync(mattCache).sort((a,b) => a.localeCompare(b, undefined, { numeric: true })).at(-1), '1.3.2');
-  const env = { matt_cache: mattCache, matt_version: '1.3.2',
-    trees: [{ root: join(mattCache, '1.3.2'), scope: 'external' }, { root: 'node_modules', scope: 'repository' },
-      { root: '/usr/local/lib/node_modules/npm', scope: 'external' }]
-      .map(t => ({ ...t, files: treeInventory(t.scope === 'repository' ? join(ROOT, t.root) : t.root) })),
-    files: ['/usr/bin/gh','/usr/bin/git','/usr/bin/bwrap','/usr/bin/socat','/usr/bin/flock','/usr/bin/sh','/usr/bin/env','/usr/bin/tar','/usr/local/bin/npm']
-      .map(path => ({ path, sha256: sha(readFileSync(realpathSync(path))) })),
-    platform: process.platform, arch: process.arch, node: process.version,
-    limits: 'Kernel/shared libraries/services/quota/served snapshots remain external; credentials excluded.' };
-  writeFileSync(join(ROOT, DIR, 'environment-files.json'), JSON.stringify(env, null, 2) + '\n', { flag: 'wx' });
+  // Retain the existing byte-identical environment inventory instead of duplicating
+  // dependency trees. verifyExperiment below rechecks every member against it.
+  assert.equal(sha(readFileSync(join(ROOT, DIR, 'environment-files.json'))),
+    JSON.parse(atV1(ROOT, 'experiment-manifest.json')).inputs.find(f => f.path.endsWith('/environment-files.json')).sha256);
   const state = json(join(ROOT, DIR, 'flow-state.template.json'));
   const manifest = { version: protocol.version, status: 'UNAPPROVED_PREPARATION', parent_commit: protocol.parent_commit,
+    history: { v1_commit: V1_COMMIT, v1_manifest_sha256: V1_MANIFEST_SHA, outcomes_inherited: false, approvals_inherited: false },
     inputs: inputNames(ROOT).map(name => ({ path: `${DIR}/${name}`, sha256: sha(readFileSync(join(ROOT, DIR, name))) })),
     variables: protocol.environment_variables,
     expected_execution: Object.fromEntries(['baseline','v13'].map(variant => [variant, executionConfig(state,
@@ -90,7 +102,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     source_objects: [...protocol.screen, ...protocol.holdout].map(c => ({ id: c.id,
       base: execFileSync('git', ['rev-parse', `${c.base}^{commit}`], { cwd: ROOT, encoding: 'utf8' }).trim(),
       head: execFileSync('git', ['rev-parse', `${c.head}^{commit}`], { cwd: ROOT, encoding: 'utf8' }).trim() })),
-    permission: 'None. Human response and independent exposure review required before any authentication/model/replay operation.' };
-  writeFileSync(join(ROOT, DIR, 'experiment-manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' });
+    permission: 'None. Parent review and real human exact stage approval including disclosed exposure/readiness/inference limits required before authentication/model/replay. Independent provenance audits are bound inputs, not human clearance.' };
+  writeFileSync(join(ROOT, DIR, 'experiment-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log(JSON.stringify(verifyExperiment().current, null, 2));
 }
