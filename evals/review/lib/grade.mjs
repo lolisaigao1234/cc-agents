@@ -157,12 +157,21 @@ async function askRaw(judge, prompt, schema) {
 async function ask(judge, prompt, schema) {
   const request = { prompt, schema, developerInstructions: SYSTEM, judge: judge.config };
   try {
+    // Native Codex rejects an individual input above this Unicode-scalar limit.
+    // Reject locally without truncation or fabricating a provider call; ask's
+    // failure record retains the complete request even when no CLI is launched.
+    if (judge.config.agent === 'codex') {
+      let characters = 0;
+      for (const _ of prompt) characters++;
+      if (characters > 1_048_576) throw Object.assign(new Error(`native judge input_too_large: ${characters} characters exceeds 1048576`),
+        { failure_class: 'native_envelope', provider_call_attempted: false });
+    }
     const result = await askRaw(judge, prompt, schema);
     judge.calls.push({ request, status: 'ok', output: result.out, events: result.events,
       provenance: result.provenance, usage: result.usage, model: result.model });
     return result;
   } catch (e) {
-    judge.calls.push({ request, status: 'failure', ...failureEvidence(e) });
+    judge.calls.push({ request, status: 'failure', ...(e.provider_call_attempted === false ? { provider_call_attempted: false } : {}), ...failureEvidence(e) });
     e.judge_calls = judge.calls;
     throw e;
   }

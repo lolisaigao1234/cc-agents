@@ -1,0 +1,11 @@
+✔ baseline: full semantic workflow reaches grade within envelope while raw audit stays intact (199.29257ms)
+✔ v13: full semantic workflow reaches grade within envelope while raw audit stays intact (180.3561ms)
+✔ native envelope counts Unicode scalars and retains genuine oversize failure without a transport call (265.017848ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 806.942556

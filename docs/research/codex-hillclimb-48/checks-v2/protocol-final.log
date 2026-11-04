@@ -1,0 +1,22 @@
+✔ exact cluster sign flips and confidence inversion match a worked subset example (1.683054ms)
+✔ paired report uses PR clusters, retains unknown usage, and passes a quarter-point worked gain (4.374156ms)
+✔ baseline repeat ranges are a noise floor, not independent comparison pairs (2.644461ms)
+✔ failed attempts, gaps and observed clean harm cannot become a numerical winner (4.673398ms)
+✔ partial baseline reports show the scheduled repetition denominator and withhold the mean (1.514413ms)
+✔ baseline readiness requires valid exact keys, while candidate gaps do not hide a valid baseline (3.937113ms)
+✔ exact human approval is stage-specific without an invented exposure clearance mechanism (1.495612ms)
+✔ experiment gate detects newly visible helpers as well as changed bytes (3.73891ms)
+✔ native report reads runner rows and exposes substitution and missing retained evidence (10.531846ms)
+✔ offline plan schedules native rep prefixes without executing or approving anything (10.167483ms)
+✔ native baseline provenance and evidence determine readiness before any candidate exists (210.268844ms)
+✔ baseline-only variability reports raw triples and PR-weighted replicate spread, not confidence coverage (1.536172ms)
+✔ native report exposes descriptive coverage and evidence locators without answer text (56.680904ms)
+✔ v2 plan deterministically moves the smallest optional whole primary PR cluster and retains all pilots (1.956576ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 423.943475

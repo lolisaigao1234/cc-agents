@@ -1,0 +1,11 @@
+{
+  "manifest_sha256": "e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419",
+  "members": 176,
+  "regular": 175,
+  "symlinks": 1,
+  "executables": 3,
+  "relative_link": "AGENTS.md -> CLAUDE.md",
+  "source_and_copy_exact_verified": true,
+  "installed_cache_modified": false,
+  "permission_policy": "sealed-relative-links-v1"
+}

@@ -1,0 +1,10 @@
+{
+  "runtime_sha256": "bbf7c4b2b51f815848c50506b9819e74708e0813de95ded0766e1397bf8e8ca5",
+  "protocol_sha256": "e4b7baa79228113aa540f2c553030dafa063528ddec052070d17c52cbc829fa2",
+  "preregistration_sha256": "f338bb11d226261e0ca28f1306c06c16cfe3ab75e9f75382834bcf18151422d1",
+  "protected_harness_sha256": "540bed650dbdb39fa71331cef884c692604e181f768f42fdb1194e7decb8a3c8",
+  "expected_judge_requests": 138,
+  "scheduled_grades": 75,
+  "status": "BLOCK: exact new driver/protocol/preregistration requires HUMAN approval; no live calibration results",
+  "concurrency": 1
+}

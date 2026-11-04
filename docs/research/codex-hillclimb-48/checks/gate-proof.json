@@ -1,0 +1,29 @@
+{
+  "plan": {
+    "exit": 0,
+    "stdout_sha256": "a52f8cfe3e5234186062601935c95fea4b820eff6379d712b7b4e09cdb58057f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "network_connect_calls": 0,
+    "credential_path_opens": 0
+  },
+  "missing-approval": {
+    "exit": 2,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "d682bff114470cb38fdbebbd8d3991f016368638cb311908e3a3a9b1388942b0",
+    "network_connect_calls": 0,
+    "credential_path_opens": 0
+  },
+  "calibration-approval-rejected": {
+    "exit": 2,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "d682bff114470cb38fdbebbd8d3991f016368638cb311908e3a3a9b1388942b0",
+    "network_connect_calls": 0,
+    "credential_path_opens": 0
+  },
+  "empty-screen-report": {
+    "exit": 2,
+    "stdout_sha256": "38ade05e6b3ec81a246eabf6705e721e6928a60b7beab090535487063749cce6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "flow_created": false
+}

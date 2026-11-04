@@ -1,0 +1,24 @@
+{
+  "version": "codex-hillclimb-48-v2",
+  "original_record": {
+    "commit": "36c1081983b93114073a9e334ae443f98633fbfe",
+    "path": "docs/research/codex-hillclimb-48/exposure.json",
+    "preservation": "Original incident claims and entire v1 proposal/checks remain immutable in git; current correction does not silently relabel v1."
+  },
+  "incident": "Original preparation requested cat of full catalog before metadata projection; author acknowledged labels/notes and conditioned split on exposure status. No original catalog is reopened by this revision.",
+  "persisted_activity": {
+    "all_catalog_rows": 57,
+    "all_original_reserved_ids_present": true,
+    "answer_bearing_fields_for_every_reserved_id": true,
+    "original_model_facing_truncation": "unresolved; stored stdout is not proof of original delivery"
+  },
+  "original_author_claim": "V1 said reserved labels were absent from the displayed excerpt. This is unverified self-report; v2 does not assert it as fact.",
+  "certified_unexposed": false,
+  "historical_exposure": "Unknown past sessions/training; shared source/history and crossing ancestry; PR-disjointness does not establish independent defects/data.",
+  "split_causality": "Original pool/split chosen after exposure and explicitly conditioned on exposure status. V2 keeps the 21 selected cases; metadata/pilot-only numerically smallest optional primary PR14 whole-cluster move repairs partition and lattice barrier, not blindness/independence.",
+  "candidate": "Exact v13 and runtime predate incident and remain unchanged; no recorded post-incident tuning or observed experiment outcomes.",
+  "review_record": "review-provenance.json; exposure-review.md and methods-review.md are actual independent agent audit summaries, not human clearance.",
+  "bounded_claim": "Fixed untuned candidate validated on prereserved non-screen PR clusters within this finite benchmark, conditional on stated assumptions and comparability; shared-source/author-exposure/unknown-past-exposure limits. No certified unseen/blind data, population independence or adequate-power claim.",
+  "execution_gate": "Parent review, then existing real human exact baseline-only approval must transparently disclose these limits. No approvals created; no fabricated extra human reviewer or holdout_acceptable flag.",
+  "eligibility_before_outcomes": "V1 excluded dropped pr30 and harm-excluded clean-pr28 by metadata; v2 preserves eligible pool and all five pilot cases."
+}

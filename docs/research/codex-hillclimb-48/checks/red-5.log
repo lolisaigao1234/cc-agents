@@ -1,0 +1,38 @@
+✔ exact cluster sign flips and confidence inversion match a worked subset example (1.493411ms)
+✔ paired report uses PR clusters, retains unknown usage, and passes a quarter-point worked gain (4.028071ms)
+✔ baseline repeat ranges are a noise floor, not independent comparison pairs (1.31541ms)
+✖ failed attempts, gaps and observed clean harm cannot become a numerical winner (1.827694ms)
+✔ offline plan schedules native rep prefixes without executing or approving anything (3.224785ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 4
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 104.91133
+
+✖ failing tests:
+
+test at docs/research/codex-hillclimb-48/protocol.test.mjs:51:1
+✖ failed attempts, gaps and observed clean harm cannot become a numerical winner (1.827694ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'PASS'
+  - 'INCONCLUSIVE'
+  
+      at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-fd4363cf/docs/research/codex-hillclimb-48/protocol.test.mjs:53:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'PASS',
+    expected: 'INCONCLUSIVE',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

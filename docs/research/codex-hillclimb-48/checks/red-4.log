@@ -1,0 +1,25 @@
+✔ exact cluster sign flips and confidence inversion match a worked subset example (1.479132ms)
+✔ paired report uses PR clusters, retains unknown usage, and passes a quarter-point worked gain (3.013303ms)
+✖ baseline repeat ranges are a noise floor, not independent comparison pairs (1.115409ms)
+✔ offline plan schedules native rep prefixes without executing or approving anything (3.746469ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 3
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 100.169412
+
+✖ failing tests:
+
+test at docs/research/codex-hillclimb-48/protocol.test.mjs:41:1
+✖ baseline repeat ranges are a noise floor, not independent comparison pairs (1.115409ms)
+  TypeError [Error]: Cannot read properties of undefined (reading 'noise_floor')
+      at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-fd4363cf/docs/research/codex-hillclimb-48/protocol.test.mjs:48:66)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)

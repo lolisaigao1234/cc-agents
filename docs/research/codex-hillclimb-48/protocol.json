@@ -1,0 +1,503 @@
+{
+  "version": "codex-hillclimb-48-v3",
+  "parent_commit": "7b475390ef377fd978dc53598b7cb4cfcd2a81a1",
+  "issue": 48,
+  "repetitions": 3,
+  "screen": [
+    {
+      "id": "pr16-r1",
+      "kind": "bug",
+      "mode": "diff",
+      "base": "4dc6c54",
+      "head": "8b2a99f",
+      "issue": 6,
+      "cluster": "pr16",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "pr17-r0",
+      "kind": "bug",
+      "mode": "diff",
+      "base": "03ceec2",
+      "head": "da7ef1f",
+      "issue": 7,
+      "cluster": "pr17",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "pr18-r0",
+      "kind": "bug",
+      "mode": "diff",
+      "base": "a477e4e",
+      "head": "6d12021",
+      "issue": 8,
+      "cluster": "pr18",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "pr24",
+      "kind": "bug",
+      "mode": "diff",
+      "base": "5a1d1c5",
+      "head": "0ad0f2d",
+      "issue": 23,
+      "cluster": "pr24",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "pr35-r0",
+      "kind": "bug",
+      "mode": "diff",
+      "base": "8eddafd",
+      "head": "52c688f",
+      "issue": 32,
+      "cluster": "pr35",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "clean-pr12",
+      "kind": "clean",
+      "mode": "diff",
+      "base": "6f72fde",
+      "head": "ef95e2e",
+      "issue": 11,
+      "cluster": "pr12",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "clean-pr19",
+      "kind": "clean",
+      "mode": "diff",
+      "base": "7d98468",
+      "head": "26c63d3",
+      "issue": 9,
+      "cluster": "pr19",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "clean-pr33",
+      "kind": "clean",
+      "mode": "diff",
+      "base": "33c09c2",
+      "head": "8eddafd",
+      "issue": 31,
+      "cluster": "pr33",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "conv-pr18",
+      "kind": "convergence",
+      "mode": "diff",
+      "base": "a477e4e",
+      "head": "6d12021",
+      "issue": 8,
+      "cluster": "pr18",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "conv-pr19",
+      "kind": "convergence",
+      "mode": "diff",
+      "base": "7d98468",
+      "head": "16d6b05",
+      "issue": 9,
+      "cluster": "pr19",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "conv-pr33",
+      "kind": "convergence",
+      "mode": "diff",
+      "base": "33c09c2",
+      "head": "195172b",
+      "issue": 31,
+      "cluster": "pr33",
+      "dropped": false,
+      "exclude_from_harm": false
+    }
+  ],
+  "holdout": [
+    {
+      "id": "pr14-r0",
+      "kind": "bug",
+      "mode": "diff",
+      "base": "ef95e2e",
+      "head": "c659ccb",
+      "issue": 4,
+      "cluster": "pr14",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "pr20-r0",
+      "kind": "bug",
+      "mode": "diff",
+      "base": "26c63d3",
+      "head": "aec400b",
+      "issue": 10,
+      "cluster": "pr20",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "pr21-r0",
+      "kind": "bug",
+      "mode": "diff",
+      "base": "4955503",
+      "head": "b418246",
+      "issue": 13,
+      "cluster": "pr21",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "pr26-r0",
+      "kind": "bug",
+      "mode": "diff",
+      "base": "0ad0f2d",
+      "head": "2118d42",
+      "issue": 25,
+      "cluster": "pr26",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "pr38-int",
+      "kind": "bug",
+      "mode": "diff",
+      "base": "405c33d",
+      "head": "9b6eb4f",
+      "issue": 34,
+      "cluster": "pr38",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "clean-pr21",
+      "kind": "clean",
+      "mode": "diff",
+      "base": "4955503",
+      "head": "5a1d1c5",
+      "issue": 13,
+      "cluster": "pr21",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "clean-pr26",
+      "kind": "clean",
+      "mode": "diff",
+      "base": "0ad0f2d",
+      "head": "a1d9e98",
+      "issue": 25,
+      "cluster": "pr26",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "conv-pr20",
+      "kind": "convergence",
+      "mode": "diff",
+      "base": "26c63d3",
+      "head": "aec400b",
+      "issue": 10,
+      "cluster": "pr20",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "conv-pr21",
+      "kind": "convergence",
+      "mode": "diff",
+      "base": "4955503",
+      "head": "b418246",
+      "issue": 13,
+      "cluster": "pr21",
+      "dropped": false,
+      "exclude_from_harm": false
+    },
+    {
+      "id": "conv-pr26",
+      "kind": "convergence",
+      "mode": "diff",
+      "base": "0ad0f2d",
+      "head": "2118d42",
+      "issue": 25,
+      "cluster": "pr26",
+      "dropped": false,
+      "exclude_from_harm": false
+    }
+  ],
+  "pilot_ids": [
+    "pr16-r1",
+    "pr24",
+    "pr35-r0",
+    "clean-pr33",
+    "conv-pr33"
+  ],
+  "excluded": [
+    {
+      "id": "pr15-r0",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr15-r1",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr16-r0",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr16-r2",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr17-r1",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr17-r2",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr18-r1",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr18-r2",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr19-r0",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr20-r1",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr33-r2",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr33-r3",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr38-halt0",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr38-halt1",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr38-halt2",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "sweep-405c33d",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "legacy-ql-06b80d8",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "legacy-ql-bc70d1c",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "legacy-ql-fe4dde9",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "legacy-ql-ledger",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "clean-pr18",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "clean-pr33-r1",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "clean-pr35",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "clean-fix-56ec0ee",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "clean-fix-09cb725",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "clean-fix-37f9b30",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "clean-fix-3575482",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "clean-pr2",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "conv-pr15",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "conv-pr16",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "conv-pr17",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "conv-pr35",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "conv-pr38-int",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "conv-pr38-halt",
+      "reason": "Outside the immutable v1 selected pool; retained without outcome-based removal. Original pool/split selection occurred after exposure and included an exposure-status rationale. V2 only repartitions that pool; no claim of blind original selection."
+    },
+    {
+      "id": "pr30",
+      "reason": "Existing catalog dropped=true; native runner will not execute it. Eligibility exclusion before freeze/outcomes."
+    },
+    {
+      "id": "clean-pr28",
+      "reason": "Existing exclude_from_harm=true; cannot serve as scored clean-harm control. Eligibility exclusion before freeze/outcomes."
+    }
+  ],
+  "identity": {
+    "agent": "codex",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "service_tier": "fast",
+    "judge": {
+      "agent": "codex",
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "service_tier": "fast"
+    },
+    "model_verification": "configured_only",
+    "codex_version": "0.166.0",
+    "subscription_only": true,
+    "concurrency": 1
+  },
+  "limits": {
+    "timeout_s": 5400,
+    "agent_budget_s": 4500,
+    "judge_request_max_s": 900,
+    "review_rounds": 3,
+    "app_attempts_per_key_max": 5,
+    "judge_attempts_per_key_max": 5,
+    "model_requests_per_app_attempt_max": 10,
+    "judge_requests_per_attempt_max": 2,
+    "cli_invocations_per_key": 1,
+    "manual_failure_retries": 0,
+    "budget_usd_argument": 40,
+    "codex_token_cap": null
+  },
+  "stages": [
+    {
+      "id": "baseline-screen",
+      "split": "screen",
+      "arm": "baseline",
+      "approval_scope": "baseline-screen-only"
+    },
+    {
+      "id": "candidate-screen",
+      "split": "screen",
+      "arm": "v13",
+      "approval_scope": "candidate-screen-only"
+    },
+    {
+      "id": "baseline-holdout",
+      "split": "holdout",
+      "arm": "baseline",
+      "approval_scope": "paired-holdout-only"
+    },
+    {
+      "id": "candidate-holdout",
+      "split": "holdout",
+      "arm": "v13",
+      "approval_scope": "paired-holdout-only"
+    }
+  ],
+  "flow_root": "/home/ubuntu/cc-agents-artifacts/issue-48/experiment-v3",
+  "environment_variables": {
+    "CODEX_EVAL_HOME": "/home/ubuntu/.config/trace-eval/codex",
+    "TMPDIR": "/tmp",
+    "CODEX_BIN": "/home/ubuntu/.codex/packages/standalone/releases/0.166.0-aarch64-unknown-linux-musl/bin/codex",
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "LANG": "C.UTF-8",
+    "TZ": "UTC",
+    "CC_AGENTS_MATT_PLUGIN_DIR": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-matt-pins/e59429136a417ca8c6ecd971d0f46e946a3e96d4d255e650c210ff15e6e61419/plugin"
+  },
+  "analysis": {
+    "primary_kind": "bug",
+    "minimum_recall_gain": 0.05,
+    "noise_floor": "equal-PR mean of per-case baseline recall ranges across reps 0,1,2, averaging cases within PR first",
+    "uncertainty": "exact PR-cluster sign flips; one-sided 95% common-shift lower endpoint by full subset-mean inversion; symmetric independent-cluster assumption",
+    "recall_gate": "delta > max(0.05,baseline_noise_floor) AND lower95 > max(0.05,baseline_noise_floor)",
+    "harm_gate": "v13 harmful <= baseline for EVERY clean case/repetition; also report all-case harm",
+    "round_gate": "v13 reviews <= baseline for EVERY case/repetition",
+    "other_gate": "no per-key reduction in fixed fraction; no per-key increase in reintroduced fraction; no new true-to-false host test break; human stop legitimacy and evidence reviewed without suppression",
+    "holdout": "same frozen final v13 identity; same paired three reps and independent holdout baseline noise floor; all gates must pass in both splits; no tuning or re-selection",
+    "incomplete": "INCONCLUSIVE on any missing/duplicate/invalid/truncated row, unresolved retention/security/identity/exposure problem or any failed attempt (even followed by success); no exclusions or replacements",
+    "reject": "complete comparable evidence with recall delta <= threshold or harm/round/fix/regression/test gate violation; positive point gain with insufficient lower bound is INCONCLUSIVE",
+    "promote": "conditional finite-benchmark PROMOTE only after screen and holdout pass and independent evidence/human-stop review, no product rollout",
+    "power_limit": "Five primary PR groups per split: minimum exact p=1/32; lower95=min(D_g). PASS requires every primary PR gain > T. Mathematically feasible, still low power; common-shift symmetry and PR independence are unproved. No adequate-power, unseen-data or population-independence claim.",
+    "baseline_variability": "Before candidate results: primary case raw recalls at reps 0/1/2 and min/max/range; PR per-rep case means; equal-PR macro recall for each rep and min/max/range. Empirical descriptive variability, not population confidence coverage from three repetitions. Null validated summaries on any baseline key/metric/provenance/evidence failure; candidate gaps do not invalidate a valid baseline.",
+    "claim": "Fixed untuned candidate validated on prereserved non-screen PR clusters within this finite benchmark, conditional on the stated assumptions; shared source/history, experiment-author exposure, postexposure pool selection and unknown prior exposure limit interpretation. Numerical PASS cannot certify provenance."
+  },
+  "approval": {
+    "status": "NOT_APPROVED",
+    "calibration_approval_inherited": false,
+    "new_case_readiness": "Only five pilot snapshots have the #45 audit; six additional screen and all ten reserved holdout cases have metadata/git-object validation only. No exclusion for later poor tests/outcomes.",
+    "independent_provenance_review": "review-provenance.json and sanitized exposure-review.md/methods-review.md; factual agent audits, not human clearance"
+  },
+  "supersedes": {
+    "version": "codex-hillclimb-48-v2",
+    "immutable_preparation_commit": "b1dc97f18d46f2a54c2b1cf0a79f7a2143339f60",
+    "immutable_actual_commit": "daa5f4bf581775c5214dc8228aedfbfdd5518136",
+    "actual_status": "INCONCLUSIVE: 3 scored, 1 failed, 29 unstarted; 17 native model CLI calls. No result or approval inherited."
+  },
+  "split_revision": {
+    "rule": "deriveV2Split(cases.metadata.json, immutable v1 protocol): numerically smallest selected screen nonpilot primary bug PR; move its entire cluster",
+    "moved_cluster": "pr14",
+    "pool_count": 21,
+    "original_selection_limit": "V1 selected this pool after author exposure and explicitly conditioned its split on exposure status. V2 repairs only the partition and lattice barrier; it does not establish author blindness, unseen data, or independence."
+  },
+  "runtime_revision": {
+    "reason": "Technical rendering/native-envelope and immutable source-loading corrections only; competitor instructions/prompts/control flow and all rubric/schema/metric/analysis gates unchanged.",
+    "outcome_exposure": "Partial v2 outcomes were observed. V3 is not a wholly blind pre-outcome design; no selection, threshold, workflow or quality tuning follows those outcomes.",
+    "freshness": "Whole fresh 33-key baseline after whole fresh calibration v5 PASS; never resume 29 keys, replace failed key or pool 3 historical scores.",
+    "native_harness": "Null template only. V2 first-flag delegation was v2-only; future agent invocation requires fresh explicit human delegation.",
+    "source_pin": "Exact immutable Matt manifest and directory in environment/state, verified before setup/auth and after copy; never mutable newest-cache selection in this flow.",
+    "calibration": "Actual v5 PASS required before any baseline approval gate can pass. No v5 run or approval exists."
+  }
+}

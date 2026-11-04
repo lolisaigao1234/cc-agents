@@ -1,0 +1,186 @@
+{
+  "root": "/home/ubuntu/cc-agents-artifacts/issue-48/preparation-v1",
+  "contains": "Operational offline evidence only; no raw model outputs, answer keys or credentials. All normative inputs/code and reproducible checks are committed. No new private release is necessary for these regenerable logs.",
+  "files": [
+    {
+      "path": "calibration-approval-rejected.stderr",
+      "bytes": 78,
+      "sha256": "d682bff114470cb38fdbebbd8d3991f016368638cb311908e3a3a9b1388942b0"
+    },
+    {
+      "path": "calibration-approval-rejected.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "calibration-approval-rejected.strace",
+      "bytes": 506688,
+      "sha256": "af2767daf6cb4aaeb3db53a6d6646f5b43aaa53e0a6f567686bd2eacb554d997"
+    },
+    {
+      "path": "calibration-v4-plan.json",
+      "bytes": 571,
+      "sha256": "358321851475a4025f55fda886414cf873a22967bf7572689a5ec61d3805f1e4"
+    },
+    {
+      "path": "covering.log",
+      "bytes": 7651,
+      "sha256": "6786c40475e8a445bbe87f9d6da7a22ba475c5ef6f454e768fda2e4f45a5e2f2"
+    },
+    {
+      "path": "empty-screen-report.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "empty-screen-report.stdout",
+      "bytes": 33883,
+      "sha256": "38ade05e6b3ec81a246eabf6705e721e6928a60b7beab090535487063749cce6"
+    },
+    {
+      "path": "gate-proof.json",
+      "bytes": 1108,
+      "sha256": "5b73fe1bcf4f3b16262452dc31e8c1d94b6e595779b630ae973293008669b5d2"
+    },
+    {
+      "path": "green-1.log",
+      "bytes": 210,
+      "sha256": "2b37cb08223bc2ed9e716d6db5e4eeade53a1d63713d367ecc52140966f0d3c6"
+    },
+    {
+      "path": "green-2.log",
+      "bytes": 310,
+      "sha256": "4ae9732fc6c118fc8fcccc51aa8778c1057fa409e3587d29fa4c24c27ca685fd"
+    },
+    {
+      "path": "green-3.log",
+      "bytes": 422,
+      "sha256": "9a6ca2aa3bab7af6617557d97bc947e9a5168c506e5d323ff8ac9add17618965"
+    },
+    {
+      "path": "green-4.log",
+      "bytes": 513,
+      "sha256": "35651988e2e196bccd4b14ac84c6163e9ce5725e0675811769565976b12de2a5"
+    },
+    {
+      "path": "green-5.log",
+      "bytes": 610,
+      "sha256": "57f3483dcba6a1a40f6d0eaa2d9c9307b7a22c7a69630315b4ca9cc8584de3a9"
+    },
+    {
+      "path": "green-6.log",
+      "bytes": 719,
+      "sha256": "22b3ccb0db76a71155766d441d4d977782a1ebcaa0cf6534f0c2d14b8401d0bc"
+    },
+    {
+      "path": "green-7.log",
+      "bytes": 912,
+      "sha256": "388bff48e0e7b2d131398044410b8f92aca8bf0771b5e16bb906fba61fbb550c"
+    },
+    {
+      "path": "green-8.log",
+      "bytes": 1017,
+      "sha256": "eb0b912a8685582b280af55f36ca80e1f01fea5e53e84e2a5e1e85373a12d5eb"
+    },
+    {
+      "path": "green-9.log",
+      "bytes": 1019,
+      "sha256": "3d74b02aa968d2e95ee50a0a2c268c06da3b81bc8560868ec1f528db71caba3d"
+    },
+    {
+      "path": "initial-plan-missing-subcommand.stderr",
+      "bytes": 91,
+      "sha256": "f9855a806983efa9907c9e08f5041728bc1608ed443145898626a99ef7df4301"
+    },
+    {
+      "path": "initial-plan-missing-subcommand.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "initial-plan-missing-subcommand.strace",
+      "bytes": 2761,
+      "sha256": "0e6c33e829176a933f65dcfa4de368aa7e17949da8447d9fcb8cc934fb7f6b42"
+    },
+    {
+      "path": "missing-approval.stderr",
+      "bytes": 78,
+      "sha256": "d682bff114470cb38fdbebbd8d3991f016368638cb311908e3a3a9b1388942b0"
+    },
+    {
+      "path": "missing-approval.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "missing-approval.strace",
+      "bytes": 506531,
+      "sha256": "55fbe29c30caa9f2e1a4368cd6436ef7232fe59ea494c403f37d7eb0909635ba"
+    },
+    {
+      "path": "npm-ci.log",
+      "bytes": 76,
+      "sha256": "707d684e3827bf8a4727fd1a707577e0293287f23418806cdd1551c0c7fa2261"
+    },
+    {
+      "path": "plan.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "plan.stdout",
+      "bytes": 92628,
+      "sha256": "a52f8cfe3e5234186062601935c95fea4b820eff6379d712b7b4e09cdb58057f"
+    },
+    {
+      "path": "plan.strace",
+      "bytes": 506544,
+      "sha256": "28565de9b78cdaf1c7280cef5c74f73919922686feb17d41ddcb20008b026777"
+    },
+    {
+      "path": "red-1.log",
+      "bytes": 1574,
+      "sha256": "887c7c2c30c10616c69698aae360b098cf2f7ed5ba36629654fb8e95fdaa6a1a"
+    },
+    {
+      "path": "red-2.log",
+      "bytes": 955,
+      "sha256": "95c4e764f24f7c1bbec6f7983fdae15d9597a7db484786f9e33fed934f855fbd"
+    },
+    {
+      "path": "red-3.log",
+      "bytes": 983,
+      "sha256": "0fbdc88c16c5a7f337796586522dfb400d5cede97992afca623c5e7a0a658bf8"
+    },
+    {
+      "path": "red-4.log",
+      "bytes": 1317,
+      "sha256": "5d98d7c41604992797c37a73100bc11ac533c62d214eace277962e8bba2ecc4b"
+    },
+    {
+      "path": "red-5.log",
+      "bytes": 1623,
+      "sha256": "7615c3d354374513169a186e0875e412ae0467dd57b89df44a53f2ca5f0d2450"
+    },
+    {
+      "path": "red-6.log",
+      "bytes": 1018,
+      "sha256": "7c2857b8fa43a065ca788d60389b33f04c81d5e6561406b717c1210fbcb715a4"
+    },
+    {
+      "path": "red-7.log",
+      "bytes": 1959,
+      "sha256": "52723f212d2b5748a41dbe23eb0599a8bd58b6a6d952c96dc25e883372332376"
+    },
+    {
+      "path": "red-8.log",
+      "bytes": 2178,
+      "sha256": "68bc545946fbae17e0c0784d2b9bea18f36efb6b8a3093901893aa5ae5e80d17"
+    },
+    {
+      "path": "red-9.log",
+      "bytes": 1838,
+      "sha256": "e8676c58341cb73e23f12a2d3e12fbaf036e1bfcdba767c2a4d32f0b8182fec8"
+    }
+  ]
+}

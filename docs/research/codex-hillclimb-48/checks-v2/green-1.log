@@ -1,0 +1,13 @@
+✔ paired report uses PR clusters, retains unknown usage, and passes a quarter-point worked gain (4.426514ms)
+✔ baseline repeat ranges are a noise floor, not independent comparison pairs (1.688173ms)
+✔ failed attempts, gaps and observed clean harm cannot become a numerical winner (3.375107ms)
+✔ partial baseline reports show the scheduled repetition denominator and withhold the mean (1.194649ms)
+✔ baseline readiness requires valid exact keys, while candidate gaps do not hide a valid baseline (2.58746ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 110.342739

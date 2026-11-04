@@ -1,0 +1,28 @@
+✖ exact human approval is stage-specific without an invented exposure clearance mechanism (2.454901ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 98.412145
+
+✖ failing tests:
+
+test at docs/research/codex-hillclimb-48/protocol.test.mjs:100:1
+✖ exact human approval is stage-specific without an invented exposure clearance mechanism (2.454901ms)
+  AssertionError [ERR_ASSERTION]: STOP: independent exposure provenance review required
+      at requireApproval (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-f250e28e/docs/research/codex-hillclimb-48/protocol.mjs:36:10)
+      at TestContext.<anonymous> (file:///home/ubuntu/.t3/worktrees/cc-agents/t3-f250e28e/docs/research/codex-hillclimb-48/protocol.test.mjs:105:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

@@ -1,7 +1,7 @@
 // Current integrated membership verification, independent of historical approvals.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { isAbsolute, join, resolve } from 'node:path';
 import { sha, stable } from './utils.mjs';
@@ -60,13 +60,31 @@ export function verifySnapshot(root, privateRoot, manifest) {
   assert.deepEqual(protectedInventory(root), manifest.protected_harness, 'changed combined protected harness');
   assert.deepEqual(privateInventory(privateRoot), manifest.private_files, 'changed private membership or bytes');
 }
+/** Installed non-secret JS dependencies; never auth or user configuration.
+ * @param {string} root @param {string} [prefix] @returns {any[]} */
+export function dependencyInventory(root, prefix = '') {
+  return readdirSync(join(root, prefix)).sort().flatMap(name => {
+    assert.notEqual(name, 'archive');
+    const path = prefix ? `${prefix}/${name}` : name, full = join(root, path), st = lstatSync(full);
+    if (st.isDirectory()) return dependencyInventory(root, path);
+    assert.ok(realpathSync(full).startsWith(realpathSync(root) + '/'), 'dependency link escapes root');
+    assert.ok(st.isSymbolicLink() || (st.isFile() && st.nlink === 1), 'nonregular dependency');
+    return [{ path, kind: st.isSymbolicLink() ? 'symlink' : 'file', mode: st.mode & 0o7777,
+      ...(st.isSymbolicLink() ? { target: readlinkSync(full) } : {}), sha256: sha(readFileSync(full)) }];
+  });
+}
 /** Verify prerequisites before importing the model adapter or touching auth.
- * @param {any} environment */
-export function verifyEnvironment(environment) {
+ * @param {any} environment @param {string} [root] */
+export function verifyEnvironment(environment, root) {
   assert.equal(process.platform, environment.platform);
   assert.equal(process.arch, environment.arch);
   assert.equal(process.version, environment.node_version);
   assert.equal(sha(readFileSync(realpathSync(process.execPath))), environment.node_sha256, 'changed Node binary');
+  if (environment.repository_dependencies) {
+    assert.ok(root, 'repository root required for dependency verification');
+    assert.equal(environment.repository_dependencies.root, 'node_modules');
+    assert.deepEqual(dependencyInventory(join(root, 'node_modules')), environment.repository_dependencies.files, 'changed installed dependency membership or bytes');
+  }
   for (const f of [...environment.system_tools, ...environment.codex_runtime_files])
     assert.equal(sha(readFileSync(realpathSync(f.path))), f.sha256, `changed runtime prerequisite ${f.path}`);
 }
