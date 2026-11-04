@@ -1,6 +1,6 @@
 {
   "version": "astra-calibration-v5-actual",
-  "access": "Restricted originals outside git; raw answers omitted. Remote retention pending.",
+  "access": "Restricted originals and unpublished maintainer-only draft retention; raw answers omitted.",
   "run": "/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-calibration-v5-run",
   "files": [
     {
@@ -5988,5 +5988,15 @@
       "bytes": 32709,
       "sha256": "9a7ca2bab7177219928fd51ab87e66f139dab0cbac1a48aef1e72ab4793f6452"
     }
-  ]
+  ],
+  "retention": {
+    "release_url": "https://github.com/lolisaigao1234/cc-agents/releases/tag/untagged-edc85c914dd78aafa592",
+    "tag": "cc-agents-48-correction-v3-actual-20261104-233516",
+    "asset": "correction-v3-actual-20261104-233516.tar.gz",
+    "archive_bytes": 34132673,
+    "archive_sha256": "bb8a209a6fdd9290b65cb8f1126c2376287d6856b2f71e197faa2c1c86cb9fad",
+    "fresh_download_verified": true,
+    "calibration_archive_prefix": "calibration-v5/",
+    "complete_index": "../codex-hillclimb-48-results-v3/actual-artifact-index.json"
+  }
 }

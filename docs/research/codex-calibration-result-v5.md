@@ -35,7 +35,8 @@ The initial independent audit found only two copied **public** metadata files
 directory. Their copies were tightened to 0600; bytes and sealed indexes did not
 change. All private request/response files already had 0600. Both initial audit
 and permission-operation record are preserved. Final audit has zero issues; no
-frozen source, credential, installed cache/settings/lease or pin was changed.
+frozen source, installed cache/settings/lease or pin was changed by the operator. Native authentication followed the frozen runner;
+credential values were never printed or included in reports.
 
 Requested: gpt-6-astra, High/Fast, subscription authentication,
 configured-only identity. Served model/tier and API-equivalent spend are null.
@@ -51,9 +52,16 @@ Runtime, protocol, preregistration, protected harness, 32 private inputs, exact
 257-member dependencies and production Matt pin all verify against the
 [approved packet](codex-hillclimb-48/approval.md). No frozen normative byte changed.
 
-Restricted actual artifacts: `/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-calibration-v5-run`. Fresh unpublished draft release retention
-and fresh-download verification will be recorded before handoff. Existing input,
-pin and historical releases remain preserved. Raw evidence never enters git.
+Restricted actual artifacts:
+`/home/ubuntu/cc-agents-artifacts/issue-48/correction-v3-calibration-v5-run`.
+The [unpublished actual draft release](https://github.com/lolisaigao1234/cc-agents/releases/tag/untagged-edc85c914dd78aafa592)
+retains the full run and operator proof; fresh download verifies all 1,720 files
+and 397 directories. Archive SHA256:
+`bb8a209a6fdd9290b65cb8f1126c2376287d6856b2f71e197faa2c1c86cb9fad`.
+The [complete hash-only index](codex-hillclimb-48-results-v3/actual-artifact-index.json)
+records exact members/sizes/hashes/modes and zero credential-scan matches.
+Existing input, pin and historical releases remain preserved. Raw evidence never
+enters git.
 
 The actual complete matching sealed v5 PASS condition is satisfied. Baseline
 still requires the real exact v3 gate before fresh flow creation/authentication,
