@@ -46,6 +46,7 @@ function world(root, { issue = ISSUE, reads = [], head = {}, branch = '8-doc-aut
       ghBase: () => 'owner/name',
       message: () => null,
       config: () => null,
+      configKeys: () => [],
       headDocs: () => head,
       pushed: () => null,
       committed: () => false,

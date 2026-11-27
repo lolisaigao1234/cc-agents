@@ -61,6 +61,13 @@ test('a PR with a commit that carries no verification stamp breaks the trace, na
   assert.deepEqual(pullRequestVerdict(12, github({ commits: [commit("Merge branch 'main' into 7-check", 2, '')] })), [], 'a merge is not asked for one')
 })
 
+test('a PR names every commit that carries no verification stamp, and each rule a commit breaks', () => {
+  const unstamped = [commit('add the check (#7)', 1, ''), { sha: 'badc0de987654321', message: 'fix a typo (#7)', parents: 1 }]
+  assert.match(String(pullRequestVerdict(12, github({ commits: unstamped }))[0]), /^2 commits carry no verification stamp: c0ffee1 "add the check \(#7\)", badc0de "fix a typo \(#7\)"\. Implement step: /)
+  const why = pullRequestVerdict(12, github({ commits: [{ sha: 'badc0de987654321', message: 'fix a typo', parents: 1 }] }))
+  assert.deepEqual(why.map(w => w.replace(/: badc0de .*/, '')), ['a commit does not reference #7, the linked issue', 'a commit carries no verification stamp'])
+})
+
 test('a merge is not asked for a reference: what it brings in is judged as its own commits', () => {
   const merge = commit("Merge branch 'main' into 7-check", 2)
   assert.deepEqual(pullRequestVerdict(12, github({ commits: [commit('add the check (#7)'), merge] })), [])

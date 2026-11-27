@@ -17,11 +17,11 @@ In an opted-in repository, a PreToolUse hook on Edit, Write, MultiEdit and Noteb
 On Bash, the same hook refuses, in a traced repository:
 
 - `git commit` whose message does not reference the linked issue (`#<n>`), read as git records it: `-m`, `--trailer`, `-F <file>`, a heredoc or here-string to `-F -`, `-C`, `--fixup`, the commit an `--amend --no-edit` rewrites, with comment lines dropped under `strip` cleanup;
-- `git commit` whose message, read the same way, carries no verification stamp: a `Verified: <how it was verified>` trailer, or `Verified: none`, in a last paragraph that git reads as trailers. The gate takes that paragraph as trailers only when every line of it is one (a `token: value` line, or one starting with a space or a tab that continues it), so what it accepts, git reads as a stamp too; a stamp in a paragraph the shell computes cannot be told. It judges that a stamp is there, never whether the verification happened or was enough;
+- `git commit` whose message, read the same way, carries no verification stamp: a `Verified: <how it was verified>` trailer, or `Verified: none`, in the message's trailer block. It reads that block as `git log --format=%(trailers)` does: up to a scissors line (`# ------------------------ >8 ------------------------`), past comment lines, in a last paragraph that is not the subject and holds only trailers, or a quarter of trailers with one git writes itself (`Signed-off-by:`, `(cherry picked from commit …)`), with `--trailer` lines placed where git places them. So what the gate accepts, git reads as a stamp too, and so does the trace check on GitHub. It cannot tell a stamp when the shell computes any part of the message other than a number, since an expansion may empty a paragraph, add one or cut the message at a scissors line, nor one that `--trailer` adds while any `trailer.*` setting is set, since those may drop, rename or rewrite it. It judges that a stamp is there, never whether the verification happened or was enough;
 - `gh pr create` (or `gh pr new`), and `gh pr edit` changing the body, whose body does not say `Closes #<n>` (or `Fixes`, `Resolves`, with `owner/name#<n>` or the issue's URL), read from `--body-file`, else the last `--body`, outside code and HTML comments;
 - either one when it cannot tell the message, the body or the repository: an editor, `--fill`, `--web`, an option it does not know, a piped, shell-computed or same-line-written file, a `cd` it cannot follow, a variable such as `GIT_DIR` or `GH_REPO`, a git or gh alias that runs a shell (`!…`), or a PR that gh would open outside origin's repository (`-R`, a fork's upstream). Other git and gh aliases are followed.
 
-Every refusal names the pipeline step; one for a missing reference or stamp also names the exact text to add, and the linked issue it must reference. The edit gate's branch rules apply to commits and PRs too.
+Every refusal names the pipeline step. One for a missing reference also names the linked issue and the exact text to add; one for a missing stamp, the exact text to add. The edit gate's branch rules apply to commits and PRs too.
 
 ### The trace check
 
@@ -34,7 +34,7 @@ Hooks judge a change only where a session runs them. On GitHub, this repository'
 
 It runs when a pull request is opened or reopened, when commits are pushed to it, and when its body, title or base branch is edited. Each run asks GitHub for the pull request as it is then, so re-running a run judges it afresh: that is how to judge again after an issue is closed or reopened, which starts no run. A failure names each broken rule and its pipeline step; when GitHub does not answer the run, it fails. A merged pull request passes unread: merging closed its issue, and it cannot merge again.
 
-It differs from the gates where GitHub does. It reads what git recorded, not a command's text, so it judges commits whoever made them, and a merge that a session concluded with `git commit`, which the commit gate asks for `#<n>`, is not asked here. A stacked branch's pull request takes its blocker's branch as its base (`gh pr create --base`, `gh pr edit --base`) while the blocker's PR awaits merge: against the default branch, the blocker's commits would be judged as its own.
+It differs from the gates where GitHub does. It reads what git recorded, not a command's text, so it judges commits whoever made them, and a merge that a session concluded with `git commit`, which the commit gate asks for `#<n>` and a verification stamp, is asked for neither here. A stacked branch's pull request takes its blocker's branch as its base (`gh pr create --base`, `gh pr edit --base`) while the blocker's PR awaits merge: against the default branch, the blocker's commits would be judged as its own.
 
 The workflow runs on `pull_request_target`, so GitHub takes the workflow file and the script from the default branch, never from the pull request: a change cannot alter the check that judges it, and a change to the check judges pull requests only once it is merged. Nothing of the pull request is checked out or run. The run's token can only read: `contents` (the script), `pull-requests` and `issues`.
 
@@ -75,10 +75,10 @@ A pull request opened before the check reached the default branch has no run of 
 A commit verified by nothing says so with `Verified: none`, and one without a stamp got past no gate. This lists both kinds on the current branch, with the branch's base in place of `origin/main` while it is stacked:
 
 ```sh
-git log --no-merges --format='%h %(trailers:key=Verified,valueonly,unfold,separator=%x2C) %s' origin/main..HEAD | grep -iE '^[0-9a-f]+ (none)? '
+git log --no-merges --format='%h%x09%(trailers:key=Verified,valueonly,unfold,separator=%x2C)%x09%s' origin/main..HEAD | awk -F '\t' 'tolower($2) ~ /^(none)?(,(none)?)*$/'
 ```
 
-Each line is a commit's short hash, its stamp (`none`, or nothing), and its subject.
+Each line is a commit's short hash, its stamps (`none`, several joined by commas, or nothing), and its subject, separated by tabs.
 
 ### Forced reads
 

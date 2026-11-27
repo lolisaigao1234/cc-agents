@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 
 import { Unanswered } from '../plugins/trace/scripts/lib/halt.mjs'
 import { CASE_INSENSITIVE_FS } from '../plugins/trace/scripts/lib/paths.mjs'
-import { commandVerdict, editVerdict, worldFor } from '../plugins/trace/scripts/lib/trace.mjs'
+import { commandVerdict, editVerdict, stamped, worldFor } from '../plugins/trace/scripts/lib/trace.mjs'
 import { noReads } from './helpers.mjs'
 
 const HOOK = fileURLToPath(new URL('../plugins/trace/scripts/hook.mjs', import.meta.url))
@@ -34,6 +34,7 @@ function world(o = {}) {
       message: (/** @type {string} */ _root, /** @type {string} */ rev) => messages[rev] ?? null,
       config: (/** @type {string} */ _root, /** @type {string} */ key) =>
         config[key] ?? (key.startsWith('alias.') ? aliases[key.slice('alias.'.length)] : undefined) ?? null,
+      configKeys: (/** @type {string} */ _root, /** @type {string} */ section) => Object.keys(config).filter(k => k.toLowerCase().startsWith(`${section}.`)),
       headDocs: () => ({}),
       pushed: () => null,
       committed: () => false,
@@ -927,14 +928,21 @@ test('a verification stamp says how a commit was verified, "none" included, as a
   }
   assert.equal(verdict('git commit --amend --no-edit', { messages: { HEAD: 'Add the gate (#7)\n\nVerified: none' } }), null)
   // The shell may make a computed stamp empty, or end the message after it.
-  for (const command of ['git commit -m "Add the gate (#7)" -m "Verified: $HOW"', 'git commit -m "Add the gate (#7)" -m "Verified: npm test $((1+1))"']) {
+  for (const command of ['git commit -m "Add the gate (#7)" -m "Verified: $HOW"', 'git commit -m "Add the gate (#7)" -m "Verified: npm test $(date)"']) {
     assert.match(String(verdict(command)), /cannot tell the commit message, which the shell computes/, command)
   }
 })
 
-test('the commit gate reads a verification stamp as git reads a trailer', () => {
+test('the commit gate and the trace check read a verification stamp as git reads a trailer', () => {
   const dir = mkdtempSync(join(tmpdir(), 'stamp-'))
-  execFileSync('git', ['init', '-q', dir])
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' }
+  const git = (/** @type {string[]} */ args, input = '') => execFileSync('git', args, { cwd: dir, env, input, encoding: 'utf8' })
+  git(['init', '-q'])
+  // What git, and the trace check on GitHub, read in the commit just made.
+  const read = () => ({ git: git(['log', '-1', '--format=%(trailers:key=Verified,valueonly,unfold,separator=%x2C)']).trim() !== '', check: stamped(git(['log', '-1', '--format=%B'])) })
+  const sob = 'Signed-off-by: A <a@b>'
+  const scissors = '# ------------------------ >8 ------------------------'
+  // Messages as git records them, judged as the commit that keeps one.
   for (const message of [
     'x (#7)\n\nVerified: none',
     'x (#7)\n\nVerified : npm test\nSigned-off-by: A <a@b>',
@@ -946,11 +954,64 @@ test('the commit gate reads a verification stamp as git reads a trailer', () => 
     'x (#7)\n\nVerified: none\n---\nmore',
     'x (#7)\n\nVerified: none\n\nlater',
     'Verified: none (#7)',
+    // A scissors line ends what git reads; comment lines it skips.
+    `x (#7)\n\nVerified: none\n${scissors}\nmore`,
+    `x (#7)\n\n${scissors}\nVerified: none`,
+    `x (#7)\n\nprose\n\n${scissors}\n\nVerified: none`,
+    'x (#7)\n\nVerified: none\n# a comment',
+    'x (#7)\n\n# a comment\nVerified: none',
+    '# a comment\nx (#7)\n\nVerified: none',
+    // A paragraph with a git-generated trailer is a trailer block when a quarter of its lines are trailers.
+    `x (#7)\n\nVerified: none\n${sob}\nprose\nprose\nprose`,
+    `x (#7)\n\nVerified: none\nprose\nprose\nprose\nprose\nprose\nprose\nprose\n${sob}`,
+    'x (#7)\n\nVerified: none\n(cherry picked from commit 0123456789abcdef0123456789abcdef01234567)',
+    'x (#7)\n\nVerified: a\n  b\nnot',
+    // A lone carriage return breaks no line; CRLF does.
+    'x (#7)\r\rVerified: none',
+    'x (#7)\r\n\r\nVerified: none\r\n',
+    'x (#7)\n\n\v\nVerified: none',
   ]) {
-    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '--cleanup=verbatim', '-F', '-'], { cwd: dir, input: message })
-    const byGit = execFileSync('git', ['log', '-1', '--format=%(trailers:key=Verified,valueonly,unfold,separator=%x2C)'], { cwd: dir, encoding: 'utf8' }).trim() !== ''
-    const byGate = verdict('git commit --amend --no-edit', { messages: { HEAD: message } }) === null
-    assert.equal(byGate, byGit, JSON.stringify(message))
+    git(['commit', '-q', '--allow-empty', '--cleanup=verbatim', '-F', '-'], message)
+    const gate = verdict('git commit --amend --no-edit', { messages: { HEAD: message } }) === null
+    const { git: byGit, check } = read()
+    assert.deepEqual({ gate, check }, { gate: byGit, check: byGit }, JSON.stringify(message))
+  }
+  // Commands, as bash runs them.
+  for (const command of [
+    'git commit -q --allow-empty -m "x (#7)" -m "Verified: none"',
+    'git commit -q --allow-empty -m "" -m "Verified: none (#7)"',
+    `git commit -q --allow-empty --cleanup=scissors -m "x (#7)" -m "${scissors}" -m "Verified: none"`,
+    `git commit -q --allow-empty -m "x (#7)" -m "${scissors}" --trailer "Verified: none"`,
+    "git commit -q --allow-empty -m $'Fix (#7)\\r\\rVerified: none'",
+    "git commit -q --allow-empty -m $'Fix (#7)\\r\\n\\r\\nVerified: none'",
+    // --trailer goes into a last paragraph that git reads as a trailer block, or after it.
+    `git commit -q --allow-empty -m "x (#7)" -m "${sob}\nprose" --trailer "Verified: none"`,
+    `git commit -q --allow-empty -m "x (#7)" -m "${sob}\nprose\nprose\nprose\nprose" --trailer "Verified: none"`,
+    'git commit -q --allow-empty -m "x (#7)" -m "Verified: none\nprose" --trailer "Refs: #7"',
+    'git commit -q --allow-empty -m "x (#7)" --trailer "Verified="',
+  ]) {
+    execFileSync('bash', ['-c', command], { cwd: dir, env })
+    const gate = verdict(command) === null
+    const { git: byGit, check } = read()
+    assert.deepEqual({ gate, check }, { gate: byGit, check: byGit }, command)
+  }
+  // What the shell computes, or trailer.* settings, may leave git no stamp to read: the gate cannot tell.
+  for (const [command, config = {}] of /** @type {[string, Record<string, string>?][]} */ ([
+    ['X=; git commit -q --allow-empty -m "$X" -m "Verified: none (#7)"'],
+    ['X=; git commit -q --allow-empty -m "$X\n\nVerified: none (#7)"'],
+    ["X='# c'; git commit -q --allow-empty --cleanup=strip -m \"$X\" -m 'Verified: none (#7)'"],
+    [`X='${scissors}'; git commit -q --allow-empty -m 'x (#7)' -m "$X" -m 'Verified: none'`],
+    ['git -c trailer.ifmissing=doNothing commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git -c trailer.verified.ifmissing=doNothing commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git -c trailer.verified.key=Other commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git -c trailer.verified.cmd=true commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"', { 'trailer.ifmissing': 'doNothing' }],
+  ])) {
+    for (const [key, value] of Object.entries(config)) git(['config', key, value])
+    execFileSync('bash', ['-c', command], { cwd: dir, env })
+    for (const key of Object.keys(config)) git(['config', '--unset', key])
+    assert.match(String(verdict(command, { config })), /cannot tell the commit message/, command)
+    assert.deepEqual(read(), { git: false, check: false }, command)
   }
   rmSync(dir, { recursive: true, force: true })
 })
@@ -975,6 +1036,7 @@ test('a commit whose message cannot be told from the command is refused with a r
     'cd "$DIR" && git commit -m x',
     'git --git-dir=/x/.git commit -m "x #7"',
     'git commit --amend --no-edit',
+    'git commit --trailer "Verified=none"',
   ]) {
     assert.match(String(verdict(command)), /cannot tell/, command)
   }
@@ -1034,8 +1096,10 @@ test('a commit message is judged as git records it: fixups, trailers, cleanup an
   assert.match(String(verdict('git -c commit.cleanup=strip commit -m "#7: add the gate"')), /does not reference #7/)
   assert.match(String(verdict('git commit -m "#7: add the gate"', { config: { 'commit.cleanup': 'strip' } })), /does not reference #7/)
   assert.equal(verdict('git -c core.commentChar=";" commit --cleanup=strip -m "#7: add the gate" -m "Verified: none"'), null)
-  // Without an editor, git reads scissors as whitespace.
-  assert.equal(verdict('git commit --cleanup=scissors -m "#7 x" -m "# ------------------------ >8 ------------------------" -m "Verified: none"'), null)
+  // Without an editor, git keeps a scissors line, and reads no trailer after it.
+  assert.match(String(verdict('git commit --cleanup=scissors -m "#7 x" -m "# ------------------------ >8 ------------------------" -m "Verified: none"')), /no verification stamp/)
+  // git here reads the message with its own comment string, GitHub with `#`.
+  assert.match(String(verdict('git -c core.commentChar=";" commit -m "#7 x" -m "; ------------------------ >8 ------------------------" -m "Verified: none"')), /no verification stamp/)
   assert.equal(verdict('git commit --dry-run'), null)
 })
 
