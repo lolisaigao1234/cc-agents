@@ -16,4 +16,4 @@ The trace has no observe mode: no setting under which a gate, the guard or the a
 
 - Every hard block the hooks have stays enforcing.
 - A new hard block's proof is its tests and the calls it adds to `CALLS` in the verify skill's `drive-hooks.mjs`: what it refuses and what it lets through, as the real hooks return them.
-- A refusal its tests and the verify skill did not foresee is found after it ships, and fixed through the trace like any other bug. Until then, the human gets past it the way its deny names: the bypass (ADR 0006) for the trace's branch, reference and forced-read rules, and by hand for the rest, which hold under the bypass: the guard, the archive block (the archive is the human's alone, ADR 0008), and the refusals to change Claude Code's settings or the trace's own records.
+- A refusal its tests and the verify skill did not foresee is found after it ships, and fixed through the trace like any other bug. Until then, the human gets past it with the bypass (ADR 0006) for the rules the bypass turns off, and by hand for the rest.
