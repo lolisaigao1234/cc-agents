@@ -672,8 +672,7 @@ function prVerdict(run, world) {
   const bodyFile = [...opts].reverse().find(([name]) => name === 'body-file')
   // --body-file replaces --body, whatever their order.
   const text = unknownOption || elsewhere ? null : bodyFile ? fileText(bodyFile[1], run, place.dir) : last.body ?? null
-  const ref = `(?:#${n}${slug ? `|${escape(slug)}#${n}|https://github\\.com/${escape(slug)}/issues/${n}` : ''})(?![\\w/])`
-  return judge(text, new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\\s+${ref}`, 'i'), {
+  return judge(text, closesIssue(n, slug), {
     what: 'PR body',
     how: '--body or a heredoc to --body-file -',
     step: 'Review',
@@ -683,11 +682,22 @@ function prVerdict(run, world) {
   })
 }
 
+/**
+ * What a PR body must hold to close issue #n of `slug`: one of GitHub's
+ * closing words before `#n`, `slug#n` or the issue's URL.
+ *
+ * @param {number} n @param {string | null} slug
+ */
+export const closesIssue = (n, slug) => {
+  const ref = `(?:#${n}${slug ? `|${escape(slug)}#${n}|https://github\\.com/${escape(slug)}/issues/${n}` : ''})(?![\\w/])`
+  return new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\\s+${ref}`, 'i')
+}
+
 /** @param {string} text @returns {string} `text` without its comments and fenced code, which GitHub does not show as the comment's own words */
 export const dropMarkdownBlocks = text => text.replace(/<!--[\s\S]*?(?:-->|$)/g, '').replace(/^(```|~~~)[^\n]*\n[\s\S]*?(?:^\1[^\n]*$|(?![\s\S]))/gm, '')
 
 /** @param {string} text @returns {string} `text` without what GitHub does not read as links: code and comments */
-const dropMarkdownCode = text =>
+export const dropMarkdownCode = text =>
   dropMarkdownBlocks(text)
     .replace(/`[^`\n]*`/g, '')
     .replace(/(^|\n[ \t]*\n)((?: {4}|\t)[^\n]*(?:\n|$))+/g, '$1')

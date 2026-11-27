@@ -1,0 +1,50 @@
+# The trace check (ADR 0006): a pull request's branch names an open issue,
+# its commits reference `#<n>` and its body says `Closes #<n>`, judged on
+# GitHub, whatever ran or did not run in the session that made the change.
+#
+# `pull_request_target` runs this file, and checks out the script, as the
+# default branch has them, never as the pull request does: a change cannot
+# alter the check that judges it. So nothing of the pull request is checked
+# out or run; it is read through the API, with a token that can only read.
+# A change to this check therefore judges pull requests once it is merged,
+# and does not run on the pull request that makes it.
+#
+# `edited` runs it again when the body or the base branch changes, and
+# `synchronize` when commits are pushed. The script asks GitHub for the pull
+# request as it is now, so re-running a run judges it afresh.
+#
+# It blocks a merge only while the default branch's protection requires the
+# check `trace` (plugins/trace/README.md, The trace check).
+
+name: Trace
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+# The latest event's run is the one that reports.
+concurrency:
+  group: trace-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node plugins/trace/scripts/check.mjs "$PR"
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}

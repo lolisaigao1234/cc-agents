@@ -19,6 +19,8 @@ Every change, code or docs or config, ties to one GitHub issue from start to fin
 
 Review and fix run in rounds. A review, or a part of one, that fails, times out or returns no report has not reviewed, which is not the same as finding nothing: run it once more, and if it fails again, record it as not run in the progress comment, and do not end the rounds or mark the PR ready on it. A round whose reviews all ran records the commit they covered, on a line of its own in its progress comment: `Reviewed: <sha>`, the `git rev-parse HEAD` they ran on. Answer every finding with a fix or, in the progress comment, a reason. Fix the finding's whole class. After the first round, review only the new diff. After three rounds, step back: reconsider the approach and ask the human before a fourth.
 
+Never repeat a posted finding: a later round leaves out every finding already posted. A finding in code the branch left unchanged is pre-existing: file an issue for it and do not fix it, even when it is of a class the branch fixes. Never skip, sleep past or retry a flaky test until it passes.
+
 The issue is the source of truth across compaction, resumes and subagents: when memory and the issue disagree, reread the issue.
 
 Merging is the human's step. Your work is done when the PR is ready for review.
