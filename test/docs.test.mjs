@@ -49,6 +49,7 @@ function world(root, { issue = ISSUE, reads = [], head = {}, branch = '8-doc-aut
       headDocs: () => head,
       pushed: () => null,
       committed: () => false,
+      since: () => null,
     },
     github: { issueState: () => /** @type {const} */ ('OPEN'), issue: () => issue, alias: () => null, pr: () => /** @type {const} */ ('NONE') },
     env: {},

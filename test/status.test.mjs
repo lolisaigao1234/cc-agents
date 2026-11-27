@@ -32,9 +32,9 @@ function docsRepo() {
  * In-memory git and GitHub around `root`.
  *
  * @param {string} root
- * @param {{ branch?: string, issue?: Issue | null, state?: 'OPEN' | 'CLOSED', traced?: boolean, env?: Record<string, string>, pushed?: { sha: string, at: string } | null, committed?: boolean, pr?: PullRequest | 'NONE' | null, records?: ReadRecord[] }} [o]
+ * @param {{ branch?: string, issue?: Issue | null, state?: 'OPEN' | 'CLOSED', traced?: boolean, env?: Record<string, string>, pushed?: { sha: string, at: string } | null, committed?: boolean, pr?: PullRequest | 'NONE' | null, records?: ReadRecord[], since?: (rev: string) => number | null }} [o]
  */
-function world(root, { branch = '10-trace-band', issue = ISSUE, state = 'OPEN', traced = true, env = {}, pushed = null, committed = false, pr = 'NONE', records = [] } = {}) {
+function world(root, { branch = '10-trace-band', issue = ISSUE, state = 'OPEN', traced = true, env = {}, pushed = null, committed = false, pr = 'NONE', records = [], since = () => null } = {}) {
   /** @type {number[]} the issues GitHub was asked the state of */
   const asked = []
   return {
@@ -51,6 +51,7 @@ function world(root, { branch = '10-trace-band', issue = ISSUE, state = 'OPEN', 
       headDocs: () => ({}),
       pushed: () => pushed,
       committed: () => committed,
+      since: (/** @type {string} */ _, /** @type {string} */ rev) => since(rev),
     },
     github: { issueState: (/** @type {string} */ _, /** @type {number} */ n) => (asked.push(n), issue ? state : null), issue: () => issue, alias: () => null, pr: () => pr },
     env,
@@ -59,14 +60,14 @@ function world(root, { branch = '10-trace-band', issue = ISSUE, state = 'OPEN', 
   }
 }
 
-/** @param {string} root @returns {ReadRecord[]} what an agent that read the glossary and the whole issue has on record */
-function readEverything(root) {
-  const w = world(root)
+/** @param {string} root @param {Issue} [issue] @returns {ReadRecord[]} what an agent that read the glossary and the whole issue has on record */
+function readEverything(root, issue = ISSUE) {
+  const w = world(root, { issue })
   const glossary = join(root, 'GLOSSARY.md')
   const as = { cwd: root, session_id: 's' }
   return [
     ...readRecord({ tool_name: 'Read', tool_input: { file_path: glossary }, tool_response: { type: 'text', file: { filePath: glossary, content: '# Terms\n', numLines: 2, startLine: 1, totalLines: 2 } }, ...as }, w),
-    ...readRecord({ tool_name: 'Bash', tool_input: { command: 'gh issue view 10 --comments' }, tool_response: { stdout: [ISSUE.title, ISSUE.body, ...ISSUE.comments.map(c => c.body)].join('\n'), stderr: '', interrupted: false }, ...as }, w),
+    ...readRecord({ tool_name: 'Bash', tool_input: { command: 'gh issue view 10 --comments' }, tool_response: { stdout: [issue.title, issue.body, ...issue.comments.map(c => c.body)].join('\n'), stderr: '', interrupted: false }, ...as }, w),
   ]
 }
 
@@ -105,6 +106,12 @@ test('on an open issue whose docs are unread, the step is Read, with what is unr
   assert.deepEqual([one?.comment?.author, one?.last], ['claude', null])
 })
 
+// A commit, and the issue once a round's progress comment has recorded a review of it.
+const HEAD = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
+/** @param {string} body @returns {Issue} */
+const withComment = body => ({ ...ISSUE, comments: [...ISSUE.comments, { id: '3', author: 'claude', body, at: '2026-10-03T11:00:00Z' }] })
+const REVIEWED = withComment(`## Progress\n\nRound 1: both reviews ran, no findings.\n\nReviewed: ${HEAD}`)
+
 test('the step moves on as each one completes, up to Close', () => {
   const root = docsRepo()
   const records = readEverything(root)
@@ -119,25 +126,83 @@ test('the step moves on as each one completes, up to Close', () => {
   assert.deepEqual([review?.step, review?.pr], ['review', null])
   assert.match(String(review?.why), /Review step: review 10-trace-band \(\/code-review, mattpocock-skills:code-review\), then open a PR for it that says Closes #10 \(mattpocock-skills:pr\)\./)
 
+  // From here the head is reviewed: the issue's last comment records a review of it.
+  const reviewed = { issue: REVIEWED, records: readEverything(root, REVIEWED), since: () => 0, committed: true }
   const pushed = { sha: 'abc', at: '2026-10-04T10:00:00Z' }
-  const update = at({ committed: true, pr: PR, pushed })
+  const update = at({ ...reviewed, pr: PR, pushed })
   assert.equal(update?.step, 'update')
   assert.deepEqual(update?.pr, { ...PR, ci: 'passing', checks: PR.checks.map(c => ({ ...c, outcome: 'passing' })) })
   assert.match(String(update?.why), /Update step: post a progress comment on #10 .*`gh issue comment 10 -R owner\/name`/)
 
-  const close = at({ committed: true, pr: PR, pushed: { sha: 'abc', at: '2026-10-03T09:00:00Z' } })
+  const close = at({ ...reviewed, pr: PR, pushed: { sha: 'abc', at: '2026-10-03T09:00:00Z' } })
   assert.deepEqual([close?.step, close?.done], ['close', ['read', 'track', 'branch', 'implement', 'review', 'update']])
   assert.match(String(close?.why), /Close step: PR #19 is open; merging it closes #10/)
 
-  const closed = at({ committed: true, pr: { ...PR, state: 'CLOSED' }, pushed })
+  const closed = at({ ...reviewed, pr: { ...PR, state: 'CLOSED' }, pushed })
   assert.equal(closed?.step, 'review', 'a closed PR closes nothing')
   assert.match(String(closed?.why), /^PR #19 for 10-trace-band was closed unmerged\. Review step: review 10-trace-band/)
-  const merged = at({ committed: true, pr: { ...PR, state: 'MERGED' }, pushed })
+  const merged = at({ ...reviewed, pr: { ...PR, state: 'MERGED' }, pushed })
   assert.equal(merged?.step, 'review', 'a PR merged into another branch leaves the issue open')
   assert.match(String(merged?.why), /^PR #19 for 10-trace-band was merged, but #10 is still open: .*Review step: /)
 
   const done = at({ committed: true, pr: { ...PR, state: 'MERGED' }, pushed, state: 'CLOSED' })
   assert.deepEqual([done?.step, done?.done], ['done', ['read', 'track', 'branch', 'implement', 'review', 'update', 'close']])
+})
+
+test('an open PR completes Review only once a review of the head is recorded on the issue', () => {
+  const root = docsRepo()
+  const pushed = { sha: 'abc', at: '2026-10-03T09:00:00Z' }
+  const step = 'Review step: review it (/code-review, mattpocock-skills:code-review) unless this round already has, then record the commit the reviews covered, as a line `Reviewed: <sha>` in the progress comment on #10.'
+  /** @param {Issue} issue @param {(rev: string) => number | null} [since] */
+  const at = (issue, since) => traceStatus(root, world(root, { issue, records: readEverything(root, issue), since, committed: true, pr: PR, pushed }))
+
+  const none = at(ISSUE)
+  assert.deepEqual([none?.step, none?.done], ['review', ['read', 'track', 'branch', 'implement', 'update']])
+  assert.deepEqual(none?.review, { sha: null, unreviewed: null })
+  assert.equal(none?.why, `PR #19 is open, but no review of 10-trace-band is recorded on #10. ${step}`)
+
+  /** @type {string[]} the commits git was asked about */
+  const asked = []
+  const head = at(REVIEWED, rev => (asked.push(rev), 0))
+  assert.deepEqual(asked, [HEAD], 'git says how far the head is past the recorded commit')
+  assert.deepEqual(head?.review, { sha: HEAD, unreviewed: 0 })
+  assert.deepEqual([head?.step, head?.done], ['close', ['read', 'track', 'branch', 'implement', 'review', 'update']])
+})
+
+test('a review of an older head no longer counts: the status says which commits are unreviewed', () => {
+  const root = docsRepo()
+  const records = readEverything(root, REVIEWED)
+  const at = (/** @type {number | null} */ since) => traceStatus(root, world(root, { issue: REVIEWED, records, since: () => since, committed: true, pr: PR }))
+  const step = (/** @type {string} */ what) =>
+    `Review step: review ${what} (/code-review, mattpocock-skills:code-review) unless this round already has, then record the commit the reviews covered, as a line \`Reviewed: <sha>\` in the progress comment on #10.`
+
+  const two = at(2)
+  assert.equal(two?.step, 'review')
+  assert.deepEqual(two?.review, { sha: HEAD, unreviewed: 2 })
+  assert.equal(two?.why, `2 commits on 10-trace-band since a1b2c3d, the commit the last review recorded on #10 covered, are unreviewed (\`git log a1b2c3d..HEAD\`). ${step('the new diff')}`)
+  assert.match(String(at(1)?.why), /^1 commit on 10-trace-band since a1b2c3d, the commit the last review recorded on #10 covered, is unreviewed /)
+
+  // A commit a rebase left behind, or one git does not have here: nothing on the branch descends from it.
+  const gone = at(null)
+  assert.deepEqual([gone?.step, gone?.review], ['review', { sha: HEAD, unreviewed: null }])
+  assert.equal(gone?.why, `the last review recorded on #10 covered a1b2c3d, which is not in 10-trace-band's history, so all of 10-trace-band is unreviewed. ${step('it')}`)
+})
+
+test('the review record is the latest line `Reviewed: <sha>` of its own in a comment on the issue', () => {
+  const root = docsRepo()
+  const sha = (/** @type {string} */ body) => traceStatus(root, world(root, { issue: withComment(body) }))?.review?.sha
+  const OLD = '0123456789abcdef0123456789abcdef01234567'
+  assert.equal(sha(`Reviewed: ${OLD}\n\nRound 2, after the fixes.\n\nReviewed: ${HEAD}`), HEAD, 'the latest record counts')
+  assert.equal(traceStatus(root, world(root, { issue: { ...REVIEWED, comments: [...REVIEWED.comments, { id: '4', author: 'rocky', body: 'Merging tomorrow.', at: '2026-10-04T08:00:00Z' }] } }))?.review?.sha, HEAD, 'a later comment without one leaves it standing')
+  assert.equal(sha('  reviewed: `A1B2C3D`\r\n'), 'A1B2C3D', 'an abbreviated commit, in backticks, in any case')
+  for (const body of [`> Reviewed: ${HEAD}`, `I Reviewed: ${HEAD} yesterday`, `Reviewed: ${HEAD} and the tests`, 'Reviewed: the whole branch', 'Reviewed: abc12', `Reviewed-by: ${HEAD}`, `Reviewed: \`${HEAD}`]) {
+    assert.equal(sha(body), null, body)
+  }
+  // An example of the line, or one GitHub does not show, is not a record.
+  for (const body of [`\`\`\`\nReviewed: ${HEAD}\n\`\`\``, `~~~text\r\nReviewed: ${HEAD}\r\n~~~`, `The line:\n\n    Reviewed: ${HEAD}`, `\tReviewed: ${HEAD}`, `<!--\nReviewed: ${HEAD}\n-->`]) {
+    assert.equal(sha(body), null, body)
+  }
+  assert.equal(sha(`Reviewed: ${HEAD}\n\nRecord the next round the same way:\n\n\`\`\`\nReviewed: ${OLD}\n\`\`\``), HEAD, 'a later example in a code fence leaves the record standing')
 })
 
 test("the PR's CI is failing on any failed check, pending on any unfinished one, and none without checks", () => {

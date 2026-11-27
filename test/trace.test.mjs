@@ -37,6 +37,7 @@ function world(o = {}) {
       headDocs: () => ({}),
       pushed: () => null,
       committed: () => false,
+      since: () => null,
     },
     github: {
       issueState: (/** @type {string} */ _root, /** @type {number} */ n) => (unreadable ? null : issues[n] ?? 'MISSING'),
@@ -529,12 +530,50 @@ test("the status event reports the trace from real git and gh: the commits, the 
       { name: 'ci/legacy', state: 'FAILURE', outcome: 'failing' },
     ],
   }, 'a re-run that passed replaces the run that failed')
-  assert.ok(after?.done.includes('review'))
+  assert.ok(!after?.done.includes('review'), 'an open PR alone is not a review')
   assert.equal(hook({ cwd: repo(false).dir, session_id: 's' }, {}, issues, 'status'), null, 'untraced: nothing')
   assert.match(String(hook({ cwd: dir, session_id: 's' }, { PATH: '/nonexistent' }, issues, 'status')?.halt), /^trace: git did not answer/, 'without git, the status says so')
   // A cwd that is not a path makes the status throw.
   const failed = spawnSync(process.execPath, [HOOK, 'status'], { input: JSON.stringify({ cwd: 5, session_id: 's' }), encoding: 'utf8' })
   assert.deepEqual([failed.status, failed.stdout], [1, ''], 'a status that fails otherwise is a failure, not "untraced"')
+})
+
+test("the status event completes Review only while the branch's head is the commit the issue's review record names", () => {
+  const { dir, git } = repo()
+  git('checkout', '-qb', '10-trace-band')
+  git('commit', '-q', '--allow-empty', '-m', 'the band (#10)')
+  const head = () => execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim()
+  const prs = { '10-trace-band': { number: 21, url: 'https://github.com/owner/name/pull/21', state: 'OPEN', statusCheckRollup: [] } }
+  const status = (/** @type {string} */ recorded) => {
+    const thread = [{ id: '1', author: 'claude', body: `## Progress\n\nRound 1.\n\nReviewed: ${recorded}`, at: '2026-10-28T10:00:00Z' }]
+    return hook({ cwd: dir, session_id: `s-${process.pid}` }, { FAKE_GH_PRS: JSON.stringify(prs) }, { 'owner/name#10': { state: 'open', title: 'Trace band', body: 'Show it.', comments: 1, thread } }, 'status')
+  }
+  const reviewed = head()
+  const done = status(reviewed)
+  assert.deepEqual(done?.review, { sha: reviewed, unreviewed: 0 })
+  assert.ok(done?.done.includes('review'))
+  assert.equal(status(reviewed.slice(0, 9))?.review?.unreviewed, 0, 'an abbreviated commit is the same commit')
+
+  git('commit', '-q', '--allow-empty', '-m', 'a fix (#10)')
+  git('commit', '-q', '--allow-empty', '-m', 'another (#10)')
+  const moved = status(reviewed)
+  assert.deepEqual(moved?.review, { sha: reviewed, unreviewed: 2 })
+  assert.ok(!moved?.done.includes('review'), 'two commits since the review')
+
+  // What a comment names may be no commit of this branch: git's no is an answer, never a halt.
+  const rev = (/** @type {string} */ name) => execFileSync('git', ['rev-parse', name], { cwd: dir, encoding: 'utf8' }).trim()
+  git('commit', '-q', '--amend', '--allow-empty', '-m', 'another, reworded (#10)')
+  git('branch', 'amended-away', 'HEAD@{1}')
+  for (const [recorded, unreviewed, what] of /** @type {[string, number | null, string][]} */ ([
+    [rev('main'), 3, 'counted from an ancestor'],
+    [rev('amended-away'), null, 'a commit the head does not descend from'],
+    ['1'.repeat(40), null, 'a hash of no object'],
+    ['abcdef0', null, 'an abbreviation of none'],
+    [rev('HEAD^{tree}'), null, 'a tree'],
+  ])) {
+    const s = status(recorded)
+    assert.deepEqual([s?.halt, s?.review], [undefined, { sha: recorded, unreviewed }], what)
+  }
 })
 
 test("the hook refuses tools that would touch the trace's read records, and only those", () => {
