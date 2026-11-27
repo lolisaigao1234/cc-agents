@@ -473,6 +473,9 @@ const definesGitAlias = c => writesGitSetting(c, /^alias\./i)
 // Settings that change the message `git commit` records, or where git reads its trailers.
 const MESSAGE_SETTINGS = /^(?:core\.comment(?:char|string)|commit\.cleanup)$/i
 
+// Settings that change how git reads trailers in any message, so `git log` and `git commit -s` may find no stamp in one the gate reads.
+const TRAILER_READING = /^trailer\.(?:separators|.+\.key)$/i
+
 // Git commands other than commit that make or move commits; the related docs
 // must be read before them as before a commit. Stopping one, skipping a step
 // or asking for help makes nothing new.
@@ -530,8 +533,11 @@ function commitVerdict(run, world) {
   // A setting written earlier on the line is not set yet to read, and a computed `-c` may be any setting.
   const unsettled = run.earlier.some(c => writesGitSetting(c, MESSAGE_SETTINGS)) || config.some(kv => computed(kv.split('=')[0] ?? ''))
   const comments = unsettled ? null : commentStrings(config, place.root, world.git)
-  const trailerSettings = config.some(kv => /^trailer\./i.test(kv)) || run.earlier.some(c => writesGitSetting(c, /^trailer\./i)) || world.git.configKeys(place.root, 'trailer').length > 0
-  const message = unknownOption || comments === null ? null : commitMessage(opts, run, { root: place.root, dir: place.dir, comments, trailerSettings }, config, world.git)
+  const trailerKeys = world.git.configKeys(place.root, 'trailer')
+  const trailerSettings = config.some(kv => /^trailer\./i.test(kv)) || run.earlier.some(c => writesGitSetting(c, /^trailer\./i)) || trailerKeys.length > 0
+  const trailerReading =
+    config.some(kv => TRAILER_READING.test(kv.split('=')[0] ?? '')) || run.earlier.some(c => writesGitSetting(c, TRAILER_READING)) || trailerKeys.some(k => TRAILER_READING.test(k))
+  const message = unknownOption || comments === null || trailerReading ? null : commitMessage(opts, run, { root: place.root, dir: place.dir, comments, trailerSettings }, config, world.git)
   const asked = { what: 'commit message', how: '-m or a heredoc to -F -', step: 'Implement' }
   const reference = `add "#${n}" to the commit message, e.g. end the subject with "(#${n})"`
   return (

@@ -1022,6 +1022,8 @@ test('the commit gate and the trace check read a verification stamp as git reads
     'git config user.name t && git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"',
     'git config --get trailer.ifmissing; git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"',
     'git -c user.name="$(echo t)" commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"',
+    // trailer.* settings that change only what --trailer writes, on a commit without one.
+    'git -c trailer.ifmissing=doNothing -c trailer.verified.where=start commit -q --allow-empty -s -m "x (#7)" -m "Verified: none"',
   ]) {
     const options = head()
     execFileSync('bash', ['-c', command], { cwd: dir, env })
@@ -1032,7 +1034,7 @@ test('the commit gate and the trace check read a verification stamp as git reads
   }
   // What the shell computes, or trailer.* settings, may leave git no stamp to read: the gate cannot tell.
   const [major = 0, minor = 0] = (/(\d+)\.(\d+)/.exec(git(['version'])) ?? []).slice(1).map(Number)
-  for (const [command, config = {}, until] of /** @type {[string, Record<string, string>?, string?][]} */ ([
+  for (const [command, config = {}, until, readable = false] of /** @type {[string, Record<string, string>?, string?, boolean?][]} */ ([
     ['X=; git commit -q --allow-empty -m "$X" -m "Verified: none (#7)"'],
     ['X=; git commit -q --allow-empty -m "$X\n\nVerified: none (#7)"'],
     ["X='# c'; git commit -q --allow-empty --cleanup=strip -m \"$X\" -m 'Verified: none (#7)'"],
@@ -1042,6 +1044,13 @@ test('the commit gate and the trace check read a verification stamp as git reads
     ['git -c trailer.verified.key=Other commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
     ['git -c trailer.verified.cmd=true commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
     ['git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"', { 'trailer.ifmissing': 'doNothing' }],
+    // Settings that change how git reads trailers, with or without --trailer: git log reads no stamp, and -s writes after a paragraph it does not read as one.
+    // The trace check, reading as git does with no settings, still finds the stamp where only the reading changed.
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'trailer.separators': '=' }, undefined, true],
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'trailer.verified.key': 'Other' }, undefined, true],
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'trailer.x.key': 'Verifiedish' }, undefined, true],
+    ['git -c trailer.separators== commit -q --allow-empty -s -m "x (#7)" -m "Verified: none"'],
+    ['git config trailer.separators = && git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', {}, undefined, true],
     // A setting written earlier on the line, which the gate cannot read yet.
     ['git config trailer.ifmissing doNothing; git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
     ['git config trailer.verified.key Other && git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
@@ -1057,12 +1066,14 @@ test('the commit gate and the trace check read a verification stamp as git reads
   ])) {
     for (const [key, value] of Object.entries(config)) git(['config', key, value])
     execFileSync('bash', ['-c', command], { cwd: dir, env })
+    // Read as git reads it with the settings still there.
+    const lost = read()
     for (const key of Object.keys(config)) git(['config', '--unset', key])
     unset()
     assert.match(String(verdict(command, { config })), /cannot tell the commit message/, command)
     // A git from `until` on keeps the stamp in a case only an older one loses it.
     const [untilMajor = 0, untilMinor = 0] = (until ?? '').split('.').map(Number)
-    if (until === undefined || major < untilMajor || (major === untilMajor && minor < untilMinor)) assert.deepEqual(read(), { git: false, check: false }, command)
+    if (until === undefined || major < untilMajor || (major === untilMajor && minor < untilMinor)) assert.deepEqual(lost, { git: false, check: readable }, command)
   }
   rmSync(dir, { recursive: true, force: true })
 })
