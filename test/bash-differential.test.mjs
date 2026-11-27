@@ -2,18 +2,19 @@
 // block that reads a Bash command rests on the plugin reading it as the
 // shell that runs it does, so the two readings are compared on inputs no one
 // picked by hand: the words of one command's arguments (the splitter), and
-// whether a word, as a pattern, matches a name (the glob matcher, through
-// the archive block).
+// whether `cat ./<word>/archive/f` reaches a directory `<name>` (the glob
+// matcher, through the archive block, against bash's pathname expansion).
 //
 // bash never runs what is generated. It only lists the words of the
-// arguments of a function, or matches a `case` pattern against a string:
+// arguments of a function, or the paths a word expands to:
 // - by construction: an operator, a newline, `$` or a backtick is only ever
 //   written quoted or escaped, so the text holds one command's arguments,
 //   with no substitution, redirection or second command;
 // - by confinement, should the generator be wrong: bash runs restricted
 //   (`-r`: no redirection to a file, no command named by path) with a PATH
-//   that holds no command and pathname expansion off (`set -f`), and anything
-//   it writes to stderr fails the test.
+//   that holds no command, pathname expansion is off (`set -f`) for the
+//   splitter and reads only the directories made for the glob cases, and
+//   anything bash writes to stderr fails the test.
 //
 // Bounded: a fixed number of cases, one bash call per comparison that is
 // killed after BASH_TIMEOUT_MS, and a deadline of TEST_DEADLINE_MS checked
@@ -25,7 +26,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { accessSync, constants, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync } from 'node:fs'
+import { accessSync, constants, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join, resolve } from 'node:path'
 
@@ -57,7 +58,7 @@ const REPLAY = `replay: TRACE_FUZZ_SEED=${SEED} node --test test/bash-differenti
 
 /**
  * @typedef {{ input: string, bash: string[], plugin: string[] }} SplitExample the arguments of `f <input>`
- * @typedef {{ word: string, name: string, bash: boolean }} GlobExample whether `word` matches `name` for bash; the plugin says the opposite
+ * @typedef {{ word: string, name: string, bash: boolean }} GlobExample whether bash, running `cat ./<word>/archive/f` beside a directory `<name>`, reads `<name>/archive/f`; the archive block says the opposite
  * @typedef {'skips' | 'refuses'} Effect
  */
 
@@ -117,7 +118,7 @@ const SPLIT_KNOWN = {
   },
   trailingBackslash: {
     issue: 72,
-    effect: 'refuses',
+    effect: 'skips',
     what: 'a backslash that ends the command is dropped, where bash keeps it',
     examples: [
       { input: 'a\\', bash: ['a\\'], plugin: ['a'] },
@@ -202,10 +203,10 @@ const GLOB_KNOWN = {
     issue: 80,
     effect: 'refuses',
     before: 503,
-    what: 'a bracket that a `[:` or a range leaves unclosed matches the text it is written with, where bash before 5.3 matches nothing',
+    what: 'in a word with another pattern character, a `[` that no `]` closes matches itself, where bash before 5.3 matches nothing and keeps the word as written',
     examples: [
-      { word: '[x[:]y', name: '[y', bash: false },
-      { word: '[a-', name: '[a-', bash: false },
+      { word: '?[a-', name: '1[a-', bash: false },
+      { word: '*[!0-', name: '1[!0-', bash: false },
     ],
   },
   astral: {
@@ -235,6 +236,37 @@ const GLOB_KNOWN = {
     what: '`**` in a word reaches every directory below, where bash without globstar reads it as `*`',
     examples: [{ word: 'a**', name: 'b', bash: false }],
   },
+  literalFallback: {
+    issue: 91,
+    effect: 'skips',
+    what: 'a word whose pattern matches no name reaches nothing, where bash keeps the word as written and reads the name it spells',
+    examples: [
+      { word: '[ab]', name: '[ab]', bash: true },
+      { word: 'B[:]', name: 'B[:]', bash: true },
+      { word: '?[_Z]', name: '?[_Z]', bash: true },
+      { word: "'c'@[a-z-]9", name: 'c@[a-z-]9', bash: true },
+    ],
+  },
+  leadingDot: {
+    issue: 92,
+    effect: 'refuses',
+    what: '`*`, `?` and a bracket match a `.` that starts a name, where bash matches it only with a `.`',
+    examples: [
+      { word: '*', name: '.a', bash: false },
+      { word: '?a', name: '.a', bash: false },
+      { word: '[.]a', name: '.a', bash: false },
+    ],
+  },
+  bracketInBracket: {
+    issue: 93,
+    effect: 'skips',
+    what: 'in a bracket, a `[` that a `:`, `.` or `=` follows is itself unless a whole `[:name:]` follows, where bash reads a class that can run on past the `]` that ends the bracket for the plugin (and bash 4.4 to 5.3 differ among themselves here)',
+    examples: [
+      { word: '[[:lower:][:alpha::][1[:punct:]]?', name: 'z1', bash: true },
+      { word: '[[:alpha:Z[:]?', name: 'Zc', bash: false },
+      { word: '[[::]+', name: '[+', bash: false },
+    ],
+  },
 }
 
 // --- bash ---------------------------------------------------------------------
@@ -255,12 +287,28 @@ function findBash() {
 const BASH = process.platform === 'win32' ? null : findBash()
 const NO_BASH = process.platform === 'win32' ? 'the comparison with bash is not run on Windows' : 'bash is not on PATH'
 
-/** @param {string} bash @returns {number} its version, 5.2 as 502 */
-const bashVersion = bash => Number(spawnSync(bash, ['-c', 'printf %d "$((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1]))"'], { env: { PATH: '/dev/null' }, timeout: BASH_TIMEOUT_MS }).stdout?.toString())
+/** @template T @param {() => T} f @returns {() => T} f, called the first time only */
+function once(f) {
+  /** @type {{ value: T } | null} */
+  let done = null
+  return () => (done ??= { value: f() }).value
+}
+
+/** Its version, 5.2 as 502, or null when it does not say. */
+const bashVersion = once(() => {
+  const out = BASH && spawnSync(BASH, ['-c', 'printf %d "$((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1]))"'], { env: { PATH: '/dev/null' }, timeout: BASH_TIMEOUT_MS }).stdout?.toString()
+  return out && /^\d+$/.test(out) ? Number(out) : null
+})
 // The examples of the known differences were recorded on bash 4.4 to 5.3; older ones differ in a few (3.2 decodes no `\u`).
 const RECORDED_FROM = 404
 /** @param {number} v */
 const dotted = v => `${Math.floor(v / 100)}.${v % 100}`
+/** @returns {string | null} why the examples of the known differences are not checked against this bash */
+function unrecorded() {
+  const v = bashVersion()
+  if (v === null) return 'bash did not say which version it is'
+  return v < RECORDED_FROM ? `recorded on bash ${dotted(RECORDED_FROM)} and later; this is ${dotted(v)}` : null
+}
 
 /**
  * What bash prints for `script`, run restricted, with `args` as its
@@ -308,33 +356,63 @@ function pluginWords(text) {
   return c.args.map(unliteral)
 }
 
-// Pairs of a name and a word: the word is evaluated as a `case` pattern, with extglob off as it is for a command.
-const MATCH = `while (($#)); do s=$1 t=$2; shift 2; eval "case \\$s in $t) printf 1;; *) printf 0;; esac" || printf E; done`
+// The root, then pairs of a name and a word. The word is expanded as the path
+// of `cat ./<word>/archive/f` is, from the directory of its case, with
+// globbing as it is for a command: no extglob, nullglob, failglob, dotglob or
+// nocaseglob. So a pattern that matches nothing is kept as written, and only
+// a `.` matches a leading `.`. bash reads the file when a word of the
+// expansion is that file.
+const READS = `shopt -u extglob nullglob failglob dotglob nocaseglob
+if ((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 403)); then shopt -s globasciiranges; fi
+r=$1; shift; i=0
+while (($#)); do
+  d=$r/$i s=$1 t=$2; shift 2; ((++i))
+  eval "w=(\\"\\$d\\"/./$t/archive/f)" || { printf E; continue; }
+  hit=0; for f in "\${w[@]}"; do [[ $f -ef $d/$s/archive/f ]] && hit=1; done
+  printf %d $hit
+done`
 
-/** @param {string} bash @param {string} locale @param {{ word: string, name: string }[]} cases @returns {(boolean | null)[]} whether bash matches each word against its name */
-function bashMatches(bash, locale, cases) {
-  const out = askBash(bash, MATCH, cases.flatMap(c => [c.name, c.word]), locale)
+/**
+ * Whether bash, running `cat ./<word>/archive/f` in the directory of each
+ * case, reads `<name>/archive/f` there (see `makeNames`).
+ *
+ * @param {string} bash @param {string} locale @param {string} root
+ * @param {{ word: string, name: string }[]} cases
+ * @returns {(boolean | null)[]} null where bash cannot read the word
+ */
+function bashReads(bash, locale, root, cases) {
+  const out = askBash(bash, READS, [root, ...cases.flatMap(c => [c.name, c.word])], locale)
   assert.equal(out.length, cases.length, `bash's answer does not line up with the ${cases.length} cases. ${REPLAY}`)
   return cases.map((_, i) => (out[i] === '1' ? true : out[i] === '0' ? false : null))
 }
 
 /**
- * Whether the plugin takes `word` to match `name`: a directory `name` holds
- * a repository with an archive, and a command reads a path in that archive
- * through the word, which the archive block refuses when the word matches.
+ * Under `root`, a directory for each case, `<root>/<i>`, holding a directory
+ * `<name>` that holds a repository with an archive with a file `f` in it.
  *
- * @param {string} dir an empty directory for this case
- * @param {string} word @param {string} name
+ * @param {string} root @param {{ name: string }[]} cases
  */
-function pluginMatches(dir, word, name) {
-  mkdirSync(join(dir, name, '.git'), { recursive: true })
-  mkdirSync(join(dir, name, 'archive'))
-  return archiveBlock('Bash', { command: `cat ./${word}/archive/f` }, dir) !== null
+function makeNames(root, cases) {
+  cases.forEach(({ name }, i) => {
+    mkdirSync(join(root, String(i), name, '.git'), { recursive: true })
+    mkdirSync(join(root, String(i), name, 'archive'))
+    writeFileSync(join(root, String(i), name, 'archive', 'f'), '')
+  })
 }
 
-/** @param {string} bash @returns {string | null} a locale in which bash reads UTF-8 text as characters */
-const utf8Locale = bash =>
-  ['C.UTF-8', 'en_US.UTF-8'].find(l => spawnSync(bash, ['-c', 'case é in ?) printf 1;; esac'], { env: { PATH: '/dev/null', LC_ALL: l }, timeout: BASH_TIMEOUT_MS }).stdout?.toString() === '1') ?? null
+/**
+ * Whether the archive block refuses `cat ./<word>/archive/f` run in the
+ * directory of case `i`: whether the plugin takes the word to reach the
+ * name there.
+ *
+ * @param {string} root @param {number} i @param {string} word
+ */
+const pluginReads = (root, i, word) => archiveBlock('Bash', { command: `cat ./${word}/archive/f` }, join(root, String(i))) !== null
+
+/** A locale in which bash reads UTF-8 text as characters, or null. */
+const utf8Locale = once(() =>
+  BASH ? (['C.UTF-8', 'en_US.UTF-8'].find(l => spawnSync(BASH, ['-c', 'case é in ?) printf 1;; esac'], { env: { PATH: '/dev/null', LC_ALL: l }, timeout: BASH_TIMEOUT_MS }).stdout?.toString() === '1') ?? null) : null,
+)
 
 // --- the generator ------------------------------------------------------------
 
@@ -529,11 +607,11 @@ function globCase(r, on, { upper, nonAscii }) {
       } else if (x < 10) {
         const c = pick([...'[!^'])
         // `!` and `^` negate when first; `[:`, `[.` and `[=` open a class, so a `[` comes last.
-        if ((body === '' && c !== '[') || (c === '[' && k > 1 && !on('unclosedBracket'))) add('a', 'a')
+        if ((body === '' && c !== '[') || (c === '[' && k > 1 && !on('bracketInBracket'))) add('a', 'a')
         else add(c, c)
       } else if (x < 11 && on('posixBracket')) add(pick(['[.a.]', '[=a=]', '[.-.]']), 'a')
       else if (on('rangeOutOfOrder') && chance(0.5)) add(pick(['c-a', '9-0', 'z-b']), 'a')
-      else if (on('unclosedBracket')) add(pick(['[:alpha:', '[:', '[.', '[=']), '[')
+      else if (on('bracketInBracket')) add(pick(['[:alpha:', '[:', '[.', '[=']), '[')
       else add('a-c-z', 'z')
     }
     if (chance(0.1)) add('-', '-')
@@ -559,8 +637,10 @@ function globCase(r, on, { upper, nonAscii }) {
       const b = bracket()
       const text = pick([`'${b.text}'`, `"${b.text}"`, `\\${b.text}`, b.text.replace(/\]$/, '\\]'), b.text.replace(/^\[(.)/, '[\\$1'), b.text.replace(/^\[(.)/, "['$1'")])
       pieces.push({ text, raw: b.raw, sample: () => (chance(0.5) ? b.raw : b.sample()) })
-    } else if (on('unclosedBracket')) one(pick(['[', '[]', '[!]', '[a', '[]a', '[^', '[[', '[a-', '[x[:', '[!0-']))
-    else one(']')
+    } else if (on('unclosedBracket') && (k === 1 || on('bracketInBracket'))) {
+      // Last, unless a bracket may hold a `[`: a `]` after it would close it.
+      one(pick(['[', '[]', '[!]', '[a', '[]a', '[^', '[[', '[a-', '[!0-', ...(on('bracketInBracket') ? ['[x[:'] : [])]))
+    } else one(']')
   }
   const follows = () => [...pieces.map(p => p.sample()).join('')]
   const how = int(10)
@@ -568,6 +648,10 @@ function globCase(r, on, { upper, nonAscii }) {
   if (how >= 6 && how < 8) name.splice(int(name.length + 1), int(2), ...(chance(0.6) ? [pick(LIT)] : []))
   else if (how === 8) name = [...pieces.map(p => p.raw).join('')]
   else if (how === 9) name = Array.from({ length: 1 + int(3) }, () => pick(LIT))
+  // Only a `.` written first matches a `.` that starts a name.
+  if (name[0] === '.' && pieces[0]?.raw !== '.' && !on('leadingDot')) name[0] = '_'
+  // A word that bash keeps as written, when its pattern matches nothing, spells the name.
+  if (!on('literalFallback') && name.join('') === pieces.map(p => p.raw).join('') && /[*?[]/.test(name.join(''))) name.push(pick(LIT))
   const joined = name.join('')
   return { word: pieces.map(p => p.text).join(''), name: ['', '.', '..'].includes(joined) ? 'a' : joined }
 }
@@ -619,8 +703,8 @@ test(`the splitter reads ${SPLIT_CASES} generated commands' arguments as bash do
 for (const [construct, { issue, effect, what, examples }] of Object.entries(SPLIT_KNOWN)) {
   test(`known difference #${issue} (${effect}), splitter: ${what}`, t => {
     if (!BASH) return t.skip(NO_BASH)
-    const version = bashVersion(BASH)
-    if (!(version >= RECORDED_FROM)) return t.skip(`recorded on bash ${dotted(RECORDED_FROM)} and later; this is ${dotted(version)}`)
+    const why = unrecorded()
+    if (why) return t.skip(why)
     const bash = bashWords(BASH, examples.map(e => e.input))
     examples.forEach((e, i) => {
       const plugin = pluginWords(e.input)
@@ -632,42 +716,47 @@ for (const [construct, { issue, effect, what, examples }] of Object.entries(SPLI
   })
 }
 
-test(`the glob matcher matches ${GLOB_CASES} generated words against names as bash does`, t => {
+test(`the glob matcher reaches what bash reads through ${GLOB_CASES} generated words`, t => {
   if (!BASH) return t.skip(NO_BASH)
   const inTime = deadline()
-  const locale = utf8Locale(BASH)
+  const locale = utf8Locale()
   if (!locale) t.diagnostic('bash has no UTF-8 locale here: the names are ASCII only')
   const r = random(SEED + 1)
   const cases = Array.from({ length: GLOB_CASES }, () => globCase(r, unlessKnown(GLOB_KNOWN), { upper: !CASE_INSENSITIVE_FS, nonAscii: locale !== null }))
-  const bash = bashMatches(BASH, locale ?? 'C', cases)
   /** @type {string[]} */
   const failures = []
-  inTemp(root =>
+  inTemp(root => {
+    makeNames(root, cases)
+    const bash = bashReads(BASH, locale ?? 'C', root, cases)
     cases.forEach(({ word, name }, i) => {
       inTime()
-      const plugin = pluginMatches(join(root, String(i)), word, name)
-      if (plugin !== bash[i]) failures.push(`  case ${i}: word ${JSON.stringify(word)} against name ${JSON.stringify(name)}\n    bash:   ${bash[i] ?? 'cannot read the word'}\n    plugin: ${plugin}`)
-    }),
-  )
+      const plugin = pluginReads(root, i, word)
+      if (plugin !== bash[i]) failures.push(`  case ${i}: word ${JSON.stringify(word)}, name ${JSON.stringify(name)}\n    bash reads it:      ${bash[i] ?? 'cannot read the word'}\n    the plugin refuses: ${plugin}`)
+    })
+  })
   report(failures, GLOB_CASES, 'words')
 })
 
 for (const [construct, { issue, effect, what, examples, before }] of Object.entries(GLOB_KNOWN)) {
   test(`known difference #${issue} (${effect}), glob matcher: ${what}`, t => {
     if (!BASH) return t.skip(NO_BASH)
-    const version = bashVersion(BASH)
-    if (!(version >= RECORDED_FROM)) return t.skip(`recorded on bash ${dotted(RECORDED_FROM)} and later; this is ${dotted(version)}`)
+    // The plugin answers the opposite of bash in each example, so the effect follows from them.
+    assert.equal(effect, examples.some(e => e.bash) ? 'skips' : 'refuses', `the examples of #${issue} say whether bash reads what the plugin allows`)
+    const why = unrecorded()
+    if (why) return t.skip(why)
+    const version = /** @type {number} */ (bashVersion())
     if (before && version >= before) return t.skip(`bash ${dotted(version)} reads these as the plugin does`)
-    const locale = utf8Locale(BASH)
+    const locale = utf8Locale()
     if (!locale && examples.some(e => /[^\0-\x7f]/.test(e.word + e.name))) return t.skip('bash has no UTF-8 locale here')
-    const bash = bashMatches(BASH, locale ?? 'C', examples)
-    inTemp(root =>
+    inTemp(root => {
+      makeNames(root, examples)
+      const bash = bashReads(BASH, locale ?? 'C', root, examples)
       examples.forEach((e, i) => {
-        const plugin = pluginMatches(join(root, String(i)), e.word, e.name)
-        const pair = `${JSON.stringify(e.word)} against ${JSON.stringify(e.name)}`
-        assert.notEqual(plugin, bash[i], `the plugin now matches ${pair} as bash does. If #${issue} is fixed, delete GLOB_KNOWN.${construct}, so that the generator writes this again.`)
-        assert.equal(bash[i], e.bash, `bash matches ${pair} differently from what #${issue} records`)
-      }),
-    )
+        const plugin = pluginReads(root, i, e.word)
+        const pair = `${JSON.stringify(e.word)} with a directory ${JSON.stringify(e.name)}`
+        assert.notEqual(plugin, bash[i], `the plugin now reads ${pair} as bash does. If #${issue} is fixed, delete GLOB_KNOWN.${construct}, so that the generator writes this again.`)
+        assert.equal(bash[i], e.bash, `bash reads ${pair} differently from what #${issue} records`)
+      })
+    })
   })
 }
