@@ -145,6 +145,7 @@ const SUBAGENT = { agent_id: 'agent-1', agent_type: 'general-purpose' }
 const CALLS = ({ plain, onMain, onIssue, noGit }) => [
   // Everywhere: the guard and the archive block (ADR 0008).
   { what: 'a command nothing refuses', session: 'plain', cwd: plain, event: 'PreToolUse', input: bash('git status'), expect: 'silent' },
+  { what: 'a command that overrides core.hooksPath', session: 'plain', cwd: plain, event: 'PreToolUse', input: bash('git -c core.hooksPath=/dev/null push origin feature'), expect: 'silent' },
   { what: 'the guard: a command that destroys work', session: 'plain', cwd: plain, event: 'PreToolUse', input: bash('git reset --hard HEAD~1'), expect: 'deny', says: /^trace guard: / },
   { what: 'the archive block: a read inside the archive', session: 'plain', cwd: plain, event: 'PreToolUse', input: read(join(plain, 'archive/old.md')), expect: 'deny', says: /archive/ },
 

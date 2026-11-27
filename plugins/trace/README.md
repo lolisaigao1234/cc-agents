@@ -89,7 +89,7 @@ A PreToolUse hook on Bash. In every repository, and in every subagent, it refuse
 - deleting remote branches (`push --delete`, `push origin :<branch>`), `push --mirror` and `push --prune`
 - `stash drop` / `clear`, `branch -D`
 - `reflog expire` and `reflog delete`, `gc --prune=now` (or `gc` under a `gc.*Expire=now` setting), `prune`
-- `--no-verify`, `commit -n`, and overriding `core.hooksPath`
+- `--no-verify` and `commit -n`
 - `rm -r`, `find -delete`, `rsync --delete` (and its variants, and `--remove-source-files`)
 
 A dry run (`-n`, `--dry-run`) of a push that deletes, mirrors or prunes, of `reflog`, `prune` or `rsync`, is allowed; a forced one is not. git's abbreviations of long options (`--del`, `--mirr`) count as the option.
