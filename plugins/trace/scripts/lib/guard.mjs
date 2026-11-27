@@ -38,7 +38,6 @@ function gitDestructive(args) {
 
   if (['commit', 'push', 'merge', 'rebase', 'am', 'cherry-pick', 'revert'].includes(sub ?? '')) {
     if (long('--no-verify') || (sub === 'commit' && readOptions(rest, GIT_COMMIT_OPTIONS, { abbrev: true }).opts.some(([name]) => name === 'no-verify'))) return '--no-verify (or commit -n) skips the repository checks'
-    if (config.some(c => /^core\.hookspath\b/i.test(c))) return 'overriding core.hooksPath skips the repository checks'
   }
   switch (sub) {
     case 'reset':
