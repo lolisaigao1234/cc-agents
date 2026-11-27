@@ -10,8 +10,8 @@ import { pullRequestVerdict } from '../plugins/trace/scripts/lib/pull-request.mj
 
 const CHECK = fileURLToPath(new URL('../plugins/trace/scripts/check.mjs', import.meta.url))
 
-/** @param {string} message @param {number} [parents] @returns {import('../plugins/trace/scripts/lib/pull-request.mjs').Commit} */
-const commit = (message, parents = 1) => ({ sha: 'c0ffee1234567890', message, parents })
+/** @param {string} message @param {number} [parents] @param {string} [stamp] its last paragraph @returns {import('../plugins/trace/scripts/lib/pull-request.mjs').Commit} */
+const commit = (message, parents = 1, stamp = 'Verified: none') => ({ sha: 'c0ffee1234567890', message: stamp ? `${message}\n\n${stamp}` : message, parents })
 
 /**
  * In-memory GitHub: the repository owner/name, with pull request 12 from the
@@ -47,10 +47,18 @@ test("a PR from the branch of a closed issue, a pull request or no issue breaks 
 })
 
 test('a PR with a commit that does not reference the linked issue breaks the trace, naming the commit and the Implement step', () => {
-  const commits = [commit('add the check (#7)'), { sha: 'badc0de987654321', message: 'fix a typo\n\nRefs #70 and owner/other#7.', parents: 1 }, commit('say where it runs\n\nPart of owner/name#7.')]
+  const commits = [commit('add the check (#7)'), { sha: 'badc0de987654321', message: 'fix a typo\n\nRefs #70 and owner/other#7.\n\nVerified: none', parents: 1 }, commit('say where it runs\n\nPart of owner/name#7.')]
   const why = pullRequestVerdict(12, github({ commits }))
   assert.equal(why.length, 1)
   assert.match(String(why[0]), /^a commit does not reference #7, the linked issue: badc0de "fix a typo"\. Implement step: /)
+})
+
+test('a PR with a commit that carries no verification stamp breaks the trace, naming the commit and the Implement step', () => {
+  const commits = [commit('add the check (#7)'), { sha: 'badc0de987654321', message: 'fix a typo (#7)\n\nVerified: npm test\nand prose after it', parents: 1 }, { sha: 'c0ffee1234567890', message: 'say where it runs (#7)\r\n\r\nVerified: none\r\n', parents: 1 }]
+  const why = pullRequestVerdict(12, github({ commits }))
+  assert.equal(why.length, 1)
+  assert.match(String(why[0]), /^a commit carries no verification stamp: badc0de "fix a typo \(#7\)"\. Implement step: end the commit message with a last paragraph "Verified: <how it was verified>", or "Verified: none"/)
+  assert.deepEqual(pullRequestVerdict(12, github({ commits: [commit("Merge branch 'main' into 7-check", 2, '')] })), [], 'a merge is not asked for one')
 })
 
 test('a merge is not asked for a reference: what it brings in is judged as its own commits', () => {
@@ -120,7 +128,7 @@ else for (const c of answer) process.stdout.write(JSON.stringify({ sha: c.sha, m
 const TRACED = {
   'repos/owner/name/pulls/12': { number: 12, state: 'open', merged: false, body: '## Summary\r\n\r\nCloses #7', commits: 2, head: { ref: '7-check' }, base: { ref: 'main' } },
   'repos/owner/name/pulls/12/commits?per_page=100': [
-    { sha: 'c0ffee1234567890', commit: { message: 'add the check (#7)\n\nIt runs on GitHub.' }, parents: [{ sha: 'a' }] },
+    { sha: 'c0ffee1234567890', commit: { message: 'add the check (#7)\n\nIt runs on GitHub.\n\nVerified: npm test' }, parents: [{ sha: 'a' }] },
     { sha: 'facade1234567890', commit: { message: "Merge branch 'main' into 7-check" }, parents: [{ sha: 'a' }, { sha: 'b' }] },
   ],
   'repos/owner/name/issues/7': { number: 7, state: 'open' },
@@ -144,7 +152,7 @@ test('the check fails a PR that breaks the trace, printing each broken rule as a
   const r = check({
     ...TRACED,
     'repos/owner/name/pulls/12': { ...TRACED['repos/owner/name/pulls/12'], body: 'Refs #7', commits: 1 },
-    'repos/owner/name/pulls/12/commits?per_page=100': [{ sha: 'badc0de987654321', commit: { message: 'fix 100% of a typo\r\n\r\nRefs #70.' }, parents: [{ sha: 'a' }] }],
+    'repos/owner/name/pulls/12/commits?per_page=100': [{ sha: 'badc0de987654321', commit: { message: 'fix 100% of a typo\r\n\r\nRefs #70.\r\n\r\nVerified: none' }, parents: [{ sha: 'a' }] }],
   })
   assert.equal(r.status, 1)
   const lines = r.stdout.trimEnd().split('\n')

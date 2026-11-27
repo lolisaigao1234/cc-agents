@@ -1,8 +1,8 @@
 // The trace: whether an action is traceable, from git and GitHub state
 // (ADR 0006). In a traced repository, a file inside it may be edited only on
 // the branch of an open issue, by an agent that has read the related docs
-// (ADR 0007); a commit must reference that issue and a PR close it, and
-// nothing the model writes turns that off.
+// (ADR 0007); a commit must reference that issue and carry a verification
+// stamp, and a PR close it, and nothing the model writes turns that off.
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
@@ -350,12 +350,12 @@ const cannotTell = (what, fix, step) => `the trace cannot tell ${what}. ${step} 
  * in the text the shell leaves, or a refusal saying what to add.
  *
  * @param {string | null} text null when it cannot be told
- * @param {RegExp} accepts
- * @param {{ what: string, how: string, step: string, fix: string, refusal: string, hide?: (t: string) => string }} o
+ * @param {{ test(t: string): boolean }} accepts
+ * @param {{ what: string, how: string, step: string, fix: string, refusal: string, hide?: (t: string) => string, blank?: string }} o
  */
-function judge(text, accepts, { what, how, step, fix, refusal, hide = t => t }) {
+function judge(text, accepts, { what, how, step, fix, refusal, hide = t => t, blank }) {
   if (text === null) return cannotTell(`the ${what}`, `pass it with ${how}, and ${fix}`, step)
-  const plain = dropExpansions(text)
+  const plain = dropExpansions(text, blank)
   if (plain === null) return cannotTell(`the ${what}, which the shell computes`, `write it out, and ${fix}`, step)
   if (accepts.test(hide(unliteral(plain)))) return null
   if (plain !== text) return cannotTell(`the ${what}, which the shell computes`, `write it out, and ${fix}`, step)
@@ -363,20 +363,21 @@ function judge(text, accepts, { what, how, step, fix, refusal, hide = t => t }) 
 }
 
 /**
- * `text` with each shell expansion replaced by `0`, which can neither start
- * nor finish a reference: `Closes ${X}#7` may become `Closes other/repo#7`.
+ * `text` with each shell expansion replaced by `blank`, by default `0`, which
+ * can neither start nor finish a reference: `Closes ${X}#7` may become
+ * `Closes other/repo#7`.
  * `$(cat <<EOF … EOF)` is its heredoc's text, and a `$` that starts no
  * expansion is kept. Null when an expansion is left that this cannot follow.
  *
- * @param {string} text @returns {string | null}
+ * @param {string} text @param {string} [blank] @returns {string | null}
  */
-function dropExpansions(text) {
+function dropExpansions(text, blank = '0') {
   let t = text
     .replace(/\$\(\s*cat\s*<<-?[ \t]*(['"])([^'"\n]+)\1[ \t]*\n([\s\S]*?)\n[ \t]*\2[ \t]*\n\s*\)/g, (_, _q, _d, body) => literal(body))
     .replace(/\$\(\s*cat\s*<<-?[ \t]*([A-Za-z_]\w*)[ \t]*\n([\s\S]*?)\n[ \t]*\1[ \t]*\n\s*\)/g, (_, _d, body) => body)
   for (let before = ''; before !== t; ) {
     before = t
-    t = t.replace(/\$\(\([^()]*(?:\([^()]*\)[^()]*)*\)\)|\$\[[^\]]*\]|\$\([^()]*\)|`[^`]*`|\$\{[^{}]*\}|\$(?:[A-Za-z_]\w*|[0-9@*#?$!-])|\{[^{},\s]*\.\.[^{},\s]*\}/g, '0')
+    t = t.replace(/\$\(\([^()]*(?:\([^()]*\)[^()]*)*\)\)|\$\[[^\]]*\]|\$\([^()]*\)|`[^`]*`|\$\{[^{}]*\}|\$(?:[A-Za-z_]\w*|[0-9@*#?$!-])|\{[^{},\s]*\.\.[^{},\s]*\}/g, blank)
   }
   t = t.replace(/\$(?![A-Za-z_{(\[0-9@*#?$!'"-])/g, literal('$'))
   return /[$`]/.test(t) ? null : t
@@ -508,14 +509,66 @@ function commitVerdict(run, world) {
   const unread = readVerdict(place.root, n, null, world)
   if (unread) return unread
   const slug = world.git.origin(place.root)
-  return judge(unknownOption ? null : commitMessage(opts, run, { root: place.root, dir: place.dir }, config, world.git), refersTo(n, slug), {
-    what: 'commit message',
-    how: '-m or a heredoc to -F -',
-    step: 'Implement',
-    fix: `add "#${n}" to the commit message, e.g. end the subject with "(#${n})"`,
-    refusal: `this commit message does not reference #${n}, the linked issue.`,
-  })
+  const message = unknownOption ? null : commitMessage(opts, run, { root: place.root, dir: place.dir }, config, world.git)
+  const asked = { what: 'commit message', how: '-m or a heredoc to -F -', step: 'Implement' }
+  return (
+    judge(message, refersTo(n, slug), {
+      ...asked,
+      fix: `add "#${n}" to the commit message, e.g. end the subject with "(#${n})"`,
+      refusal: `this commit message does not reference #${n}, the linked issue.`,
+    }) ??
+    // What the shell computes in the stamp's paragraph may empty the stamp or end the message after it.
+    judge(message, { test: stamped }, { ...asked, fix: STAMP_HINT, refusal: 'this commit message carries no verification stamp.', blank: COMPUTED })
+  )
 }
+
+// The text to add for a verification stamp, which a session's gate and the trace check both ask for.
+export const STAMP_HINT = 'end the commit message with a last paragraph "Verified: <how it was verified>", or "Verified: none", e.g. `-m "Verified: npm test"`'
+
+// What the stamp's reader sees in place of an expansion: no trailer can hold it.
+const COMPUTED = '\uE022'
+
+// A trailer's first line as git reads it: a token of letters, digits and
+// hyphens, then a colon; a line that starts with a space or a tab continues it.
+const TRAILER = /^([A-Za-z0-9-]+)[ \t]*:(.*)$/
+
+/**
+ * A message's trailers, as `[token, value]`: its last paragraph when every
+ * line of it is a trailer, which git reads as trailers too, and the subject
+ * never is. Null when its last paragraph is not such a block. Git also reads
+ * some blocks only partly of trailers; this does not, so what it reads as a
+ * trailer, git does.
+ *
+ * @param {string} message @returns {[string, string][] | null}
+ */
+function trailers(message) {
+  const paragraphs = message
+    .replace(/\r\n?/g, '\n')
+    .split(/\n(?:[ \t]*\n)+/)
+    .map(p => p.replace(/^(?:[ \t]*\n)+|\s+$/g, ''))
+    .filter(Boolean)
+  const last = paragraphs.length > 1 ? paragraphs[paragraphs.length - 1] : undefined
+  if (last === undefined || last.includes(COMPUTED)) return null
+  /** @type {[string, string][]} */
+  const found = []
+  for (const line of last.split('\n')) {
+    const t = TRAILER.exec(line)
+    const previous = found[found.length - 1]
+    if (t) found.push([/** @type {string} */ (t[1]), /** @type {string} */ (t[2])])
+    else if (/^[ \t]/.test(line) && previous) previous[1] += `\n${line}`
+    else return null
+  }
+  return found
+}
+
+/**
+ * Whether a commit message carries a verification stamp: a `Verified:`
+ * trailer saying how the commit was verified, `none` included. Nothing here
+ * judges whether it was.
+ *
+ * @param {string} message @returns {boolean}
+ */
+export const stamped = message => (trailers(message) ?? []).some(([token, value]) => token.toLowerCase() === 'verified' && value.trim() !== '')
 
 /**
  * The message `git commit` records, or null when an editor, a computed
@@ -530,13 +583,17 @@ function commitVerdict(run, world) {
 function commitMessage(opts, run, { root, dir }, config, git) {
   /** @type {string[]} */
   const texts = []
+  /** @type {string[]} */
+  const added = []
   let editor = false
   let amend = false
   let noEdit = false
   /** @type {Record<string, string | undefined>} */
   const last = {}
   for (const [name, v] of opts) {
-    if (name === 'message' || name === 'trailer') texts.push(v ?? '')
+    if (name === 'message') texts.push(v ?? '')
+    // git writes `--trailer token=value` as `token: value`.
+    else if (name === 'trailer') added.push((v ?? '').replace(/^([A-Za-z0-9-]+)[ \t]*[:=][ \t]*/, '$1: '))
     else if (name === 'file') {
       const text = fileText(v, run, dir)
       if (text === null) return null
@@ -574,7 +631,9 @@ function commitMessage(opts, run, { root, dir }, config, git) {
   // Without an editor only strip cleanup drops comment lines; git reads scissors as whitespace.
   const mode = last.cleanup ?? setting(config, 'commit.cleanup', root, git)
   if (mode && computed(mode)) return null
-  const text = texts.join('\n\n')
+  const body = texts.join('\n\n').replace(/\s+$/, '')
+  // git adds --trailer lines to the message's trailers, or starts them in a paragraph of their own.
+  const text = added.length ? `${body}${trailers(body) ? '\n' : '\n\n'}${added.join('\n')}` : body
   if (mode !== 'strip') return text
   const cc = setting(config, 'core.commentString', root, git) ?? setting(config, 'core.commentChar', root, git) ?? '#'
   if (cc === 'auto' || cc === '' || computed(cc)) return null

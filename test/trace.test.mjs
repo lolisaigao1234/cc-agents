@@ -837,16 +837,16 @@ const verdict = (command, o) => commandVerdict(command, '/repo', onSeven(o))
 
 test('a commit whose message references the linked issue is allowed, in any message form', () => {
   for (const command of [
-    'git commit -m "Add the gate (#7)"',
-    'git commit -m "Add the gate" -m "Part of #7."',
-    'git commit -am "Add the gate #7"',
-    'git commit --message="Add the gate #7"',
-    'git commit --message "#7: add the gate"',
-    "git commit -F - <<'EOF'\nAdd the gate\n\nRefs #7\nEOF",
-    'git commit -F - <<< "Add the gate (#7)"',
-    'git commit --amend -m "Reword (#7)"',
-    'git -C /repo/src commit -m "x (#7)"',
-    'git commit -m "x" -m "y #7" && echo done',
+    'git commit -m "Add the gate (#7)" -m "Verified: none"',
+    'git commit -m "Add the gate" -m "Part of #7." -m "Verified: none"',
+    'git commit -am "Add the gate #7" -m "Verified: none"',
+    'git commit --message="Add the gate #7" --message="Verified: none"',
+    'git commit --message "#7: add the gate" --message "Verified: none"',
+    "git commit -F - <<'EOF'\nAdd the gate\n\nRefs #7\n\nVerified: none\nEOF",
+    'git commit -F - <<< "Add the gate (#7)\n\nVerified: none"',
+    'git commit --amend -m "Reword (#7)" -m "Verified: none"',
+    'git -C /repo/src commit -m "x (#7)" -m "Verified: none"',
+    'git commit -m "x" -m "y #7" -m "Verified: none" && echo done',
   ]) {
     assert.equal(verdict(command), null, command)
   }
@@ -860,10 +860,66 @@ test('a commit whose message does not reference the linked issue is refused, nam
   }
 })
 
+test('a commit whose message carries no verification stamp is refused, naming the Implement step and the text to add', () => {
+  for (const command of [
+    'git commit -m "Add the gate (#7)"',
+    'git commit -m "Add the gate (#7) Verified: none"',
+    'git commit -m "Add the gate (#7)" -m "Verified:"',
+    'git commit -m "Add the gate (#7)" -m "Verified: npm test\nand then some prose"',
+    'git commit -m "Add the gate (#7)" -m "Verified: npm test" -m "A later paragraph."',
+    'git commit -m "Add the gate (#7)" -m "Verification: npm test"',
+  ]) {
+    const why = String(verdict(command))
+    assert.match(why, /no verification stamp/, command)
+    assert.match(why, /Implement step: end the commit message with a last paragraph "Verified: <how it was verified>", or "Verified: none"/, command)
+  }
+})
+
+test('a verification stamp says how a commit was verified, "none" included, as a git trailer', () => {
+  for (const command of [
+    'git commit -m "Add the gate (#7)" -m "Verified: none"',
+    'git commit -m "Add the gate (#7)" -m "Verified: npm test, 412 passing"',
+    "git commit -F - <<'EOF'\nAdd the gate (#7)\n\nverified : npm test\n  and the hook by hand\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF",
+    'git commit -m "Add the gate (#7)" --trailer "Verified=npm test"',
+    'git commit -m "Add the gate (#7)" -m "Refs: #7" --trailer "Verified: none"',
+    'git commit --fixup=abc -m "Verified: none"',
+  ]) {
+    assert.equal(verdict(command, { messages: { abc: 'x (#7)' } }), null, command)
+  }
+  assert.equal(verdict('git commit --amend --no-edit', { messages: { HEAD: 'Add the gate (#7)\n\nVerified: none' } }), null)
+  // The shell may make a computed stamp empty, or end the message after it.
+  for (const command of ['git commit -m "Add the gate (#7)" -m "Verified: $HOW"', 'git commit -m "Add the gate (#7)" -m "Verified: npm test $((1+1))"']) {
+    assert.match(String(verdict(command)), /cannot tell the commit message, which the shell computes/, command)
+  }
+})
+
+test('the commit gate reads a verification stamp as git reads a trailer', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'stamp-'))
+  execFileSync('git', ['init', '-q', dir])
+  for (const message of [
+    'x (#7)\n\nVerified: none',
+    'x (#7)\n\nVerified : npm test\nSigned-off-by: A <a@b>',
+    'x (#7)\n\nVerified: npm\n  test',
+    'x (#7)\n  \nVerified: none\n\n',
+    'x (#7)\nVerified: none',
+    'x (#7)\n\nVerified:',
+    'x (#7)\n\nVerified: none\nprose',
+    'x (#7)\n\nVerified: none\n---\nmore',
+    'x (#7)\n\nVerified: none\n\nlater',
+    'Verified: none (#7)',
+  ]) {
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '--cleanup=verbatim', '-F', '-'], { cwd: dir, input: message })
+    const byGit = execFileSync('git', ['log', '-1', '--format=%(trailers:key=Verified,valueonly,unfold,separator=%x2C)'], { cwd: dir, encoding: 'utf8' }).trim() !== ''
+    const byGate = verdict('git commit --amend --no-edit', { messages: { HEAD: message } }) === null
+    assert.equal(byGate, byGit, JSON.stringify(message))
+  }
+  rmSync(dir, { recursive: true, force: true })
+})
+
 test('an amend that keeps the message is judged by the commit it rewrites', () => {
-  assert.equal(verdict('git commit --amend --no-edit', { messages: { HEAD: 'Add the gate (#7)' } }), null)
+  assert.equal(verdict('git commit --amend --no-edit', { messages: { HEAD: 'Add the gate (#7)\n\nVerified: none' } }), null)
   assert.match(String(verdict('git commit --amend --no-edit', { messages: { HEAD: 'Add the gate' } })), /#7/)
-  assert.equal(verdict('git commit -C abc123', { messages: { abc123: 'x (#7)' } }), null)
+  assert.equal(verdict('git commit -C abc123', { messages: { abc123: 'x (#7)\n\nVerified: none' } }), null)
   assert.match(String(verdict('git commit --fixup=abc123', { messages: { abc123: 'x' } })), /#7/)
 })
 
@@ -887,7 +943,7 @@ test('a commit whose message cannot be told from the command is refused with a r
 
 test('a commit through a git alias is judged as the command it runs', () => {
   assert.match(String(verdict('git ci -m x', { aliases: { ci: 'commit -a' } })), /#7/)
-  assert.equal(verdict('git ci -m "x #7"', { aliases: { ci: 'commit -a' } }), null)
+  assert.equal(verdict('git ci -m "x #7" -m "Verified: none"', { aliases: { ci: 'commit -a' } }), null)
   assert.match(String(verdict('git -c alias.k=commit k -m x')), /#7/)
   assert.match(String(verdict('git sh', { aliases: { sh: '!git commit -m x' } })), /cannot tell/)
   assert.match(String(verdict('cd "$X" && git ci -m x', { aliases: { ci: 'commit' } })), /cannot tell/)
@@ -932,15 +988,15 @@ test('a PR whose body cannot be told from the command is refused with a reason',
 })
 
 test('a commit message is judged as git records it: fixups, trailers, cleanup and comment lines', () => {
-  assert.equal(verdict('git commit --fixup=abc', { messages: { abc: 'Add the gate (#7)\n\nBody' } }), null)
+  assert.equal(verdict('git commit --fixup=abc -m "Verified: none"', { messages: { abc: 'Add the gate (#7)\n\nBody' } }), null)
   assert.match(String(verdict('git commit --fixup abc', { messages: { abc: 'Add the gate\n\nRefs #7' } })), /does not reference #7/)
-  assert.equal(verdict('git commit -m x --trailer "Refs: #7"'), null)
+  assert.equal(verdict('git commit -m x --trailer "Refs: #7" --trailer "Verified: none"'), null)
   assert.match(String(verdict('git commit --cleanup=strip -m "#7: add the gate"')), /does not reference #7/)
   assert.match(String(verdict('git -c commit.cleanup=strip commit -m "#7: add the gate"')), /does not reference #7/)
   assert.match(String(verdict('git commit -m "#7: add the gate"', { config: { 'commit.cleanup': 'strip' } })), /does not reference #7/)
-  assert.equal(verdict('git -c core.commentChar=";" commit --cleanup=strip -m "#7: add the gate"'), null)
+  assert.equal(verdict('git -c core.commentChar=";" commit --cleanup=strip -m "#7: add the gate" -m "Verified: none"'), null)
   // Without an editor, git reads scissors as whitespace.
-  assert.equal(verdict('git commit --cleanup=scissors -m "#7 x" -m "# ------------------------ >8 ------------------------"'), null)
+  assert.equal(verdict('git commit --cleanup=scissors -m "#7 x" -m "# ------------------------ >8 ------------------------" -m "Verified: none"'), null)
   assert.equal(verdict('git commit --dry-run'), null)
 })
 
@@ -963,7 +1019,7 @@ test('a commit an editor, an unknown option or a computed source decides is refu
   ]) {
     assert.match(String(verdict(command, { messages: { abc: 'x (#7)' } })), /cannot tell/, command)
   }
-  assert.equal(verdict("cat > m.txt <<'EOF'\nAdd the gate (#7)\nEOF\ngit commit -F m.txt"), null)
+  assert.equal(verdict("cat > m.txt <<'EOF'\nAdd the gate (#7)\n\nVerified: none\nEOF\ngit commit -F m.txt"), null)
   assert.match(String(verdict("cat > m.txt <<'EOF'\nAdd the gate\nEOF\ngit commit -F m.txt")), /does not reference #7/)
   assert.equal(verdict('$(echo git) status'), null)
 })
@@ -1087,19 +1143,19 @@ test('the shell runs what the gates read: wrappers, case, shells fed a script, f
 
 test('ordinary commands that reference the linked issue, or create nothing, are allowed', () => {
   for (const command of [
-    "git commit -m 'Fix $ handling (#7)'",
-    'git commit -m "Price \\$5 (#7)"',
-    'git commit -m "Costs $ 5 (#7)"',
-    "git commit -m 'A lone ` (#7)'",
-    'git commit -m "Off by $((1+1)) (#7)"',
-    "git commit -m \"$(cat <<'EOF'\nFix parser (#7)\n\nTest plan:\n1) Run \"npm test\"\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\"",
-    'git commit -m "$(cat <<EOF\nx (#7)\nEOF\n)"',
+    "git commit -m 'Fix $ handling (#7)' -m 'Verified: none'",
+    'git commit -m "Price \\$5 (#7)" -m "Verified: none"',
+    'git commit -m "Costs $ 5 (#7)" -m "Verified: none"',
+    "git commit -m 'A lone ` (#7)' -m 'Verified: none'",
+    'git commit -m "Off by $((1+1)) (#7)" -m "Verified: none"',
+    "git commit -m \"$(cat <<'EOF'\nFix parser (#7)\n\nTest plan:\n1) Run \"npm test\"\n\nVerified: npm test\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\"",
+    'git commit -m "$(cat <<EOF\nx (#7)\n\nVerified: none\nEOF\n)"',
     "gh pr create --title t --body \"$(cat <<'EOF'\n## Test plan\n1) run it\n\nCloses #7\nEOF\n)\"",
     'gh pr list --label new --state open',
     'gh pr merge 12 --squash --subject edit',
     'git config user.email && git stage -A',
     'gh alias list && gh pr view',
-    'pushd -q plugins && git commit -m "Fix (#7)"',
+    'pushd -q plugins && git commit -m "Fix (#7)" -m "Verified: none"',
   ]) {
     assert.equal(verdict(command), null, command)
   }
@@ -1110,13 +1166,14 @@ test('the hook refuses an unreferenced commit or PR in a traced repository, in a
   const { dir, git } = repo()
   git('checkout', '-qb', '16-gates')
   const issues = { 'owner/name#16': { state: 'open' } }
-  writeFileSync(join(dir, 'msg.txt'), 'Add the gate (#16)\n')
+  writeFileSync(join(dir, 'msg.txt'), 'Add the gate (#16)\n\nVerified: none\n')
   writeFileSync(join(dir, 'bare.txt'), 'Add the gate\n')
   writeFileSync(join(dir, 'body.md'), '## Summary\n\nCloses #16\n')
   const bash = (/** @type {string} */ command, /** @type {object} */ extra = {}) => hook({ tool_name: 'Bash', tool_input: { command }, cwd: dir, ...extra }, {}, issues)
   for (const extra of [{}, { agent_id: 'sub-1', agent_type: 'general-purpose' }]) {
     assert.match(String(bash('git commit -m "Add the gate"', extra)?.permissionDecisionReason), /trace: .*#16/)
-    assert.equal(bash('git commit -m "Add the gate (#16)"', extra), null)
+    assert.equal(bash('git commit -m "Add the gate (#16)" -m "Verified: none"', extra), null)
+    assert.match(String(bash('git commit -m "Add the gate (#16)"', extra)?.permissionDecisionReason), /trace: .*no verification stamp/)
     assert.match(String(bash('gh pr create -t t -b "Refs #16"', extra)?.permissionDecisionReason), /trace: .*Closes #16/)
     assert.equal(bash('gh pr create -t t -b "Closes #16"', extra), null)
   }

@@ -15,6 +15,6 @@ Report each check as ok or missing, and fix only what this skill says to fix.
 5. **Opt in, traced.** Open an issue "Opt in to the trace" and `gh issue develop <n> --checkout`. Then:
    - add `"Read(./archive/**)"` to `permissions.deny` in `.claude/settings.json`, keeping every existing setting;
    - write `.claude/trace.json` containing `{}`;
-   - commit both with `#<n>`, push, and open a PR with `Closes #<n>`.
+   - commit both with `#<n>` and a last paragraph `Verified: none`, push, and open a PR with `Closes #<n>`.
 
 Done when the PR is open and every check is reported. The trace is live on the opt-in branch at once, and on the default branch once the human merges.

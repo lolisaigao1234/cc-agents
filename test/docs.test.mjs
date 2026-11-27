@@ -334,7 +334,7 @@ test('a commit, or any git command that makes or moves commits, waits for every 
   assert.match(commit('git commit -m "Gate (#8)"'), /^the related docs are not all read.*GLOSSARY\.md/)
   assert.match(commit('git commit -m "Gate (#8)"', { reads: readAll(root) }), /Unread: docs\/adr\/0002-hooks\.md\./, 'what a commit takes cannot be told from its text')
   const reads = [...readAll(root), ...read(join(root, 'docs/adr/0002-hooks.md'))]
-  assert.equal(commit('git commit -m "Gate (#8)"', { reads }), 'null')
+  assert.equal(commit('git commit -m "Gate (#8)" -m "Verified: none"', { reads }), 'null')
   for (const c of ['git update-ref HEAD $(git commit-tree $(git write-tree) -p HEAD -m "x (#8)")', 'git merge --squash topic', 'git cherry-pick abc', 'git revert HEAD', 'git am < p.patch', 'git rebase main', 'git pull']) {
     assert.match(commit(c), /related docs are not all read/, c)
     assert.equal(commit(c, { reads }), 'null', c)
