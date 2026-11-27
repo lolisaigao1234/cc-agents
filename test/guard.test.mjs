@@ -35,7 +35,6 @@ const DENIED = [
   'git commit --no-verify -m x',
   'git commit -n -m x',
   'git commit -anm x',
-  'git -c core.hooksPath=/dev/null commit -m x',
   // git global options
   'git -C . reset --hard HEAD',
   'git -C sub clean -fdx',
@@ -162,6 +161,8 @@ const ALLOWED = [
   'git branch -d merged',
   'git commit -m "fix: n-th item"',
   'git commit -am x',
+  'git -c core.hooksPath=/dev/null commit -m x',
+  'git -c core.hooksPath=/dev/null push origin feature',
   'git clean -n',
   'rm file.txt',
   'rm -f file.txt',
