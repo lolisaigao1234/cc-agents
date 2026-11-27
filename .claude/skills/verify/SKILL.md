@@ -16,7 +16,7 @@ A change is verified by **evidence**: the commands that ran on the tree as it wi
    ```
    verify: PASSED or FAILED
    1. `npm run check`: exit <code>
-      <the lines that state its result, as printed>
+      <its result: each test run's `ℹ tests`, `ℹ pass`, `ℹ fail` and `ℹ skipped` lines and each `✖` line, or the failing step's error, as printed but without timings>
    2. `node .claude/skills/verify/drive-hooks.mjs`: exit <code>
       <its output from the line "verify hooks: summary" to the end, as printed>
    ```
@@ -26,4 +26,4 @@ A change is verified by **evidence**: the commands that ran on the tree as it wi
 - `PASSED` rests on both exit codes being 0 in this run, and on the report carrying both outputs. Anything else is `FAILED`: a non-zero exit, a command that did not run or was cut off, an output you no longer hold.
 - For each failure, the report also quotes what failed, as printed: the failing test with its assertion, or the failing step's error; the whole block of each hook call marked `NOT AS EXPECTED`.
 - A failure the change did not cause is still `FAILED`. Report it, with what shows that it is not the change's.
-- The evidence is of one tree. After any further edit, run both steps again. A step whose result differs between two runs of one tree is `FAILED`, reported with both outputs.
+- The evidence is of one tree. After any further edit, run both steps again. A step whose result differs between two runs of one tree is `FAILED`, reported with both outputs. Timings (`duration_ms`, a test's `(…ms)`) are not part of a result.

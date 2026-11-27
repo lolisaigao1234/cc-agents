@@ -8,11 +8,15 @@
 // the timeout hooks.json gives it.
 //
 // The calls run in scratch repositories that are made new on each run and
-// removed after it, so a run asks nothing of this repository or of GitHub and
-// leaves nothing behind. git is the real one. `gh` is a stand-in that gives
-// fixed answers (GH below), and the hook keeps its records (what each agent
-// read, a halt) in a scratch temp directory. The same tree therefore prints
-// the same lines on every run.
+// removed after it, so a run asks nothing of this repository or of GitHub and,
+// when it ends on its own, leaves nothing behind. (A run that is killed leaves
+// its scratch directory in the temp directory, and a hook that runs past its
+// timeout is reported but may live on: only its shell is stopped.) git is the
+// real one. `gh` is a stand-in that gives fixed answers (GH below), and the
+// hook keeps its records (what each agent read, a halt) in a scratch temp
+// directory. Nothing of the caller's git, gh or Claude Code environment reaches
+// git or the hooks (ENV below), and their home is a scratch one. The same tree
+// therefore prints the same lines on every run.
 //
 // It exits 0 when every call returned what CALLS expects of it, and 1 otherwise.
 
@@ -38,17 +42,27 @@ const args = process.argv.slice(2)
 const say = (text, code = 0) => { (code ? process.stderr : process.stdout).write(text); process.exit(code) }
 if (args[0] === 'alias' && args[1] === 'list') say('')
 if (args[0] === 'api' && args[1] === 'repos/owner/name/issues/7') say(${JSON.stringify(JSON.stringify(ISSUE))})
-if (args[0] === 'pr' && args[1] === 'view') say('no pull requests found for branch "' + args[2] + '"\\n', 1)
 say('gh stand-in: no fixed answer for: gh ' + args.join(' ') + '\\n', 1)
 `
 
-// git for the scratch repositories, and for the hooks' own questions: no
-// configuration of the machine's, and fixed dates.
-const GIT_ENV = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z' }
+// The environment of the scratch repositories' git and of the hooks. Nothing
+// of the caller's that points git, gh or Claude Code somewhere reaches them: a
+// `GIT_DIR` or `GIT_INDEX_FILE` (git sets both for a hook of its own in a
+// linked worktree) would have the scratch commits made in the caller's
+// repository. Their home is a scratch one, so no configuration of the
+// machine's is read (git's ignore file, `~/.claude`), and the dates are fixed.
+const ENV = {
+  ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(GIT_|GH_|XDG_CONFIG_HOME$|CLAUDE_CONFIG_DIR$|TRACE_BYPASS$)/.test(name))),
+  HOME: join(SCRATCH, 'home'),
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z',
+  GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z',
+}
 
 /** @param {string} dir @param {string[]} args */
 const git = (dir, ...args) =>
-  execFileSync('git', ['-c', 'user.name=verify', '-c', 'user.email=verify@example.invalid', '-c', 'commit.gpgsign=false', ...args], { cwd: dir, stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, ...GIT_ENV } })
+  execFileSync('git', ['-c', 'user.name=verify', '-c', 'user.email=verify@example.invalid', '-c', 'commit.gpgsign=false', ...args], { cwd: dir, stdio: ['ignore', 'ignore', 'pipe'], env: ENV })
 
 /** @param {string} name @param {Record<string, string>} files @returns {string} a repository on `main` holding `files` */
 function repo(name, files) {
@@ -80,6 +94,7 @@ function world() {
   mkdirSync(noGit)
   symlinkSync(process.execPath, join(noGit, 'node'))
   mkdirSync(join(SCRATCH, 'tmp'))
+  mkdirSync(join(SCRATCH, 'home'))
 
   // Not opted in to the trace, with an archive.
   const plain = repo('plain', { 'notes.md': 'Notes.\n', 'archive/old.md': 'Superseded.\n' })
@@ -93,7 +108,7 @@ function world() {
   writeFileSync(join(onIssue, 'notes.md'), 'Notes, fixed.\n')
   git(onIssue, 'commit', '-qam', 'Fix the thing (#7)')
   git(onIssue, 'update-ref', 'refs/remotes/origin/7-fix-the-thing', 'HEAD')
-  return { plain, onMain, onIssue, path: `${bin}:${process.env.PATH}`, noGit }
+  return { plain, onMain, onIssue, path: `${bin}:${dirname(process.execPath)}:${process.env.PATH}`, noGit }
 }
 
 // --- the hook inputs, as Claude Code sends them ----------------------------------
@@ -205,6 +220,7 @@ function outcome(r, event) {
   if (r.stderr.trim()) return { kind: 'an error on stderr' }
   if (!out) return { kind: 'silent' }
   const specific = out.hookSpecificOutput ?? {}
+  if (out.hookSpecificOutput && specific.hookEventName !== event) return { kind: `output for ${specific.hookEventName}, not ${event}` }
   if (specific.permissionDecision === 'deny') return { kind: 'deny', says: String(specific.permissionDecisionReason) }
   if (out.decision === 'block') return { kind: 'block', says: String(out.reason) }
   if (typeof specific.additionalContext === 'string') return { kind: 'context', says: specific.additionalContext }
@@ -219,8 +235,7 @@ function run(call, i, w) {
   const input = { session_id: `verify-${call.session}`, transcript_path: join(SCRATCH, `${call.session}.jsonl`), cwd: call.cwd, permission_mode: 'default', hook_event_name: call.event, ...call.input }
   const subject = /** @type {Record<string, unknown>} */ (input)[MATCHED[call.event] ?? '']
   const commands = (REGISTERED[call.event] ?? []).filter(group => matches(group.matcher, subject)).flatMap(group => group.hooks.filter(h => h.type === 'command'))
-  const { TRACE_BYPASS: _, ...inherited } = process.env
-  const env = { ...inherited, ...GIT_ENV, PATH: call.path ?? w.path, TMPDIR: join(SCRATCH, 'tmp'), CLAUDE_PLUGIN_ROOT: PLUGIN, CLAUDE_PROJECT_DIR: call.cwd }
+  const env = { ...ENV, PATH: call.path ?? w.path, TMPDIR: join(SCRATCH, 'tmp'), CLAUDE_PLUGIN_ROOT: PLUGIN, CLAUDE_PROJECT_DIR: call.cwd }
 
   const title = `[${String(i + 1).padStart(2, '0')}] ${call.event}: ${call.what}`
   console.log(`\n${title}`)
