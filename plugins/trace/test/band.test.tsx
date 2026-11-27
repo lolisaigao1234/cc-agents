@@ -19,6 +19,7 @@ const AT_UPDATE: TraceStatus = {
   done: ['read', 'track', 'branch', 'implement', 'review'],
   issue: { n: 10, title: 'Trace band and /trace command', url: 'https://github.com/owner/name/issues/10' },
   docs: 'read',
+  review: { sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', unreviewed: 0 },
   comment: { author: 'claude', at: '2026-10-28T10:00:00Z', body: '## Progress\n\nThe band draws.', isProgress: true },
   last: null,
   pr: {
@@ -105,6 +106,39 @@ test('the band names each CI state, no PR, and the trace done', async ($, on) =>
     expect((await ui.find(text(re)))?.text).toBeDefined()
     await ui.unmount()
   }
+})
+
+// At Review with an open PR: what the last review recorded on the issue leaves unreviewed.
+const AT_REVIEW: TraceStatus = { ...AT_UPDATE, step: 'review', why: 'Review step: review the new diff.', done: ['read', 'track', 'branch', 'implement'], pr: { ...AT_UPDATE.pr!, ci: 'passing' } }
+const UNREVIEWED: [TraceStatus['review'], string][] = [
+  [{ sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', unreviewed: 2 }, '2 commits unreviewed'],
+  [{ sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', unreviewed: 1 }, '1 commit unreviewed'],
+  [{ sha: null, unreviewed: null }, 'no review recorded'],
+  [{ sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', unreviewed: null }, 'review of a1b2c3d is off this branch'],
+]
+
+test('beside an open PR the band says what is unreviewed, and nothing once the head is reviewed', async ($, on) => {
+  const clock = mock.clock(on)
+  let status: TraceStatus = AT_REVIEW
+  engine(on, () => status)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  const row = async (s: TraceStatus, bodyColumns = 140) => {
+    status = s
+    await $.classic.SessionStart({ source: 'clear' })
+    await clock.advance(5_000)
+    const ui = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns }, surface: 'terminal' })
+    const shown = (await ui.find(text(/docs read/)))?.text
+    await ui.unmount()
+    return shown
+  }
+  for (const [review, says] of UNREVIEWED) {
+    expect(await row({ ...AT_REVIEW, review })).toBe(`✓ read · ✓ track · ✓ branch · ✓ implement · ▸ review · update · close · docs read · PR #21 CI passing · ${says}`)
+  }
+  // It counts toward the row's width: where the whole pipeline no longer fits beside it, the pipeline shortens.
+  expect(await row({ ...AT_REVIEW, review: { sha: null, unreviewed: null } }, 120)).toBe('▸ review (4/7 done) · docs read · PR #21 CI passing · no review recorded')
+  expect(await row(AT_UPDATE)).toBe('✓ read · ✓ track · ✓ branch · ✓ implement · ✓ review · ▸ update · close · docs read · PR #21 CI failing')
+  // Without an open PR the row says so: there is nothing yet for a review to hold up.
+  expect(await row({ ...AT_REVIEW, review: { sha: null, unreviewed: null }, pr: null })).toBe('✓ read · ✓ track · ✓ branch · ✓ implement · ▸ review · update · close · docs read · no PR')
 })
 
 test('on a narrow row the band shortens the pipeline, so the docs and the PR stay in view', async ($, on) => {
@@ -241,6 +275,24 @@ test('/trace prints the unread docs, the last comment, the latest progress comme
   expect(text).toMatch(/\nthe related docs are not all read\. Unread: GLOSSARY\.md\. Read step: read it\.\n/)
   expect(text).toMatch(/\nLast comment, by rocky on 2026-10-29:\n {2}Thanks!\nLatest progress comment, by claude on 2026-10-28:\n {2}## Progress\n\n {2}The band draws\.\n/)
   expect(text).toMatch(/\nPR #21 \(open\), CI failing: https:\/\/github\.com\/owner\/name\/pull\/21\n {2}✓ test\n {2}✗ lint\n {2}… e2e$/)
+})
+
+test('/trace says what the last recorded review leaves unreviewed, whatever the step', async ($, on) => {
+  mock.clock(on)
+  let status: TraceStatus = AT_UPDATE
+  engine(on, () => status)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  const line = async (review: TraceStatus['review']) => {
+    // At Read, where the why is about the docs: the review still shows.
+    status = { ...AT_REVIEW, step: 'read', why: 'the related docs are not all read.', docs: 'unread', review }
+    return (await $.command.run(TRACE)).text?.split('\n').find(l => l.startsWith('Review: '))
+  }
+  expect(await line({ sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', unreviewed: 0 })).toBe('Review: the head is the commit the last review covered (a1b2c3d).')
+  expect(await line({ sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', unreviewed: 2 })).toBe('Review: 2 commits since a1b2c3d, the commit the last review covered, are unreviewed.')
+  expect(await line({ sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', unreviewed: 1 })).toBe('Review: 1 commit since a1b2c3d, the commit the last review covered, is unreviewed.')
+  expect(await line({ sha: null, unreviewed: null })).toBe('Review: no review is recorded on the issue.')
+  expect(await line({ sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', unreviewed: null })).toBe("Review: the last review covered a1b2c3d, which is not in this branch's history: all of it is unreviewed.")
+  expect(await line(null)).toBeUndefined()
 })
 
 test('/trace in a repository that has not opted in says so', async ($, on) => {
