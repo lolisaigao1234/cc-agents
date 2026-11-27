@@ -13,6 +13,8 @@ export type TraceStatus = {
   done: TraceStep[]
   issue: { n: number; title: string; url: string | null } | null
   docs: 'read' | 'unread' | null
+  /** The commit the latest review record on the issue names, and how many commits the head has since it: 0 when the head is reviewed, null without a record or when the head does not descend from that commit. */
+  review: { sha: string | null; unreviewed: number | null } | null
   comment: TraceComment | null
   last: TraceComment | null
   pr: {

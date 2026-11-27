@@ -9,7 +9,7 @@ import type { TraceComment, TraceHalt, TraceOutcome, TraceState, TraceStatus, Tr
 
 const STEPS: TraceStep[] = ['read', 'track', 'branch', 'implement', 'review', 'update', 'close']
 // Change the tag when TraceState changes: a reload keeps what was stored.
-const status = atom({ plugin: 'trace', key: 'status' } as const, null, { shape: 'status-3' })
+const status = atom({ plugin: 'trace', key: 'status' } as const, null, { shape: 'status-4' })
 // Tool calls after which a step may have completed: a read, a commit, a push, a PR.
 const MOVERS = new Set(['Read', 'Bash', 'Edit', 'Write', 'MultiEdit'])
 // A status run asks git and GitHub, so while work goes on it runs at most once per GAP.
@@ -32,6 +32,25 @@ async function traceStatus($: EngineInterface): Promise<TraceState> {
 
 /** `✓ read · ✓ track · ▸ branch · implement …`: each step, done, current or ahead. */
 const pipeline = (s: TraceStatus) => STEPS.map(step => (step === s.step ? `▸ ${step}` : s.done.includes(step) ? `✓ ${step}` : step)).join(' · ')
+
+/** `2 commits`, counted. */
+const commits = (n: number) => (n === 1 ? '1 commit' : `${n} commits`)
+
+/** What the last recorded review leaves unreviewed, in a few words; null when the head is reviewed. */
+function unreviewed(review: NonNullable<TraceStatus['review']>): string | null {
+  if (review.unreviewed === 0) return null
+  if (review.sha === null) return 'no review recorded'
+  return review.unreviewed === null ? `review of ${review.sha.slice(0, 7)} is off this branch` : `${commits(review.unreviewed)} unreviewed`
+}
+
+/** The same in full, for `/trace`. */
+function reviewLine({ sha, unreviewed: n }: NonNullable<TraceStatus['review']>): string {
+  if (sha === null) return 'Review: no review is recorded on the issue.'
+  const at = sha.slice(0, 7)
+  if (n === null) return `Review: the last review covered ${at}, which is not in this branch's history: all of it is unreviewed.`
+  if (n === 0) return `Review: the head is the commit the last review covered (${at}).`
+  return `Review: ${commits(n)} since ${at}, the commit the last review covered, ${n === 1 ? 'is' : 'are'} unreviewed.`
+}
 
 /** A why on one line, for a band of one row. */
 const oneLine = (why: string) => why.replace(/\s+/g, ' ')
@@ -154,6 +173,7 @@ export const register: Register = on => {
       `Step: ${s.step} (${pipeline(s)})`,
       ...(s.why ? [s.why] : []),
       ...(s.docs === 'read' ? ['Docs: every related doc is read.'] : []),
+      ...(s.review ? [reviewLine(s.review)] : []),
       ...(s.last ? quote('Last comment', s.last) : []),
       ...(s.comment ? quote(s.comment.isProgress ? 'Latest progress comment' : 'Last comment', s.comment) : []),
       ...(s.pr ? [`PR #${s.pr.n} (${s.pr.state.toLowerCase()}), CI ${s.pr.ci}: ${s.pr.url}`, ...s.pr.checks.map(c => `  ${MARK[c.outcome]} ${c.name}`)] : []),
@@ -187,9 +207,11 @@ export const register: Register = on => {
     const ci = s.pr ? ({ passing: 'success', failing: 'error', pending: 'warning', none: 'subtle' } as const)[s.pr.ci] : 'subtle'
     const docs = `docs ${s.docs ?? 'unknown'}`
     const pr = s.pr ? `PR #${s.pr.n} CI ${s.pr.ci}` : 'no PR'
-    // The whole pipeline when the row has room for it beside the docs and the PR.
+    // An open PR is what a review holds up: beside it, what the last recorded review leaves unreviewed.
+    const left = s.pr?.state === 'OPEN' && s.review ? unreviewed(s.review) : null
+    // The whole pipeline when the row has room for it beside the docs, the PR and that.
     const steps = pipeline(s)
-    const shown = steps.length + docs.length + pr.length + 6 <= e.props.bodyColumns ? steps : `▸ ${s.step} (${s.done.length}/${STEPS.length} done)`
+    const shown = steps.length + docs.length + pr.length + 6 + (left ? left.length + 3 : 0) <= e.props.bodyColumns ? steps : `▸ ${s.step} (${s.done.length}/${STEPS.length} done)`
     return (
       <Box flexDirection="column">
         <Text wrap="truncate-end">
@@ -201,6 +223,8 @@ export const register: Register = on => {
           <Text color={s.docs === 'read' ? 'success' : 'warning'}>{docs}</Text>
           <Text dimColor> · </Text>
           <Text color={ci}>{pr}</Text>
+          {left ? <Text dimColor> · </Text> : null}
+          {left ? <Text color="warning">{left}</Text> : null}
         </Text>
       </Box>
     )

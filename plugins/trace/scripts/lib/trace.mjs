@@ -31,7 +31,9 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
  * had it here, and when it got there (ISO 8601), or null when that holds
  * nothing beyond the remote's other branches; `committed` whether HEAD has a
  * commit the default branch does not whose message references #n, as the
- * commit gate reads a reference.
+ * commit gate reads a reference; `since` how many commits HEAD has that the
+ * commit `rev` names does not, 0 when HEAD is that commit, or null when HEAD
+ * does not descend from it or git has no such commit.
  *
  * @typedef {{
  *   root(path: string): string | null,
@@ -45,6 +47,7 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
  *   headDocs(root: string): import('./docs.mjs').HeadDocs,
  *   pushed(root: string, branch: string): { sha: string, at: string } | null,
  *   committed(root: string, n: number): boolean,
+ *   since(root: string, rev: string): number | null,
  * }} Git
  */
 
@@ -669,8 +672,7 @@ function prVerdict(run, world) {
   const bodyFile = [...opts].reverse().find(([name]) => name === 'body-file')
   // --body-file replaces --body, whatever their order.
   const text = unknownOption || elsewhere ? null : bodyFile ? fileText(bodyFile[1], run, place.dir) : last.body ?? null
-  const ref = `(?:#${n}${slug ? `|${escape(slug)}#${n}|https://github\\.com/${escape(slug)}/issues/${n}` : ''})(?![\\w/])`
-  return judge(text, new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\\s+${ref}`, 'i'), {
+  return judge(text, closesIssue(n, slug), {
     what: 'PR body',
     how: '--body or a heredoc to --body-file -',
     step: 'Review',
@@ -680,11 +682,23 @@ function prVerdict(run, world) {
   })
 }
 
+/**
+ * What a PR body must hold to close issue #n of `slug`: one of GitHub's
+ * closing words before `#n`, `slug#n` or the issue's URL.
+ *
+ * @param {number} n @param {string | null} slug
+ */
+export const closesIssue = (n, slug) => {
+  const ref = `(?:#${n}${slug ? `|${escape(slug)}#${n}|https://github\\.com/${escape(slug)}/issues/${n}` : ''})(?![\\w/])`
+  return new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\\s+${ref}`, 'i')
+}
+
+/** @param {string} text @returns {string} `text` without its comments and fenced code, which GitHub does not show as the comment's own words */
+export const dropMarkdownBlocks = text => text.replace(/<!--[\s\S]*?(?:-->|$)/g, '').replace(/^(```|~~~)[^\n]*\n[\s\S]*?(?:^\1[^\n]*$|(?![\s\S]))/gm, '')
+
 /** @param {string} text @returns {string} `text` without what GitHub does not read as links: code and comments */
-const dropMarkdownCode = text =>
-  text
-    .replace(/<!--[\s\S]*?(?:-->|$)/g, '')
-    .replace(/^(```|~~~)[^\n]*\n[\s\S]*?(?:^\1[^\n]*$|(?![\s\S]))/gm, '')
+export const dropMarkdownCode = text =>
+  dropMarkdownBlocks(text)
     .replace(/`[^`\n]*`/g, '')
     .replace(/(^|\n[ \t]*\n)((?: {4}|\t)[^\n]*(?:\n|$))+/g, '$1')
 
@@ -894,6 +908,16 @@ function realWorld() {
       const base = def ? ['--ignore-missing', '--not', `refs/heads/${def}`, `refs/remotes/origin/${def}`] : []
       const refers = refersTo(n, this.origin(root))
       return (git(root, ['log', '-z', '--format=%B', 'HEAD', ...base, '--']) ?? '').split('\0').some(m => refers.test(m))
+    },
+    // The revision is a comment's text: hex, so never an option. git counts the
+    // commits on each side of it and HEAD; any on its side, and HEAD does not
+    // descend from it. Of a hash that names no commit (no object, a tree), git
+    // says the expression is invalid.
+    since(root, rev) {
+      if (!/^[0-9a-f]+$/i.test(rev)) return null
+      const noCommit = new RegExp(`${GIT_NO.source}|bad object|invalid symmetric difference expression`, 'i')
+      const [behind, ahead] = (git(root, ['rev-list', '--count', '--left-right', `${rev}...HEAD`, '--'], noCommit) ?? '').split('\t')
+      return behind === '0' && ahead ? Number(ahead) : null
     },
     // Where the branch is pushed: its push destination, else its upstream,
     // else origin's branch of its name. Null unless that holds commits no other
