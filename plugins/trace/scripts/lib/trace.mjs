@@ -452,15 +452,26 @@ const setting = (config, key, root, git) => {
   return kv !== undefined ? kv.slice(key.length + 1) : root ? git.config(root, key) : null
 }
 
-/** @param {SimpleCommand} c @returns {boolean} whether `c` may set a git alias */
-function definesGitAlias(c) {
+/**
+ * Whether `c` may write a git setting whose name `key` matches, in any
+ * scope or file.
+ *
+ * @param {SimpleCommand} c @param {RegExp} key @returns {boolean}
+ */
+function writesGitSetting(c, key) {
   if (c.name !== 'git') return false
   const { sub, rest } = gitParts(c.args)
   if (sub !== 'config') return false
   const words = rest[0] === 'set' ? rest.slice(1) : rest
   if (words.some(w => /^(?:--get(?:-all|-regexp)?|--list|-l|--unset(?:-all)?|get|list)$/.test(w))) return false
-  return words.some(w => /^(?:alias\.|--file|-f$|--edit|-e$)/i.test(w) || computed(w))
+  return words.some(w => key.test(w) || /^(?:--file|-f$|--edit|-e$)/i.test(w) || computed(w))
 }
+
+/** @param {SimpleCommand} c @returns {boolean} whether `c` may set a git alias */
+const definesGitAlias = c => writesGitSetting(c, /^alias\./i)
+
+// Settings that change the message `git commit` records, or where git reads its trailers.
+const MESSAGE_SETTINGS = /^(?:core\.comment(?:char|string)|commit\.cleanup)$/i
 
 // Git commands other than commit that make or move commits; the related docs
 // must be read before them as before a commit. Stopping one, skipping a step
@@ -516,8 +527,11 @@ function commitVerdict(run, world) {
   const unread = readVerdict(place.root, n, null, world)
   if (unread) return unread
   const slug = world.git.origin(place.root)
-  const comment = commentString(config, place.root, world.git)
-  const message = unknownOption || comment === null ? null : commitMessage(opts, run, { root: place.root, dir: place.dir, comment }, config, world.git)
+  // A setting written earlier on the line is not set yet to read, and a computed `-c` may be any setting.
+  const unsettled = run.earlier.some(c => writesGitSetting(c, MESSAGE_SETTINGS)) || config.some(kv => computed(kv.split('=')[0] ?? ''))
+  const comments = unsettled ? null : commentStrings(config, place.root, world.git)
+  const trailerSettings = config.some(kv => /^trailer\./i.test(kv)) || run.earlier.some(c => writesGitSetting(c, /^trailer\./i)) || world.git.configKeys(place.root, 'trailer').length > 0
+  const message = unknownOption || comments === null ? null : commitMessage(opts, run, { root: place.root, dir: place.dir, comments, trailerSettings }, config, world.git)
   const asked = { what: 'commit message', how: '-m or a heredoc to -F -', step: 'Implement' }
   const reference = `add "#${n}" to the commit message, e.g. end the subject with "(#${n})"`
   return (
@@ -529,7 +543,7 @@ function commitVerdict(run, world) {
     }) ??
     // What the shell computes anywhere in the message may empty a paragraph, add one, or cut the message short.
     // git here reads it with its comment string, and GitHub with `#`.
-    judge(message, { test: m => stamped(m) && (comment === null || comment === '#' || comment === 'auto' || stamped(m, comment)) }, { ...asked, fix: STAMP_HINT, refusal: 'this commit message carries no verification stamp.', blank: COMPUTED })
+    judge(message, { test: m => stamped(m) && (comments ?? []).every(c => c === '#' || c === 'auto' || stamped(m, c)) }, { ...asked, fix: STAMP_HINT, refusal: 'this commit message carries no verification stamp.', blank: COMPUTED })
   )
 }
 
@@ -539,7 +553,7 @@ export const STAMP_HINT = 'end the commit message with a last paragraph "Verifie
 // What the stamp's reader sees in place of an expansion. It may hold any
 // text, a scissors line or nothing at all, so no stamp can be read in a
 // message that holds one.
-const COMPUTED = ''
+const COMPUTED = '\uE030'
 
 // Where, in a line, a trailer's token ends at its colon, as git finds it: a
 // token of letters, digits and hyphens, then spaces or tabs. -1 when none.
@@ -670,15 +684,17 @@ function withTrailers(message, added, comment) {
 }
 
 /**
- * The comment string git uses, as `git commit` reads it, or null when the
- * shell computes it or git refuses it. `auto` is git's choice, `#` outside
- * the editor.
+ * The comment strings git may use, as `git commit` reads them: the first is
+ * the one git 2.45 and later use, and a second the one older git uses, which
+ * ignores `core.commentString`. Null when the shell computes one or git
+ * refuses it. `auto` is git's choice, `#` outside the editor.
  *
- * @param {string[]} config @param {string} root @param {Git} git @returns {string | null}
+ * @param {string[]} config @param {string} root @param {Git} git @returns {string[] | null}
  */
-function commentString(config, root, git) {
-  const cc = setting(config, 'core.commentString', root, git) ?? setting(config, 'core.commentChar', root, git) ?? '#'
-  return cc === '' || computed(cc) ? null : cc
+function commentStrings(config, root, git) {
+  const char = setting(config, 'core.commentChar', root, git) ?? '#'
+  const all = [...new Set([setting(config, 'core.commentString', root, git) ?? char, char])]
+  return all.some(c => c === '' || computed(c)) ? null : all
 }
 
 /**
@@ -691,15 +707,17 @@ const stripspace = text => text.split('\n').map(l => l.replace(/[ \t\r]+$/, ''))
 
 /**
  * The message `git commit` records, or null when an editor, a computed
- * file, an unreadable commit or trailer.* settings decide it.
+ * file, an unreadable commit, trailer.* settings or the git version decide
+ * it. A message git stores is text, which the shell does not expand.
  *
  * @param {[string, string | undefined][]} opts
- * @param {Run} run @param {{ root: string, dir: string | null, comment: string }} place
+ * @param {Run} run @param {{ root: string, dir: string | null, comments: string[], trailerSettings: boolean }} place
  * @param {string[]} config inline `-c` settings
  * @param {Git} git
  * @returns {string | null}
  */
-function commitMessage(opts, run, { root, dir, comment }, config, git) {
+function commitMessage(opts, run, { root, dir, comments, trailerSettings }, config, git) {
+  const comment = /** @type {string} */ (comments[0])
   /** @type {string[]} */
   const texts = []
   /** @type {string[]} */
@@ -711,8 +729,11 @@ function commitMessage(opts, run, { root, dir, comment }, config, git) {
   const last = {}
   for (const [name, v] of opts) {
     if (name === 'message') texts.push(v ?? '')
-    // git writes `--trailer token=value` as `token: value`.
-    else if (name === 'trailer') added.push((v ?? '').replace(/^([A-Za-z0-9-]+)[ \t]*[:=][ \t]*/, '$1: '))
+    // git writes `--trailer token=value` as `token: value`, and one with no token before its separator as all token.
+    else if (name === 'trailer') {
+      const [, token, value] = /^([A-Za-z0-9-]+)[ \t]*[:=]([\s\S]*)$/.exec(v ?? '') ?? []
+      added.push(token === undefined ? `${(v ?? '').trim()}:` : `${token}: ${(value ?? '').trim()}`)
+    }
     else if (name === 'file') {
       const text = fileText(v, run, dir)
       if (text === null) return null
@@ -723,7 +744,11 @@ function commitMessage(opts, run, { root, dir, comment }, config, git) {
     if (name === 'reedit-message') last['reuse-message'] = v
     else last[name] = v
   }
-  const subject = (/** @type {string | undefined} */ rev) => (rev === undefined ? null : git.message(root, rev)?.split('\n')[0] ?? null)
+  const stored = (/** @type {string} */ rev) => {
+    const m = git.message(root, rev)
+    return m === null ? null : literal(m)
+  }
+  const subject = (/** @type {string | undefined} */ rev) => (rev === undefined ? null : stored(rev)?.split('\n')[0] ?? null)
   if (last.fixup !== undefined) {
     if (/^(?:amend|reword):/.test(last.fixup)) return null
     const s = subject(last.fixup)
@@ -736,13 +761,13 @@ function commitMessage(opts, run, { root, dir, comment }, config, git) {
     texts.unshift(`squash! ${s}`)
   }
   if (last['reuse-message'] !== undefined) {
-    const m = git.message(root, last['reuse-message'])
+    const m = stored(last['reuse-message'])
     if (m === null) return null
     texts.push(m)
   }
   if (texts.length === 0) {
     if (!amend || !noEdit) return null
-    const m = git.message(root, 'HEAD')
+    const m = stored('HEAD')
     if (m === null) return null
     texts.push(m)
   }
@@ -751,19 +776,18 @@ function commitMessage(opts, run, { root, dir, comment }, config, git) {
   const mode = last.cleanup ?? setting(config, 'commit.cleanup', root, git)
   if (mode && computed(mode)) return null
   if (mode === 'strip' && comment === 'auto') return null
+  // Which comment string git strips with, and where --trailer goes before comment lines, depend on its version.
+  if (comments.length > 1 && (mode === 'strip' || added.length)) return null
   // trailer.* settings may drop, rename, move or rewrite what --trailer adds.
-  if (added.length && (config.some(kv => /^trailer\./i.test(kv)) || git.configKeys(root, 'trailer').length)) return null
+  if (added.length && trailerSettings) return null
   const clean = (/** @type {string} */ t) => (mode === 'verbatim' ? t : stripspace(t))
   const body = clean(texts.join('\n\n'))
   const text = added.length ? withTrailers(body, added, comment === 'auto' ? '#' : comment) : body
-  return mode === 'strip'
-    ? clean(
-        text
-          .split('\n')
-          .filter(l => !l.startsWith(comment))
-          .join('\n'),
-      )
-    : clean(text)
+  if (mode !== 'strip') return clean(text)
+  const lines = text.split('\n')
+  // What the shell computes in a line strip drops may hold a newline and lines it keeps.
+  if (lines.some(l => l.startsWith(comment) && /[$`]/.test(l))) return null
+  return clean(lines.filter(l => !l.startsWith(comment)).join('\n'))
 }
 
 // gh pr create's and gh pr edit's options, from their --help, with the inherited -R.
