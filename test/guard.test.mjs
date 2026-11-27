@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, realpathSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -228,7 +228,15 @@ test('the guard denies commands that destroy work or history', () => {
 })
 
 test('the guard allows everything else, including text that mentions destructive commands', () => {
-  for (const c of ALLOWED) assert.equal(guard(c), null, c)
+  // `mv notes.md ~/.claude/` moves into that directory only where it exists, so the test brings a home that has one.
+  const home = process.env.HOME
+  process.env.HOME = realpathSync(mkdtempSync(join(tmpdir(), 'home-')))
+  mkdirSync(join(process.env.HOME, '.claude'))
+  try {
+    for (const c of ALLOWED) assert.equal(guard(c), null, c)
+  } finally {
+    process.env.HOME = home
+  }
 })
 
 test('the guard names what it refuses', () => {
