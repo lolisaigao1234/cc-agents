@@ -4,7 +4,7 @@ date: 2026-10-28
 issue: "#3"
 ---
 
-# 0006: Every change is traced through GitHub, and hooks enforce it
+# 0006: Every change is traced through GitHub, and hooks and GitHub enforce it
 
 A change that cannot be tied to the reason it was made is how drift and hallucinated work get in. In a traced repository, every change follows one pipeline, the **trace**:
 
@@ -28,11 +28,31 @@ When commits were pushed after the issue's last comment, the Stop hook nudges fo
 
 The issue is also the record that survives compaction. At start, after compaction, on resume and when a subagent starts, hooks inject the issue's title, acceptance criteria and latest progress comment.
 
+## Where each rule is enforced
+
+Hooks run only where a session runs them, and only on the tool calls they see. A change that reaches GitHub another way, such as a commit and a PR made by a command that runs no tool hooks, meets none of them. So a PR's rules are judged a second time on GitHub, by the **trace check**, and the default branch's protection makes its verdict binding.
+
+| Rule | In a session | On GitHub |
+|---|---|---|
+| A change is made on the branch of an open issue | hooks hard-block an edit, a commit and a PR on the default branch, or on a branch whose `<n>-` names no open issue | the trace check fails a PR whose branch names no open issue |
+| Commits reference `#<n>` | hooks hard-block `git commit` without it | the trace check fails a PR that has a commit without it |
+| A PR's body says `Closes #<n>` | hooks hard-block `gh pr create`, and a `gh pr edit` of the body, without it | the trace check fails a PR whose body lacks it, and judges again each time the body is edited |
+| The default branch changes only through a PR that passed | hooks hard-block an edit and a commit there; a push is not judged | branch protection, which only the human applies |
+| The related docs are read (ADR 0007) | hooks | nowhere: what an agent read is not on GitHub |
+| A progress comment follows each round | the Stop hook's nudge | nowhere |
+
+The trace check runs when a PR is opened or reopened, when commits are pushed to it, and when its body or its base branch is edited. GitHub runs the check as the default branch has it, never as the PR has it, so a change cannot alter the check that judges it. It reads a branch's issue, a commit's reference and a body's closing words with the gates' own readers, of the PR as GitHub has it at that moment. Like the hooks, it does not guess: when GitHub does not answer, it fails.
+
+It judges the commits GitHub lists for the PR, which are those its branch has and its base branch does not, whoever made them. A merge is not asked for a reference: `git merge` and GitHub's "Update branch" write a merge's message, and the commit gate does not judge them either. What a merge brings in is judged as its own commits, and the base branch's commits are not the PR's. A stacked branch's PR has its blocker's branch as its base while the blocker's PR awaits merge, so the blocker's commits are not asked for the stacked branch's issue; once the human has merged the blocker, they are on the default branch.
+
 ## Considered options
 
 - **A local task file** (the old loop's approach): rejected. It is invisible to humans, dies with the worktree, and duplicates the issue.
 - **Merge automation on green CI**: rejected. Merging is the human's decision.
 - **Notices instead of blocks**: rejected. A model can ignore a notice; it cannot ignore a deny.
+- **Running the trace check as the PR has it** (the `pull_request` event): rejected. A change could then weaken the check in the same PR that needs it to pass. The price is that a change to the check is not run on the PR that makes it; the tests judge it there.
+- **Asking GitHub which issues a PR closes, in place of reading its body**: rejected. GitHub links none while a PR's base is not the default branch, which is every stacked branch's PR, and it would read a body otherwise than the PR gate does.
+- **Asking a merge for a reference too**: rejected. Merging the default branch into the branch, with `git merge` or "Update branch", would then fail the check, and mending it means rewriting the branch, which the guard refuses.
 - **Refusing only the one tool call when git or GitHub cannot answer, naming the bypass**: rejected by the human. The whole system rests on git, so without it the work stops until git is back, and the bypass is not the remedy.
 
 ## Consequences
@@ -42,4 +62,10 @@ The issue is also the record that survives compaction. At start, after compactio
 - The hook cannot tell the human's prompt from one a scheduled task or another session sends, so any of those lifts a halt.
 - The only bypass is an environment variable the human sets when launching Claude Code. Nothing the model can write turns the trace off, so there is no state to defend.
 - Because the human merges, a ticket blocked by an unmerged one is built on a stacked branch.
+- The trace check blocks nothing by itself: it binds only while the default branch's protection requires it, of administrators too. Protection is a repository setting, which the human applies. An agent working under the human's GitHub login can change that setting, and nothing on GitHub stops it.
+- A stacked branch relies on its blocker being merged with a merge commit. After a squash or a rebase, the blocker's commits are still on the stacked branch and no longer on the default branch, so the trace check asks them for the stacked branch's issue.
+- The trace check is this repository's own workflow. `/trace:setup` does not add it to another traced repository.
+- Routes that stay open on GitHub:
+  - What a merge commit itself changes is not judged, as in a session.
+  - A PR can add a workflow of its own whose job reports under the trace check's name. Which of two results of one name GitHub's protection takes is not documented, and not verified here.
 - Repositories without a GitHub remote cannot be traced.
