@@ -64,6 +64,7 @@ It judges the commits GitHub lists for the PR, which are those its branch has an
 - Because the human merges, a ticket blocked by an unmerged one is built on a stacked branch.
 - The trace check blocks nothing by itself: it binds only while the default branch's protection requires it, of administrators too. Protection is a repository setting, which the human applies. An agent working under the human's GitHub login can change that setting, and nothing on GitHub stops it.
 - A stacked branch relies on its blocker being merged with a merge commit. After a squash or a rebase, the blocker's commits are still on the stacked branch and no longer on the default branch, so the trace check asks them for the stacked branch's issue.
+- The trace check runs on `pull_request_target`, which GitHub blocks in public repositories from 2026-12-02 unless an Actions event policy allows it. So it also depends on a policy, another repository setting the human applies, that allows that event for the trace check's workflow alone; without it the check fails every pull request.
 - The trace check is this repository's own workflow. `/trace:setup` does not add it to another traced repository.
 - Routes that stay open on GitHub:
   - What a merge commit itself changes is not judged, as in a session.

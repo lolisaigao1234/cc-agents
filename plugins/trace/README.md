@@ -36,6 +36,8 @@ It differs from the gates where GitHub does. It reads what git recorded, not a c
 
 The workflow runs on `pull_request_target`, so GitHub takes the workflow file and the script from the default branch, never from the pull request: a change cannot alter the check that judges it, and a change to the check judges pull requests only once it is merged. Nothing of the pull request is checked out or run. The run's token can only read: `contents` (the script), `pull-requests` and `issues`.
 
+From 2026-12-02 GitHub Actions blocks `pull_request_target` in a public repository, as this one is, unless an Actions event policy allows it: a blocked run fails without judging anything. So before requiring the check, the human, as an administrator, allows it for this workflow alone: Settings → Actions → Policies, a policy whose enforcement is active, targeting the workflow path `.github/workflows/trace.yml` and nothing wider, that under Restrict events permits `pull_request_target`. Then a run of the trace check on an open pull request should judge it, not fail with a blocked-event annotation. Required without that policy, the check fails every pull request and, with `enforce_admins`, nothing can merge until protection is lifted again.
+
 The check binds only while the default branch's protection requires it. That is the human's to set, as an administrator, under Settings → Branches or with the command below. GitHub Actions is app 15368, and `check` is CI's job.
 
 ```sh
