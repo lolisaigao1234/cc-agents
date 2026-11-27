@@ -1,6 +1,6 @@
 # trace
 
-Hooks that keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008): the edit, commit and PR gates of the trace, its forced reads, the issue kept in context, the progress-comment nudge, the band and `/trace`, the guard and the archive block. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
+Hooks that keep a model's work traced and its context grounded in the project's decisions (ADRs 0005–0008): the edit, commit and PR gates of the trace, the trace check that judges a pull request again on GitHub, its forced reads, the issue kept in context, the progress-comment nudge, the band and `/trace`, the guard and the archive block. It depends on `mattpocock-skills`, which supplies the skills the work goes through.
 
 ## The trace
 
@@ -21,6 +21,52 @@ On Bash, the same hook refuses, in a traced repository:
 - either one when it cannot tell the message, the body or the repository: an editor, `--fill`, `--web`, an option it does not know, a piped, shell-computed or same-line-written file, a `cd` it cannot follow, a variable such as `GIT_DIR` or `GH_REPO`, a git or gh alias that runs a shell (`!…`), or a PR that gh would open outside origin's repository (`-R`, a fork's upstream). Other git and gh aliases are followed.
 
 Every refusal names the pipeline step; one for a missing reference also names the linked issue and the exact text to add. The edit gate's branch rules apply to commits and PRs too.
+
+### The trace check
+
+Hooks judge a change only where a session runs them. On GitHub, this repository's `Trace` workflow judges every pull request again (ADR 0006), and fails it unless:
+
+- its branch's `<n>-` prefix names an open issue of the repository: not a closed or missing issue, nor a pull request;
+- every commit its branch has and its base branch does not references `#<n>`, read as the commit gate reads a message. A merge (a commit with two parents or more) is not asked: `git merge` and GitHub's "Update branch" write its message, and the commit gate does not judge them either. GitHub lists 250 commits of a pull request at most; one with more fails;
+- its body says `Closes #<n>`, read as the PR gate reads a body, with the line ends GitHub stores (CRLF) read as line ends.
+
+It runs when a pull request is opened or reopened, when commits are pushed to it, and when its body, title or base branch is edited. Each run asks GitHub for the pull request as it is then, so re-running a run judges it afresh: that is how to judge again after an issue is closed or reopened, which starts no run. A failure names each broken rule and its pipeline step; when GitHub does not answer the run, it fails. A merged pull request passes unread: merging closed its issue, and it cannot merge again.
+
+It differs from the gates where GitHub does. It reads what git recorded, not a command's text, so it judges commits whoever made them, and a merge that a session concluded with `git commit`, which the commit gate asks for `#<n>`, is not asked here. A stacked branch's pull request takes its blocker's branch as its base (`gh pr create --base`, `gh pr edit --base`) while the blocker's PR awaits merge: against the default branch, the blocker's commits would be judged as its own.
+
+The workflow runs on `pull_request_target`, so GitHub takes the workflow file and the script from the default branch, never from the pull request: a change cannot alter the check that judges it, and a change to the check judges pull requests only once it is merged. Nothing of the pull request is checked out or run. The run's token can only read: `contents` (the script), `pull-requests` and `issues`.
+
+From 2026-12-02 GitHub Actions blocks `pull_request_target` in a public repository, as this one is, unless an Actions event policy allows it: a blocked run fails without judging anything. So before requiring the check, the human, as an administrator, allows it for this workflow alone: Settings → Actions → Policies, a policy whose enforcement is active, targeting the workflow path `.github/workflows/trace.yml` and nothing wider, that under Restrict events permits `pull_request_target`. Then a run of the trace check on an open pull request should judge it, not fail with a blocked-event annotation. Required without that policy, the check fails every pull request and, with `enforce_admins`, nothing can merge until protection is lifted again.
+
+The check binds only while the default branch's protection requires it. That is the human's to set, as an administrator, under Settings → Branches or with the command below. GitHub Actions is app 15368, and `check` is CI's job.
+
+```sh
+gh api -X PUT repos/lolisaigao1234/cc-agents/branches/main/protection --input - <<'JSON'
+{
+  "required_status_checks": {
+    "strict": false,
+    "checks": [
+      { "context": "trace", "app_id": 15368 },
+      { "context": "check", "app_id": 15368 }
+    ]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": { "required_approving_review_count": 0 },
+  "restrictions": null,
+  "required_linear_history": false,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+JSON
+```
+
+- `trace` and `check` are required, from GitHub Actions only, so a commit status of the same name set by another app does not count.
+- `enforce_admins` holds administrators to it. Agents work under the human's GitHub login, so without it `gh pr merge --admin` merges past a failing check.
+- A pull request is required, with no approving review, since the human merges their own. So the default branch, and with it the check, changes only through a pull request that passed.
+- No force pushes to the default branch and no deleting it. Linear history stays off: the human merges with merge commits, which stacked branches rely on.
+- `strict` (a branch up to date before merging) is off: no rule here needs it.
+
+A pull request opened before the check reached the default branch has no run of it. It gets one at its next push, edit or reopening.
 
 ### Forced reads
 

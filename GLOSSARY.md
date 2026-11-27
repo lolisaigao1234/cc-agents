@@ -32,6 +32,10 @@ _Avoid_: epic
 A comment on the linked issue recording a round of work's progress, decisions and verification results.
 _Avoid_: status update, round comment
 
+**Trace check**:
+The judgement of a pull request against the trace's rules that GitHub itself runs.
+_Avoid_: PR lint, CI gate, status check
+
 **Bypass**:
 The human's switch for turning the trace off for a session.
 _Avoid_: override, escape hatch

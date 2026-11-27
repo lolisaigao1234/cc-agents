@@ -41,6 +41,7 @@ flowchart LR
 | Part | What it does | Applies | ADR |
 | --- | --- | --- | --- |
 | **Trace gates** | Refuses an edit unless it is on an open issue's `<n>-` branch, a commit without `#<n>`, and a PR without `Closes #<n>` | Traced repos | [0006](docs/adr/0006-every-change-is-traced-through-github.md) |
+| **Trace check** | Fails a pull request on GitHub unless its branch names an open issue, its commits reference `#<n>` and its body says `Closes #<n>`, whatever ran in the session | This repository | [0006](docs/adr/0006-every-change-is-traced-through-github.md) |
 | **Forced reads** | Before an agent edits or commits, it must have read, itself and in full, the glossary, every active ADR, the docs the issue names, and the issue | Traced repos | [0007](docs/adr/0007-related-docs-are-forced-reads.md) |
 | **Issue in context** | Re-tells the agent the issue after start, resume and compaction, and asks once for a progress comment after a push | Traced repos | [0006](docs/adr/0006-every-change-is-traced-through-github.md) |
 | **Band and `/trace`** | Shows the issue, the pipeline step, the docs read and the PR's CI above the prompt; `/trace` prints it in full | Traced repos | [0005](docs/adr/0005-reuse-existing-skills-plugin-is-guardrails-and-visibility.md) |
