@@ -1,0 +1,31 @@
+# The parts of `npm run check` that need only Node: both typechecks and the
+# hook scripts' tests. `npm run test:mod` and `npm run validate` are left
+# out: they are commands of the Claude Code CLI (`claude plugin test`,
+# `claude plugin validate`), which the runner does not have. Without `claude`
+# on the PATH, the test that compares the vendored declarations with the
+# installed Claude Code is skipped too (README, Developing).
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run typecheck:mod

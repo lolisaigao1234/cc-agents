@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { Unanswered } from '../plugins/trace/scripts/lib/halt.mjs'
+import { CASE_INSENSITIVE_FS } from '../plugins/trace/scripts/lib/paths.mjs'
 import { commandVerdict, editVerdict, worldFor } from '../plugins/trace/scripts/lib/trace.mjs'
 import { noReads } from './helpers.mjs'
 
@@ -1113,7 +1114,8 @@ test('a PR is read as gh reads it: pflag values, booleans, the body file, the ba
 })
 
 test('the shell runs what the gates read: wrappers, case, shells fed a script, fd redirects, cds', () => {
-  for (const command of ['GH pr create -t t -b x', 'arch -arm64 gh pr create -t t -b x', 'exec -a x gh pr create -t t -b x', 'env -P /opt/bin gh pr create -t t -b x', 'script -q /dev/null gh pr create -t t -b x', "bash -c -- 'gh pr create -t t -b x'", "bash <<< 'gh pr create -t t -b x'", 'gh pr create -t t -b $\'Refs\\x00 Closes #7\'']) {
+  // `GH` is `gh` only where the file system folds case.
+  for (const command of [...(CASE_INSENSITIVE_FS ? ['GH pr create -t t -b x'] : []), 'arch -arm64 gh pr create -t t -b x', 'exec -a x gh pr create -t t -b x', 'env -P /opt/bin gh pr create -t t -b x', 'script -q /dev/null gh pr create -t t -b x', "bash -c -- 'gh pr create -t t -b x'", "bash <<< 'gh pr create -t t -b x'", 'gh pr create -t t -b $\'Refs\\x00 Closes #7\'']) {
     assert.match(String(verdict(command)), /does not close #7/, command)
   }
   assert.match(String(verdict("gh pr create -t t -F - 3<<'EOF'\nCloses #7\nEOF")), /cannot tell/)
