@@ -1031,7 +1031,8 @@ test('the commit gate and the trace check read a verification stamp as git reads
     assert.deepEqual({ gate, check }, { gate: byGit, check: byGit }, command)
   }
   // What the shell computes, or trailer.* settings, may leave git no stamp to read: the gate cannot tell.
-  for (const [command, config = {}] of /** @type {[string, Record<string, string>?][]} */ ([
+  const [major = 0, minor = 0] = (/(\d+)\.(\d+)/.exec(git(['version'])) ?? []).slice(1).map(Number)
+  for (const [command, config = {}, until] of /** @type {[string, Record<string, string>?, string?][]} */ ([
     ['X=; git commit -q --allow-empty -m "$X" -m "Verified: none (#7)"'],
     ['X=; git commit -q --allow-empty -m "$X\n\nVerified: none (#7)"'],
     ["X='# c'; git commit -q --allow-empty --cleanup=strip -m \"$X\" -m 'Verified: none (#7)'"],
@@ -1051,15 +1052,17 @@ test('the commit gate and the trace check read a verification stamp as git reads
     ['X=trailer.ifmissing=doNothing; git -c "$X" commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
     // An expansion in a line strip cleanup drops may add lines it keeps.
     ["X=$'\\nprose'; git commit -q --allow-empty --cleanup=strip -m \"Fix (#7)\" -m \"Verified: none\" -m \"# $X\""],
-    // core.commentString is git 2.45's; an older git strips with core.commentChar.
-    ["git -c core.commentString=';' commit -q --allow-empty --cleanup=strip -m 'x (#7)' -m 'Verified: none' -m '; prose'"],
+    // core.commentString is git 2.45's; an older git strips with core.commentChar, and loses the stamp.
+    ["git -c core.commentString=';' commit -q --allow-empty --cleanup=strip -m 'x (#7)' -m 'Verified: none' -m '; prose'", {}, '2.45'],
   ])) {
     for (const [key, value] of Object.entries(config)) git(['config', key, value])
     execFileSync('bash', ['-c', command], { cwd: dir, env })
     for (const key of Object.keys(config)) git(['config', '--unset', key])
     unset()
     assert.match(String(verdict(command, { config })), /cannot tell the commit message/, command)
-    assert.deepEqual(read(), { git: false, check: false }, command)
+    // A git from `until` on keeps the stamp in a case only an older one loses it.
+    const [untilMajor = 0, untilMinor = 0] = (until ?? '').split('.').map(Number)
+    if (until === undefined || major < untilMajor || (major === untilMajor && minor < untilMinor)) assert.deepEqual(read(), { git: false, check: false }, command)
   }
   rmSync(dir, { recursive: true, force: true })
 })
