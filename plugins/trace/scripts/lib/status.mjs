@@ -4,7 +4,7 @@
 
 import { latestProgress } from './context.mjs'
 import { real } from './paths.mjs'
-import { branchIssue, linkedIssue, readVerdict, tracedRoot, unreadable } from './trace.mjs'
+import { branchIssue, dropMarkdownBlocks, linkedIssue, readVerdict, tracedRoot, unreadable } from './trace.mjs'
 
 /** @typedef {import('./trace.mjs').World} World */
 
@@ -41,11 +41,16 @@ export const STEPS = /** @type {const} */ (['read', 'track', 'branch', 'implemen
 /** @typedef {{ sha: string | null, unreviewed: number | null }} Review */
 
 // A review round's record of the commit it covered: a line of its own in a
-// comment on the issue, which is where a round is recorded (ADR 0006).
-const RECORD = /^[ \t]*Reviewed:[ \t]*`?([0-9a-f]{7,40})`?[ \t\r]*$/gim
+// comment on the issue, which is where a round is recorded (ADR 0006). The
+// line is the comment's own words as GitHub shows them: not inside a comment
+// of HTML's, nor in code, fenced or indented, where an example would stand.
+const RECORD = /^ {0,3}Reviewed:[ \t]*(?:`([0-9a-f]{7,40})`|([0-9a-f]{7,40}))[ \t\r]*$/gim
 
 /** @param {{ body: string }[]} comments @returns {string | null} the commit the latest review record names */
-const reviewedCommit = comments => comments.flatMap(c => [...c.body.matchAll(RECORD)]).at(-1)?.[1] ?? null
+function reviewedCommit(comments) {
+  const record = comments.flatMap(c => [...dropMarkdownBlocks(c.body).matchAll(RECORD)]).at(-1)
+  return record?.[1] ?? record?.[2] ?? null
+}
 
 const FAILED = new Set(['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'STALE'])
 const PASSED = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED'])

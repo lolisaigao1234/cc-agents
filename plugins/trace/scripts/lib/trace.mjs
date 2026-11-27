@@ -683,11 +683,12 @@ function prVerdict(run, world) {
   })
 }
 
+/** @param {string} text @returns {string} `text` without its comments and fenced code, which GitHub does not show as the comment's own words */
+export const dropMarkdownBlocks = text => text.replace(/<!--[\s\S]*?(?:-->|$)/g, '').replace(/^(```|~~~)[^\n]*\n[\s\S]*?(?:^\1[^\n]*$|(?![\s\S]))/gm, '')
+
 /** @param {string} text @returns {string} `text` without what GitHub does not read as links: code and comments */
 const dropMarkdownCode = text =>
-  text
-    .replace(/<!--[\s\S]*?(?:-->|$)/g, '')
-    .replace(/^(```|~~~)[^\n]*\n[\s\S]*?(?:^\1[^\n]*$|(?![\s\S]))/gm, '')
+  dropMarkdownBlocks(text)
     .replace(/`[^`\n]*`/g, '')
     .replace(/(^|\n[ \t]*\n)((?: {4}|\t)[^\n]*(?:\n|$))+/g, '$1')
 

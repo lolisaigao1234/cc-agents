@@ -195,9 +195,14 @@ test('the review record is the latest line `Reviewed: <sha>` of its own in a com
   assert.equal(sha(`Reviewed: ${OLD}\n\nRound 2, after the fixes.\n\nReviewed: ${HEAD}`), HEAD, 'the latest record counts')
   assert.equal(traceStatus(root, world(root, { issue: { ...REVIEWED, comments: [...REVIEWED.comments, { id: '4', author: 'rocky', body: 'Merging tomorrow.', at: '2026-10-04T08:00:00Z' }] } }))?.review?.sha, HEAD, 'a later comment without one leaves it standing')
   assert.equal(sha('  reviewed: `A1B2C3D`\r\n'), 'A1B2C3D', 'an abbreviated commit, in backticks, in any case')
-  for (const body of [`> Reviewed: ${HEAD}`, `I Reviewed: ${HEAD} yesterday`, `Reviewed: ${HEAD} and the tests`, 'Reviewed: the whole branch', 'Reviewed: abc12', `Reviewed-by: ${HEAD}`]) {
+  for (const body of [`> Reviewed: ${HEAD}`, `I Reviewed: ${HEAD} yesterday`, `Reviewed: ${HEAD} and the tests`, 'Reviewed: the whole branch', 'Reviewed: abc12', `Reviewed-by: ${HEAD}`, `Reviewed: \`${HEAD}`]) {
     assert.equal(sha(body), null, body)
   }
+  // An example of the line, or one GitHub does not show, is not a record.
+  for (const body of [`\`\`\`\nReviewed: ${HEAD}\n\`\`\``, `~~~text\r\nReviewed: ${HEAD}\r\n~~~`, `The line:\n\n    Reviewed: ${HEAD}`, `\tReviewed: ${HEAD}`, `<!--\nReviewed: ${HEAD}\n-->`]) {
+    assert.equal(sha(body), null, body)
+  }
+  assert.equal(sha(`Reviewed: ${HEAD}\n\nRecord the next round the same way:\n\n\`\`\`\nReviewed: ${OLD}\n\`\`\``), HEAD, 'a later example in a code fence leaves the record standing')
 })
 
 test("the PR's CI is failing on any failed check, pending on any unfinished one, and none without checks", () => {
