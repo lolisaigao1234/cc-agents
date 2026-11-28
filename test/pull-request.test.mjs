@@ -59,6 +59,10 @@ test('a PR with a commit that carries no verification stamp breaks the trace, na
   assert.equal(why.length, 1)
   assert.match(String(why[0]), /^a commit carries no verification stamp: badc0de "fix a typo \(#7\)"\. Implement step: end the commit message with a last paragraph "Verified: <how it was verified>", or "Verified: none"/)
   assert.deepEqual(pullRequestVerdict(12, github({ commits: [commit("Merge branch 'main' into 7-check", 2, '')] })), [], 'a merge is not asked for one')
+  // GitHub drops a message's last newline, so a last `Conflicts:` reads as a trailer, not as git's old
+  // conflicts list: the check asks again for a commit git may read as stamped, never the other way.
+  const conflicts = pullRequestVerdict(12, github({ commits: [commit('add the check (#7)', 1, 'Verified: none\n\nConflicts:')] }))
+  assert.match(String(conflicts[0]), /^a commit carries no verification stamp: /)
 })
 
 test('a PR names every commit that carries no verification stamp, and each rule a commit breaks', () => {

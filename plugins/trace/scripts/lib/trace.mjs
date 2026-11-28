@@ -5,7 +5,7 @@
 // stamp, and a PR close it, and nothing the model writes turns that off.
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
@@ -538,8 +538,8 @@ function commitVerdict(run, world) {
 // state too:
 //
 //   LINE    := PREFIX* COMMIT, the whole line less the blanks at its ends,
-//              with no carriage return anywhere
-//   PREFIX  := (`git add` (SP PATH)+ | `cd` SP PATH) SP? `&&` SP
+//              with no carriage return or NUL byte anywhere
+//   PREFIX  := (`git add` (SP PATH)+ | `cd` SP FILE) SP? `&&` SP
 //   COMMIT  := `git` (SP `-c` SP WHO `=` VALUE)* SP `commit` (SP PART)+
 //   WHO     := (`user` | `author` | `committer`) `.` (`name` | `email`)
 //   PART    := FLAG | (`-m` | `-am` | `-sm` | `-asm` | `-sam`) SP MSG
@@ -551,19 +551,23 @@ function commitVerdict(run, world) {
 //   TRAILER := `'Verified: ` one line but `'` `'` | `"Verified: ` one line but `"` `$` `` ` `` `\` `"`
 //   VALUE   := `'` one line but `'` `'` | `"` one line but `"` `$` `` ` `` `\` `"` | [A-Za-z0-9._@+-]+
 //   PATH    := `-A` | FILE
-//   FILE    := [A-Za-z0-9._/+][A-Za-z0-9._/+-]* | `'` one line but `'` `'`
+//   FILE    := [A-Za-z0-9._/+][A-Za-z0-9._/+-]* | `'` one line but `'`, not empty and not starting with `-` `'`
 //   SP      := one or more spaces
 //
 // The message comes from the -m values, which git joins as paragraphs, from
 // one -F with no -m and no `cd` before it (which would change the file it
-// names), or from `--amend --no-edit` with neither. git's settings for
-// trailers, comments and cleanup must be its defaults. Nothing may follow
-// the commit, not even a redirection or a comment. The gate then reads the
-// stamp in the message as git records it. The trace check on GitHub, which
-// reads every commit git recorded, is the backstop.
+// names), or from `--amend --no-edit` with neither. The -F file must be a
+// plain path inside the repository, with no `..` and no symbolic link on it,
+// so that the hook and git read the same file. git's settings for
+// trailers, comments and cleanup must be its defaults, and the message must
+// read alike with the last newline git records and without it, as GitHub
+// returns it. Nothing may follow the commit, not even a redirection or a
+// comment. The gate then reads the stamp in the message as git records it.
+// The trace check on GitHub, which reads every commit git recorded, is the
+// backstop.
 
 // A FILE and a VALUE, as patterns.
-const FILE = "[A-Za-z0-9._/+][A-Za-z0-9._/+-]*|'[^'\\n]*'"
+const FILE = "[A-Za-z0-9._/+][A-Za-z0-9._/+-]*|'[^'\\n-][^'\\n]*'"
 const VALUE = "'[^'\\n]*'|\"[^\"$`\\\\\\n]*\"|[A-Za-z0-9._@+-]+"
 // Each part ends where a space or the line does.
 const END = '(?= |$)'
@@ -589,6 +593,7 @@ const STAMP_FORMS =
 function stampForm(raw) {
   const line = raw.replace(/^[ \t\n]+|[ \t\n]+$/g, '')
   if (line.includes('\r')) return { why: 'with a carriage return on its line' }
+  if (line.includes('\0')) return { why: 'with a NUL byte on its line' }
   let i = 0
   /** @param {RegExp} re a sticky pattern */
   const take = re => {
@@ -653,17 +658,52 @@ function stampVerdict(line, { root, dir }, git) {
   const differs = (/** @type {string[]} */ [name = '', value]) => ![null, value].includes(git.config(root, name))
   const set = keys[0] ?? DEFAULTS.find(differs)?.[0]
   if (set !== undefined) return unread(`with git's \`${set}\` setting`, `commit where git does not set \`${set}\``)
-  const text = form.file !== null ? (dir === null ? null : smallFile(resolve(dir, form.file))) : form.messages.length ? form.messages.join('\n\n') : git.message(root, 'HEAD')
+  const file = form.file === null ? null : messageFile(form.file, root, dir)
+  if (file && 'why' in file) return unread(file.why, 'write the message out with -m')
+  const text = file ? file.text : form.messages.length ? form.messages.join('\n\n') : git.message(root, 'HEAD')
   if (text === null) return unread(form.file !== null ? 'whose -F file the gate cannot read' : 'whose HEAD message the gate cannot read', 'write the message out with -m')
-  // git cleans the message, signs it off, adds the trailers, and cleans it again.
-  let message = stripspace(text)
-  if (form.signoff) message = withTrailers(message, ['Signed-off-by: A <a@b>'])
-  if (form.trailers.length) message = withTrailers(message, form.trailers.map(v => `Verified: ${v.trim()}`))
-  message = stripspace(message)
+  // git cleans the message, signs it off, adds the trailers after the sign-off, and cleans it again. On a
+  // message with nothing in it, the two go in one paragraph, its subject, so they are added at once.
+  const added = [...(form.signoff ? ['Signed-off-by: A <a@b>'] : []), ...form.trailers.map(v => `Verified: ${v.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '')}`)]
+  const message = stripspace(added.length ? withTrailers(stripspace(text), added) : text)
   // A file or a stored message may hold what git's readers take otherwise than at first sight.
   if (message.includes('\r')) return unread('with a carriage return in its message', 'write the message out with -m')
   if (message.split('\n').some(l => l.includes('>8'))) return unread('with a scissors line (`>8`) in its message', 'write the message out with -m, without it')
+  // git records the message with a last newline, and GitHub hands it back without one.
+  if (stamped(`${message}\n`) !== stamped(message)) return unread('whose last lines git and the trace check on GitHub read otherwise', 'end the message with the `Verified:` paragraph')
   return stamped(message) ? null : `this commit message carries no verification stamp. Implement step: ${STAMP_HINT}.`
+}
+
+/**
+ * The -F file's text as git reads it, or why the gate cannot tell that it
+ * reads the same file: one inside the repository, on a path with no `..`
+ * and no symbolic link, which the hook and git resolve alike.
+ *
+ * @param {string} file @param {string} root @param {string | null} dir
+ * @returns {{ text: string | null } | { why: string }}
+ */
+function messageFile(file, root, dir) {
+  if (dir === null) return { text: null }
+  if (file.split('/').includes('..')) return { why: 'whose -F path holds `..`' }
+  let top
+  let path
+  try {
+    top = realpathSync(root)
+    path = resolve(realpathSync(dir), file)
+  } catch {
+    return { text: null }
+  }
+  if (!path.startsWith(`${top}/`)) return { why: 'whose -F file is outside the repository' }
+  let at = top
+  for (const part of path.slice(top.length + 1).split('/')) {
+    at = join(at, part)
+    try {
+      if (lstatSync(at).isSymbolicLink()) return { why: 'whose -F path goes through a symbolic link' }
+    } catch {
+      return { text: null }
+    }
+  }
+  return { text: smallFile(path) }
 }
 
 /** @param {string} path @returns {string | null} a regular file's text, or null */
@@ -738,7 +778,8 @@ function trailerBlock(message) {
   for (let i = 0; i < end; i++) {
     const l = /** @type {string} */ (lines[i])
     if (isComment(l) || l === '') ignored ||= i
-    else if (l === 'Conflicts:') [conflicts, ignored] = [true, ignored || i]
+    // git reads `Conflicts:` only with a newline right after it.
+    else if (raw[i + from] === 'Conflicts:' && i + from < raw.length - 1) [conflicts, ignored] = [true, ignored || i]
     else if (!(conflicts && l.startsWith('\t')) && ignored) [conflicts, ignored] = [false, 0]
   }
   if (ignored) end = ignored

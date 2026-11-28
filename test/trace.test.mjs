@@ -960,7 +960,10 @@ test('a verification stamp says how a commit was verified, "none" included, as a
 test('the commit gate reads a verification stamp only in forms where it reads what git reads, and the trace check reads as git does', t => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'stamp-')))
   const isolated = { GIT_CONFIG_GLOBAL: join(dir, '.git', 'global'), GIT_CONFIG_NOSYSTEM: '1' }
-  const env = { ...process.env, ...isolated, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', GIT_EDITOR: 'false' }
+  // Where `cd -` goes: no repository, so a commit there fails.
+  const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'elsewhere-')))
+  t.after(() => rmSync(elsewhere, { recursive: true, force: true }))
+  const env = { ...process.env, ...isolated, OLDPWD: elsewhere, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', GIT_EDITOR: 'false' }
   const git = (/** @type {string[]} */ args, input = '') => execFileSync('git', args, { cwd: dir, env, input, encoding: 'utf8' })
   git(['init', '-q', '-b', '7-stamp'])
   mkdirSync(join(dir, '.claude'))
@@ -975,7 +978,8 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
   const github = { issueState: () => /** @type {const} */ ('OPEN'), issue: () => ({ title: '', body: '', comments: [] }), pr: () => /** @type {const} */ ('NONE'), alias: () => null }
   const gate = (/** @type {string} */ command) => commandVerdict(command, dir, { ...worldFor({ records: () => [], add() {}, clear() {} }), github })
   // What git, and the trace check on GitHub, read in the commit just made.
-  const read = () => ({ git: git(['log', '-1', '--format=%(trailers:key=Verified,valueonly,unfold,separator=%x2C)']).trim() !== '', check: stamped(git(['cat-file', 'commit', 'HEAD']).replace(/^[\s\S]*?\n\n/, '')) })
+  // git trims a trailer's value of its own whitespace only, so a value of \v or a no-break space is one.
+  const read = () => ({ git: git(['log', '-1', '--format=%(trailers:key=Verified,valueonly,unfold,separator=%x2C)']).replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '') !== '', check: stamped(git(['cat-file', 'commit', 'HEAD']).replace(/^[\s\S]*?\n\n/, '')) })
   // The settings a command on the line wrote, undone before the next: only the scratch repository's own.
   const reset = () => {
     writeFileSync(join(dir, '.git', 'config'), '[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n')
@@ -993,6 +997,12 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
   // Words xargs reads, and a link to msg.txt.
   writeFileSync(join(dir, 'args.txt'), 'prose\n')
   symlinkSync('msg.txt', join(dir, 'link.txt'))
+  // Message files: one in a subdirectory, one through a linked directory, one named `-`, one outside the repository.
+  writeFileSync(join(dir, 'sub', 'msg.txt'), 'x (#7)\n\nVerified: none\n')
+  symlinkSync('sub', join(dir, 'sublink'))
+  writeFileSync(join(dir, '-'), 'x (#7)\n\nVerified: none\n')
+  const outside = join(elsewhere, 'msg.txt')
+  writeFileSync(outside, 'x (#7)\n\nVerified: none\n')
   /**
    * Runs `command` through bash with `config` set in the repository and
    * `text` in msg.txt, and returns the gate's verdict and what git and the
@@ -1044,6 +1054,10 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     'git commit -q --allow-empty --amend -m "x (#7)" -m "Verified: none"',
     'git commit -q --allow-empty --amend --no-edit',
     'git commit -q --allow-empty --amend --reset-author --no-edit -s',
+    // A file in a subdirectory, and a value git keeps because its whitespace is not git's.
+    'git commit -q --allow-empty -F sub/msg.txt',
+    "git commit -q --allow-empty -m 'x (#7)' --trailer 'Verified: \v'",
+    "git commit -q --allow-empty -m 'x (#7)' --trailer 'Verified: \u00a0'",
   ]) {
     assert.deepEqual(run(command), { why: null, git: true, check: true }, command)
   }
@@ -1063,6 +1077,14 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     `git commit -q --allow-empty -m "$(cat<<'EOF'\nx (#7)\n\nVerified: none\nEOF\n)"`,
     'git commit -q --allow-empty -m "$(cat <<EOF\nx (#7)\n\nVerified: none\nEOF\n)"',
     `cd sub && git commit -q --allow-empty -F ${file}`,
+    // An -F path the hook and git may resolve otherwise: through a link, /proc, `..`, or outside the repository.
+    'git commit -q --allow-empty -F link.txt',
+    'git commit -q --allow-empty -F sublink/msg.txt',
+    `git commit -q --allow-empty -F /proc/self/root${file}`,
+    'git commit -q --allow-empty -F sub/../msg.txt',
+    `git commit -q --allow-empty -F ${outside}`,
+    // A last `Conflicts:` line, which git reads as an old conflicts list and GitHub, without its newline, does not.
+    "git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' -m 'Conflicts:'",
   ]) {
     const { why, ...seen } = run(command)
     assert.deepEqual(seen, { git: true, check: true }, command)
@@ -1230,11 +1252,26 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     ['git commit -q --allow-empty --allow-empty-message -F msg.txt > link.txt'],
     ["git() { command git commit -q --allow-empty -m 'x (#7)' -m prose; }; git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none'"],
     ["shopt -s expand_aliases\nalias git='git -c core.commentChar=V -c commit.cleanup=strip'\ngit commit -q --allow-empty -m 'x (#7)' -m 'Verified: none'"],
+    // Round 7: -s and --trailer on a message with nothing in it, which git writes as one paragraph, the
+    // subject; a `cd` to `-` (OLDPWD) or to ''.
+    ["git commit -q --allow-empty -s -m '' --trailer 'Verified: none (#7)'"],
+    ["git commit -q --allow-empty -s -m ' ' --trailer 'Verified: none (#7)'"],
+    ["git commit -q --allow-empty -sm '' --trailer 'Verified: none (#7)'"],
+    ["git commit -q --allow-empty -s -m \"$(cat <<'EOF'\nEOF\n)\" --trailer 'Verified: none (#7)'"],
+    ["git commit -q --allow-empty -s -F msg.txt --trailer 'Verified: none (#7)'", {}, ' \n\t\n'],
+    ["cd '-' && git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none'"],
+    ["cd '' && git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none'"],
   ])) {
     const { why, git: byGit, check } = run(command, config, text)
     if (!/cannot tell/.test(String(why))) assert.deepEqual({ gate: why === null, check }, { gate: byGit, check: byGit }, `${command} ${JSON.stringify(config)}: ${why}`)
     else assert.match(String(why), /cannot tell the commit message|cannot tell the verification stamp/, command)
   }
+
+  // An amend that keeps an empty HEAD message, signed off and given a trailer: one paragraph, the subject.
+  git(['commit', '-q', '--allow-empty', '--allow-empty-message', '-m', ''])
+  const amended = run("git commit -q --allow-empty --amend --no-edit -s --trailer 'Verified: none (#7)'")
+  assert.deepEqual({ gate: amended.why === null, check: amended.check }, { gate: amended.git, check: amended.git }, String(amended.why))
+  git(['commit', '-q', '--allow-empty', '-m', 'x (#7)', '-m', 'Verified: none'])
 
   // Commands generated in the grammar's forms: the gate tells each, allows one only when git reads a stamp,
   // and the trace check reads what git reads. STAMP_FUZZ=3000 runs more.
@@ -1316,6 +1353,11 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     'x (#7)\n\nVerified: none\n\n\u00a0',
     // Round 5: the character the gate writes for computed text, here written out.
     'x (#7)\n\nVerified: none \uE030',
+    // Round 7: a `Conflicts:` line git reads as a conflicts list only with a newline after it.
+    'x (#7)\n\nVerified: none\n\nConflicts:',
+    'x (#7)\n\nVerified: none\n\nConflicts:\n',
+    'x (#7)\n\nVerified: none\n\nConflicts:\r\n',
+    'x (#7)\n\nVerified: none\n\nConflicts:\n\ta.txt\n',
   ]) {
     agree(message, 'listed')
   }
@@ -1334,12 +1376,24 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
 
 test('a commit whose stamp the gate cannot read says where the line leaves the forms it reads, or names the setting', t => {
   const stamp = "-m 'x (#7)' -m 'Verified: none'"
-  const dir = mkdtempSync(join(tmpdir(), 'msg-'))
+  // A repository in a scratch directory, for the -F files the gate reads there.
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'msg-')))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const msg = join(dir, 'msg.txt')
   writeFileSync(msg, 'x (#7)\n\nVerified: none\n')
+  writeFileSync(join(dir, '-x'), 'x (#7)\n\nVerified: none\n')
+  symlinkSync('msg.txt', join(dir, 'link.txt'))
+  mkdirSync(join(dir, 'sub'))
+  const outer = mkdtempSync(join(tmpdir(), 'outer-'))
+  t.after(() => rmSync(outer, { recursive: true, force: true }))
+  writeFileSync(join(outer, 'msg.txt'), 'x (#7)\n\nVerified: none\n')
   writeFileSync(join(dir, 'cr.txt'), 'x (#7)\r\rVerified: none\n')
   writeFileSync(join(dir, 'cut.txt'), 'x (#7)\n\n# ------------------------ >8 ------------------------\nVerified: none\n')
+  /** @param {string} command @param {Parameters<typeof world>[0]} [o] */
+  const inDir = (command, o) => {
+    const w = onSeven(o)
+    return commandVerdict(command, dir, { ...w, git: { ...w.git, root: (/** @type {string} */ p) => (p === dir || p.startsWith(`${dir}/`) ? dir : null), traced: (/** @type {string} */ r) => r === dir } })
+  }
   const forms = /Implement step: run the commit as the last command on its line, with only `git add <paths> && ` or `cd <dir> && ` before it/
   for (const [command, config, named, fix = forms] of /** @type {[string, Record<string, string>, RegExp, RegExp?][]} */ ([
     // Where the line leaves the grammar.
@@ -1350,6 +1404,11 @@ test('a commit whose stamp the gate cannot read says where the line leaves the f
     [`git commit -F - <<'EOF'\nx (#7)\n\nVerified: none\nEOF`, {}, /at `-F - <<'EOF'`/],
     [`git commit -m "$(cat <<'EOF'\nx (#7)\n\nVerified: none\nEOF)\nEOF\n)"`, {}, /at `-m "\$\(cat <<'EOF'`/],
     [`git commit -m 'x (#7)'\r -m 'Verified: none'`, {}, /a carriage return/],
+    [`git commit -m 'x (#7)\0' -m 'Verified: none'`, {}, /a NUL byte/],
+    ["git commit -F '-x'", {}, /at `-F '-x'`/],
+    [`git commit -F ${join(outer, 'msg.txt')}`, {}, /whose -F file is outside the repository/, /write the message out with -m/],
+    ['git commit -F link.txt', {}, /whose -F path goes through a symbolic link/, /write the message out with -m/],
+    ['git commit -F sub/../msg.txt', {}, /whose -F path holds `\.\.`/, /write the message out with -m/],
     // Parts the grammar holds, in a combination it does not.
     [`git commit -F ${msg} -F ${msg}`, {}, /with more than one -F/],
     [`git commit ${stamp} -F ${msg}`, {}, /with -F beside -m/],
@@ -1364,7 +1423,7 @@ test('a commit whose stamp the gate cannot read says where the line leaves the f
     [`git commit -F ${join(dir, 'cr.txt')}`, {}, /with a carriage return in its message/, /write the message out with -m/],
     [`git commit -F ${join(dir, 'cut.txt')}`, {}, /with a scissors line \(`>8`\) in its message/, /write the message out with -m/],
   ])) {
-    const why = String(verdict(command, { config }))
+    const why = String(inDir(command, { config }))
     assert.match(why, /^the trace cannot tell the verification stamp git reads in this commit, /, command)
     assert.match(why, named, command)
     assert.match(why, fix, command)
@@ -1374,7 +1433,8 @@ test('a commit whose stamp the gate cannot read says where the line leaves the f
   assert.equal(verdict(`git -c user.name='A B' -c user.email=a@b -c author.name="A B" commit ${stamp}`), null)
   assert.equal(verdict(`git commit ${stamp}`, { config: { 'include.path': '~/x', 'includeIf.gitdir:~/.path': '~/y' } }), null)
   assert.equal(verdict(`git commit ${stamp}`, { config: { 'core.commentChar': '#', 'commit.cleanup': 'default', 'user.name': 'a' } }), null)
-  assert.equal(verdict(`git add -A && git commit -F ${msg}`), null)
+  assert.equal(inDir(`git add -A && git commit -F ${msg}`), null)
+  assert.equal(inDir('git add -A && git commit -F msg.txt'), null)
   // Claude Code's heredoc form is text: a stamp in the wrong paragraph is missing.
   const footer = '🤖 Generated with [Claude Code](https://claude.com/claude-code)'
   assert.match(String(verdict(`git commit -m "$(cat <<'EOF'\nx (#7)\n\nVerified: none\n\n${footer}\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)"`)), /^this commit message carries no verification stamp/)

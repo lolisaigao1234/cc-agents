@@ -28,23 +28,23 @@ Every refusal names the pipeline step. One for a missing reference also names th
 The commit gate does not work out what bash makes of a command line to find a stamp. It matches the line's raw text, whole, against this grammar (also in `scripts/lib/trace.mjs`):
 
 ```text
-LINE    := PREFIX* COMMIT     the whole line, less the blanks at its ends, with no carriage return
-PREFIX  := ("git add" (SP PATH)+ | "cd" SP PATH) SP? "&&" SP
+LINE    := PREFIX* COMMIT     the whole line, less the blanks at its ends, with no carriage return or NUL byte
+PREFIX  := ("git add" (SP PATH)+ | "cd" SP FILE) SP? "&&" SP
 COMMIT  := "git" (SP "-c" SP WHO "=" VALUE)* SP "commit" (SP PART)+
 WHO     := ("user" | "author" | "committer") "." ("name" | "email")
 PART    := FLAG | ("-m" | "-am" | "-sm" | "-asm" | "-sam") SP MSG | "-F" SP FILE | "--trailer" SP TRAILER
 FLAG    := "-q" | "--quiet" | "-a" | "--all" | "-s" | "--signoff" | "--allow-empty"
          | "--amend" | "--no-edit" | "-v" | "--verbose" | "--reset-author"
 MSG     := '…' (any text but ')  |  "…" (any text but " $ ` \)
-         | "$(cat <<'EOF'  NL  lines, none starting with EOF  NL  EOF  NL  )"
+         | "$(cat <<'EOF'  NL  (BODY NL)*  EOF  NL  )"      no BODY line starting with EOF
 TRAILER := 'Verified: …'  |  "Verified: …"     (one line, quoted as a MSG is)
 VALUE   := '…'  |  "…"  |  [A-Za-z0-9._@+-]+   (one line, quoted as a MSG is)
 PATH    := -A | FILE
-FILE    := [A-Za-z0-9._/+][A-Za-z0-9._/+-]*  |  '…' (one line)
+FILE    := [A-Za-z0-9._/+][A-Za-z0-9._/+-]*  |  '…' (one line, not empty, not starting with -)
 SP      := one or more spaces
 ```
 
-The message comes from the `-m` values, which git joins as paragraphs; from one `-F` with no `-m`, and no `cd` before it, which would change the file it names; or from `--amend --no-edit` alone, which keeps HEAD's message. `-s` and `--trailer` add their lines where git adds them. git's settings for `trailer.*`, `includeIf.onbranch:*` (git's answer includes what any other included file sets), `core.commentChar`, `core.commentString` and `commit.cleanup` must be its defaults, and the message must hold no carriage return or scissors line (`>8`).
+The message comes from the `-m` values, which git joins as paragraphs; from one `-F` with no `-m`, and no `cd` before it, which would change the file it names, naming a plain file inside the repository with no `..` and no symbolic link on its path, so the hook and git read the same file; or from `--amend --no-edit` alone, which keeps HEAD's message. `-s` and `--trailer` add their lines where git adds them, the sign-off first; on a message with nothing in it they make its subject, which carries no stamp. git's settings for `trailer.*`, `includeIf.onbranch:*` (git's answer includes what any other included file sets), `core.commentChar`, `core.commentString` and `commit.cleanup` must be its defaults, and the message must hold no carriage return or scissors line (`>8`), nor end in a `Conflicts:` line, which git reads with the newline it records and the trace check reads without it, as GitHub returns the message.
 
 Claude Code's own form fits: `git commit -m "$(cat <<'EOF'` … `EOF` `)"`, footers included, with `Verified:` in the last paragraph beside `Co-Authored-By:`. Anything else, such as `… 2>&1 | tail`, `-F - <<'EOF'`, `--cleanup`, a git alias, a second command after the commit, or `-c user.name="$(…)"`, the gate cannot tell: it refuses, names where the line leaves the grammar and lists the forms it reads. Running the same commit in one of the forms is the fix. The trace check on GitHub reads every commit's recorded message as git does, so it judges what the gate cannot tell, and a commit hook or a setting the gate does not read.
 
