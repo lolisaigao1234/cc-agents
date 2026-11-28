@@ -34,7 +34,7 @@ function world(o = {}) {
       message: (/** @type {string} */ _root, /** @type {string} */ rev) => messages[rev] ?? null,
       config: (/** @type {string} */ _root, /** @type {string} */ key) =>
         config[key] ?? (key.startsWith('alias.') ? aliases[key.slice('alias.'.length)] : undefined) ?? null,
-      configKeys: (/** @type {string} */ _root, /** @type {string} */ section) => Object.keys(config).filter(k => k.toLowerCase().startsWith(`${section}.`)),
+      configKeys: (/** @type {string} */ _root, /** @type {string[]} */ sections) => Object.keys(config).filter(k => sections.some(s => k.toLowerCase().startsWith(`${s}.`))),
       headDocs: () => ({}),
       pushed: () => null,
       committed: () => false,
@@ -933,19 +933,17 @@ test('a verification stamp says how a commit was verified, "none" included, as a
   }
 })
 
-test('the commit gate and the trace check read a verification stamp as git reads a trailer', () => {
+test('the commit gate reads a verification stamp only in forms where it reads what git reads, and the trace check reads as git does', () => {
   const dir = mkdtempSync(join(tmpdir(), 'stamp-'))
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: join(dir, '.git', 'global'), GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' }
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: join(dir, '.git', 'global'), GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', GIT_EDITOR: 'false' }
   const git = (/** @type {string[]} */ args, input = '') => execFileSync('git', args, { cwd: dir, env, input, encoding: 'utf8' })
   git(['init', '-q'])
   // What git, and the trace check on GitHub, read in the commit just made.
-  const read = () => ({ git: git(['log', '-1', '--format=%(trailers:key=Verified,valueonly,unfold,separator=%x2C)']).trim() !== '', check: stamped(git(['log', '-1', '--format=%B'])) })
-  // The settings a command on the line wrote, undone before the next.
-  const unset = () => {
-    for (const scope of ['--local', '--global']) {
-      const keys = execFileSync('bash', ['-c', `git config ${scope} --name-only --list 2>/dev/null || true`], { cwd: dir, env, encoding: 'utf8' })
-      for (const key of new Set(keys.split('\n').filter(k => /^(?:trailer\.|core\.comment)/.test(k)))) git(['config', scope, '--unset-all', key])
-    }
+  const read = () => ({ git: git(['log', '-1', '--format=%(trailers:key=Verified,valueonly,unfold,separator=%x2C)']).trim() !== '', check: stamped(git(['cat-file', 'commit', 'HEAD']).replace(/^[\s\S]*?\n\n/, '')) })
+  // The settings a command on the line wrote, undone before the next: only the scratch repository's own.
+  const reset = () => {
+    writeFileSync(join(dir, '.git', 'config'), '[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n')
+    rmSync(join(dir, '.git', 'global'), { force: true })
   }
   // A command as the gate judges it, with HEAD's message as git has it.
   const head = () => {
@@ -957,7 +955,150 @@ test('the commit gate and the trace check read a verification stamp as git reads
   }
   const sob = 'Signed-off-by: A <a@b>'
   const scissors = '# ------------------------ >8 ------------------------'
-  // Messages as git records them, judged as the commit that keeps one.
+  const file = join(dir, 'msg.txt')
+  /**
+   * Runs `command` through bash with `config` set in the repository and
+   * `text` in msg.txt, and returns the gate's verdict and what git and the
+   * trace check read.
+   *
+   * @param {string} command @param {Record<string, string>} [config] @param {string} [text]
+   */
+  const run = (command, config = {}, text = 'x (#7)\n\nVerified: none\n') => {
+    writeFileSync(file, text)
+    const options = { ...head(), config }
+    for (const [key, value] of Object.entries(config)) git(['config', key, value])
+    const why = verdict(command, options)
+    // A command that fails records nothing, and HEAD's stamp is not its own.
+    const seen = spawnSync('bash', ['-c', command], { cwd: dir, env }).status === 0 ? read() : { git: false, check: false }
+    reset()
+    return { why, ...seen }
+  }
+  git(['commit', '-q', '--allow-empty', '-m', 'init (#7)', '-m', 'Verified: none'])
+
+  // The forms the gate reads: each is allowed, and git and the trace check read the stamp too.
+  const claude = "Fix `stamped()` in $HOME (#7)\n\nWhy, with `code` and $VAR.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nVerified: npm test\nCo-Authored-By: Claude <noreply@anthropic.com>"
+  for (const command of [
+    'git commit -q --allow-empty -m "x (#7)" -m "Verified: none"',
+    'git commit -q --allow-empty -m "x (#7)" -m "Why." -m "Verified: npm test, 412 passing"',
+    `git commit -q --allow-empty -F ${file}`,
+    "git commit -q --allow-empty -F - <<'EOF'\nx (#7)\n\nVerified: none\nEOF",
+    'git commit -q --allow-empty -F - <<EOF\nx (#7)\n\nVerified: npm test\nEOF',
+    `git commit -q --allow-empty -m "$(cat <<'EOF'\n${claude}\nEOF\n)"`,
+    `git commit -q --allow-empty -m "$(cat <<'EOF'\n${claude}\n\n\nEOF\n)"`,
+    'git commit -q --allow-empty -s -m "x (#7)" -m "Verified: none"',
+    'git commit -q --allow-empty -a -m "x (#7)" -m "Verified: none"',
+    'git commit -q --allow-empty -am "x (#7)" -m "Verified: none"',
+    'git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"',
+    'git commit -q --allow-empty -m "x (#7)" --trailer "Verified=npm test"',
+    `git commit -q --allow-empty -m "x (#7)" -m "${sob}\nprose" --trailer "Verified: none"`,
+    'git commit -q --allow-empty --cleanup=strip -m "x (#7)" -m "Verified: none" -m "# a comment"',
+    'git commit -q --allow-empty --cleanup=whitespace -m "x (#7)" -m "Verified: none"',
+    'git commit -q --allow-empty --cleanup=verbatim -m "x (#7)" -m "Verified: none"',
+    'git -c user.name="$(git log -1 --format=%an)" -c user.email="$(git log -1 --format=%ae)" commit -q --allow-empty -m "x (#7)" -m "Verified: none"',
+    'git commit -q --allow-empty --amend --no-edit',
+    'git commit -q --allow-empty -C HEAD',
+    'git commit -q --allow-empty --fixup=HEAD -m "Verified: none"',
+    'git commit -q --allow-empty --squash=HEAD -m "Verified: none"',
+    "git commit -q --allow-empty -m 'Fix `stamped()` in $HOME (#7)' -m 'Verified: none'",
+  ]) {
+    assert.deepEqual(run(command), { why: null, git: true, check: true }, command)
+  }
+
+  // Each false pass the reviews found: the gate cannot tell, or the gate, git and the trace check agree.
+  const commentChar = { 'core.commentChar': ';' }
+  for (const [command, config = {}, text] of /** @type {[string, Record<string, string>?, string?][]} */ ([
+    // Round 1: a computed paragraph, trailer.* settings, scissors, lone CRs.
+    ['X=; git commit -q --allow-empty -m "$X" -m "Verified: none (#7)"'],
+    ['X=; git commit -q --allow-empty -m "$X\n\nVerified: none (#7)"'],
+    ["X='# c'; git commit -q --allow-empty --cleanup=strip -m \"$X\" -m 'Verified: none (#7)'"],
+    [`X='${scissors}'; git commit -q --allow-empty -m 'x (#7)' -m "$X" -m 'Verified: none'`],
+    ['git -c trailer.ifmissing=doNothing commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git -c trailer.verified.ifmissing=doNothing commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git -c trailer.verified.key=Other commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git -c trailer.verified.cmd=true commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"', { 'trailer.ifmissing': 'doNothing' }],
+    [`git commit -q --allow-empty --cleanup=scissors -m "x (#7)" -m "${scissors}" -m "Verified: none"`],
+    [`git commit -q --allow-empty -m "x (#7)" -m "${scissors}" --trailer "Verified: none"`],
+    ["git commit -q --allow-empty -m $'Fix (#7)\\r\\rVerified: none'"],
+    ["git commit -q --allow-empty -m $'Fix (#7)\\r\\n\\r\\nVerified: none'"],
+    // Round 2: a setting written earlier on the line, a computed -c, strip dropping an expansion, core.commentString.
+    ['git config trailer.ifmissing doNothing; git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git config trailer.verified.key Other && git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git config --global trailer.ifmissing doNothing && git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git config --file .git/config trailer.ifmissing doNothing && git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ['git config core.commentChar V && git commit -q --allow-empty --cleanup=strip -m "x (#7)" -m "Verified: none"'],
+    ['X=trailer.ifmissing=doNothing; git -c "$X" commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    ["X=$'\\nprose'; git commit -q --allow-empty --cleanup=strip -m \"Fix (#7)\" -m \"Verified: none\" -m \"# $X\""],
+    ["git -c core.commentString=';' commit -q --allow-empty --cleanup=strip -m 'x (#7)' -m 'Verified: none' -m '; prose'"],
+    // Settings that change how git reads trailers.
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'trailer.separators': '=' }],
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'trailer.verified.key': 'Other' }],
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'trailer.x.key': 'Verifiedish' }],
+    ['git -c trailer.separators== commit -q --allow-empty -s -m "x (#7)" -m "Verified: none"'],
+    ['git config trailer.separators = && git commit -q --allow-empty -m "x (#7)" -m "Verified: none"'],
+    // Round 3: settings git includes, git config in forms that write, and repository settings.
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'include.path': file }, '[trailer]\n\tseparators = =\n'],
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'includeIf.gitdir:/.path': file }, '[trailer]\n\tseparators = =\n'],
+    ['git config --rename-section foo trailer && git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'foo.separators': '=' }],
+    ['git config trailer.verified.key list && git commit -q --allow-empty -m "x (#7)" -m "Verified: none"'],
+    ['git config trailer.verified.key get && git commit -q --allow-empty -m "x (#7)" -m "Verified: none"'],
+    ['git config --unset core.commentChar && git commit -q --allow-empty --cleanup=strip -m "x (#7)" -m "Verified: none" -m "; prose"', commentChar],
+    ['git config --remove-section commit && git commit -q --allow-empty -m "x (#7)" -m "Verified: none" -m "# prose"', { 'commit.cleanup': 'strip' }],
+    ['git commit -q --allow-empty --cleanup=strip -m "x (#7)" -m "Verified: none" -m "; prose"', commentChar],
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none" -m "# prose"', { 'commit.cleanup': 'strip' }],
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'core.commentString': ';' }],
+    // A heredoc that drops leading tabs, a command substitution the gate does not read as git does, text after one.
+    ["git commit -q --allow-empty -F - <<-'EOF'\nx (#7)\n\nVerified: a\n\tb\nEOF"],
+    ["git commit -q --allow-empty -F - <<-'EOF'\n\tx (#7)\n\n\tVerified: none\n\tEOF"],
+    ["git commit -q --allow-empty -m \"$(cat <<-'EOF'\nx (#7)\n\nVerified: a\n\tb\nEOF\n)\""],
+    ["git commit -q --allow-empty -m \"$(cat <<'EOF'\nx (#7)\n\nfoo\n\nEOF\n)Verified: none\""],
+    ["git commit -q --allow-empty -m \"$(cat <<'EOF'\nx (#7)\n\nEOF\n)$(cat <<'EOF'\nVerified: none\nEOF\n)\""],
+    ["git commit -q --allow-empty -m \"$(cat <<'EOF'\nx (#7)\n\nfoo\n\n\nEOF\n)Verified: none\""],
+    ["git commit -q --allow-empty -m \"$(cat <<'EOF'\nx (#7)\n\n\nEOF\n)$(cat <<'EOF'\nVerified: none\nEOF\n)\""],
+    ["git commit -q --allow-empty --cleanup=verbatim -m \"$(cat <<'EOF'\nx (#7)\n\nfoo\n\nEOF\n)\" --trailer 'Verified: none'"],
+    ['git commit -q --allow-empty -m "$(cat <<EOF\nx (#7)\n\nVerified: $X\nEOF\n)"'],
+    ["git commit -q --allow-empty -m \"$(cat <<'EOF'\nx (#7)\nEOF\n)\n\nVerified: none\""],
+    // Options that undo an earlier one.
+    ['git commit -q --allow-empty --cleanup=strip --no-cleanup -m "x (#7)" -m "Verified: none" -m "# prose"'],
+    ['git commit -q --allow-empty --fixup=HEAD --no-fixup -m "Verified: none"'],
+    ['git commit -q --allow-empty -m "y (#7)" -C HEAD --no-reuse-message'],
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none" --no-message -m "y (#7)"'],
+    ['git commit -q --allow-empty -s -m "x (#7)" -m "Verified: none" --no-signoff'],
+    ['git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none" --no-trailer'],
+    // A scissors line git does not read as one, and a comment char the shell would expand.
+    [`git commit -q --allow-empty --cleanup=verbatim -F ${file}`, {}, `x (#7)\r\n\r\nVerified: none\r\n${scissors}\r\n\r\nprose`],
+    ["git -c core.commentChar='$' commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' -m '$ ------------------------ >8 ------------------------' -m prose"],
+    ["git -c core.commentChar='$' commit -q --allow-empty -m 'x (#7)' -m prose -m '$ ------------------------ >8 ------------------------' --trailer 'Verified: none'"],
+    // Earlier cases: --trailer where git reads it as all token or into a block, an empty subject, a read of a setting.
+    ['git commit -q --allow-empty -m "" -m "Verified: none (#7)"'],
+    [`git commit -q --allow-empty -m "x (#7)" -m "${sob}\nprose\nprose\nprose\nprose" --trailer "Verified: none"`],
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none\nprose" --trailer "Refs: #7"'],
+    ['git commit -q --allow-empty -m "x (#7)" --trailer "Verified="'],
+    ['git commit -q --allow-empty -m "x (#7)" --trailer " Verified: none"'],
+    ['git commit -q --allow-empty -m "x (#7)" --trailer "  Verified=none"'],
+    ['git config --get trailer.ifmissing; git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
+    // A setting on the line other than who commits.
+    ['git -c commit.cleanup=strip commit -q --allow-empty -m "x (#7)" -m "Verified: none" -m "# prose"'],
+    ['CLEANUP=strip git --config-env=commit.cleanup=CLEANUP commit -q --allow-empty -m "x (#7)" -m "Verified: none" -m "# prose"'],
+    ['git -c core.commentChar=";" commit -q --allow-empty --cleanup=strip -m "x (#7)" -m "Verified: none"'],
+  ])) {
+    const { why, git: byGit, check } = run(command, config, text)
+    if (!/cannot tell/.test(String(why))) assert.deepEqual({ gate: why === null, check }, { gate: byGit, check: byGit }, `${command} ${JSON.stringify(config)}: ${why}`)
+    else assert.match(String(why), /cannot tell the commit message|cannot tell the verification stamp/, command)
+  }
+
+  // Messages as git records them, judged as the commit that keeps one: the trace check reads what git reads,
+  // and the gate allows only what git reads as stamped.
+  /** @param {string} message @param {string} what */
+  const agree = (message, what) => {
+    git(['commit', '-q', '--allow-empty', '--allow-empty-message', '--cleanup=verbatim', '-F', '-'], message)
+    const { git: byGit, check } = read()
+    assert.equal(check, byGit, `${what}: ${JSON.stringify(message)}`)
+    for (const command of ['git commit --amend --no-edit', 'git commit -C HEAD']) {
+      const why = verdict(command, { messages: { HEAD: git(['log', '-1', '--format=%B']) } })
+      if (!/cannot tell/.test(String(why))) assert.equal(why === null, byGit, `${command}: ${JSON.stringify(message)}: ${why}`)
+    }
+  }
   for (const message of [
     'x (#7)\n\nVerified: none',
     'x (#7)\n\nVerified : npm test\nSigned-off-by: A <a@b>',
@@ -969,113 +1110,68 @@ test('the commit gate and the trace check read a verification stamp as git reads
     'x (#7)\n\nVerified: none\n---\nmore',
     'x (#7)\n\nVerified: none\n\nlater',
     'Verified: none (#7)',
-    // A scissors line ends what git reads; comment lines it skips.
     `x (#7)\n\nVerified: none\n${scissors}\nmore`,
     `x (#7)\n\n${scissors}\nVerified: none`,
     `x (#7)\n\nprose\n\n${scissors}\n\nVerified: none`,
+    `x (#7)\n\nprose\n\nVerified: none\n${scissors}`,
     'x (#7)\n\nVerified: none\n# a comment',
     'x (#7)\n\n# a comment\nVerified: none',
     '# a comment\nx (#7)\n\nVerified: none',
-    // A paragraph with a git-generated trailer is a trailer block when a quarter of its lines are trailers.
     `x (#7)\n\nVerified: none\n${sob}\nprose\nprose\nprose`,
     `x (#7)\n\nVerified: none\nprose\nprose\nprose\nprose\nprose\nprose\nprose\n${sob}`,
     'x (#7)\n\nVerified: none\n(cherry picked from commit 0123456789abcdef0123456789abcdef01234567)',
     'x (#7)\n\nVerified: a\n  b\nnot',
-    // A lone carriage return breaks no line; CRLF does.
     'x (#7)\r\rVerified: none',
     'x (#7)\r\n\r\nVerified: none\r\n',
+    `x (#7)\r\n\r\nVerified: none\r\n${scissors}\r\n\r\nprose`,
     'x (#7)\n\n\v\nVerified: none',
-    // A stored message is text, whatever the shell would make of it.
     'Fix `stamped()` in $HOME (#7)\n\nVerified: none',
     'x (#7)\n\nVerified: npm test `x` $(date)',
   ]) {
-    git(['commit', '-q', '--allow-empty', '--cleanup=verbatim', '-F', '-'], message)
-    const { git: byGit, check } = read()
-    for (const command of ['git commit --amend --no-edit', 'git commit -C HEAD']) {
-      const gate = verdict(command, { messages: { HEAD: message } }) === null
-      assert.deepEqual({ gate, check }, { gate: byGit, check: byGit }, `${command}: ${JSON.stringify(message)}`)
-    }
+    agree(message, 'listed')
   }
-  // Commands, as bash runs them.
-  for (const command of [
-    'git commit -q --allow-empty -m "x (#7)" -m "Verified: none"',
-    'git commit -q --allow-empty -m "" -m "Verified: none (#7)"',
-    `git commit -q --allow-empty --cleanup=scissors -m "x (#7)" -m "${scissors}" -m "Verified: none"`,
-    `git commit -q --allow-empty -m "x (#7)" -m "${scissors}" --trailer "Verified: none"`,
-    "git commit -q --allow-empty -m $'Fix (#7)\\r\\rVerified: none'",
-    "git commit -q --allow-empty -m $'Fix (#7)\\r\\n\\r\\nVerified: none'",
-    // --trailer goes into a last paragraph that git reads as a trailer block, or after it.
-    `git commit -q --allow-empty -m "x (#7)" -m "${sob}\nprose" --trailer "Verified: none"`,
-    `git commit -q --allow-empty -m "x (#7)" -m "${sob}\nprose\nprose\nprose\nprose" --trailer "Verified: none"`,
-    'git commit -q --allow-empty -m "x (#7)" -m "Verified: none\nprose" --trailer "Refs: #7"',
-    'git commit -q --allow-empty -m "x (#7)" --trailer "Verified="',
-    // git reads a --trailer with a leading space as all token, and writes it with an empty value.
-    'git commit -q --allow-empty -m "x (#7)" --trailer " Verified: none"',
-    'git commit -q --allow-empty -m "x (#7)" --trailer "  Verified=none"',
-    // A message git stores is text to a commit that reuses it.
-    "git commit -q --allow-empty -m 'Fix `stamped()` in $HOME (#7)' -m 'Verified: none'",
-    'git commit -q --allow-empty -C HEAD',
-    'git commit -q --allow-empty --fixup=HEAD -m "Verified: none"',
-    'git commit -q --allow-empty --squash=HEAD -m "Verified: none"',
-    'git commit -q --allow-empty --amend --no-edit',
-    // Settings that leave the message alone, and a computed value of one.
-    'git config user.name t && git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"',
-    'git config --get trailer.ifmissing; git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"',
-    'git -c user.name="$(echo t)" commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"',
-    // trailer.* settings that change only what --trailer writes, on a commit without one.
-    'git -c trailer.ifmissing=doNothing -c trailer.verified.where=start commit -q --allow-empty -s -m "x (#7)" -m "Verified: none"',
-  ]) {
-    const options = head()
-    execFileSync('bash', ['-c', command], { cwd: dir, env })
-    unset()
-    const gate = verdict(command, options) === null
-    const { git: byGit, check } = read()
-    assert.deepEqual({ gate, check }, { gate: byGit, check: byGit }, command)
+  // Scissors lines and line ends of every kind, mixed: the trace check still reads what git reads.
+  let seed = 58
+  const pick = (/** @type {string[]} */ xs) => {
+    seed = (seed * 1103515245 + 12345) % 2 ** 31
+    return /** @type {string} */ (xs[seed % xs.length])
   }
-  // What the shell computes, or trailer.* settings, may leave git no stamp to read: the gate cannot tell.
-  const [major = 0, minor = 0] = (/(\d+)\.(\d+)/.exec(git(['version'])) ?? []).slice(1).map(Number)
-  for (const [command, config = {}, until, readable = false] of /** @type {[string, Record<string, string>?, string?, boolean?][]} */ ([
-    ['X=; git commit -q --allow-empty -m "$X" -m "Verified: none (#7)"'],
-    ['X=; git commit -q --allow-empty -m "$X\n\nVerified: none (#7)"'],
-    ["X='# c'; git commit -q --allow-empty --cleanup=strip -m \"$X\" -m 'Verified: none (#7)'"],
-    [`X='${scissors}'; git commit -q --allow-empty -m 'x (#7)' -m "$X" -m 'Verified: none'`],
-    ['git -c trailer.ifmissing=doNothing commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
-    ['git -c trailer.verified.ifmissing=doNothing commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
-    ['git -c trailer.verified.key=Other commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
-    ['git -c trailer.verified.cmd=true commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
-    ['git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"', { 'trailer.ifmissing': 'doNothing' }],
-    // Settings that change how git reads trailers, with or without --trailer: git log reads no stamp, and -s writes after a paragraph it does not read as one.
-    // The trace check, reading as git does with no settings, still finds the stamp where only the reading changed.
-    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'trailer.separators': '=' }, undefined, true],
-    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'trailer.verified.key': 'Other' }, undefined, true],
-    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'trailer.x.key': 'Verifiedish' }, undefined, true],
-    ['git -c trailer.separators== commit -q --allow-empty -s -m "x (#7)" -m "Verified: none"'],
-    ['git config trailer.separators = && git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', {}, undefined, true],
-    // A setting written earlier on the line, which the gate cannot read yet.
-    ['git config trailer.ifmissing doNothing; git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
-    ['git config trailer.verified.key Other && git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
-    ['git config --global trailer.ifmissing doNothing && git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
-    ['git config --file .git/config trailer.ifmissing doNothing && git commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
-    ['git config core.commentChar V && git commit -q --allow-empty --cleanup=strip -m "x (#7)" -m "Verified: none"'],
-    // A computed setting, which may be any trailer.* one.
-    ['X=trailer.ifmissing=doNothing; git -c "$X" commit -q --allow-empty -m "x (#7)" --trailer "Verified: none"'],
-    // An expansion in a line strip cleanup drops may add lines it keeps.
-    ["X=$'\\nprose'; git commit -q --allow-empty --cleanup=strip -m \"Fix (#7)\" -m \"Verified: none\" -m \"# $X\""],
-    // core.commentString is git 2.45's; an older git strips with core.commentChar, and loses the stamp.
-    ["git -c core.commentString=';' commit -q --allow-empty --cleanup=strip -m 'x (#7)' -m 'Verified: none' -m '; prose'", {}, '2.45'],
-  ])) {
-    for (const [key, value] of Object.entries(config)) git(['config', key, value])
-    execFileSync('bash', ['-c', command], { cwd: dir, env })
-    // Read as git reads it with the settings still there.
-    const lost = read()
-    for (const key of Object.keys(config)) git(['config', '--unset', key])
-    unset()
-    assert.match(String(verdict(command, { config })), /cannot tell the commit message/, command)
-    // A git from `until` on keeps the stamp in a case only an older one loses it.
-    const [untilMajor = 0, untilMinor = 0] = (until ?? '').split('.').map(Number)
-    if (until === undefined || major < untilMajor || (major === untilMajor && minor < untilMinor)) assert.deepEqual(lost, { git: false, check: readable }, command)
+  for (let i = 0; i < 60; i++) {
+    const lines = ['x (#7)', ...Array.from({ length: 2 + (i % 5) }, () => pick(['', '', 'Verified: none', scissors, scissors, 'prose', '# c', sob, ' b']))]
+    agree(lines.map(l => l + pick(['\n', '\r\n', '\r\n', '\r'])).join('') + pick(['', 'prose', 'Verified: none']), `generated ${i}`)
   }
   rmSync(dir, { recursive: true, force: true })
+})
+
+test('a commit whose stamp the gate cannot read says what to leave out, naming the setting, the option or the text', () => {
+  const stamp = '-m "x (#7)" -m "Verified: none"'
+  for (const [command, config, named] of /** @type {[string, Record<string, string>, RegExp][]} */ ([
+    [`git commit ${stamp}`, { 'trailer.separators': '=' }, /git's `trailer\.separators` setting/],
+    [`git commit ${stamp}`, { 'include.path': '~/x' }, /git's `include\.path` setting/],
+    [`git commit ${stamp}`, { 'core.commentChar': ';' }, /git's `core\.commentChar` setting/],
+    [`git commit ${stamp}`, { 'commit.cleanup': 'strip' }, /git's `commit\.cleanup` setting/],
+    [`git -c commit.cleanup=strip commit ${stamp}`, {}, /`commit\.cleanup` set on the command line/],
+    [`git config foo.bar x && git commit ${stamp}`, {}, /`git config` earlier on the line/],
+    [`git cf foo.bar x && git commit ${stamp}`, { 'alias.cf': 'config' }, /`git config` earlier on the line/],
+    [`git cf2 foo.bar x && git commit ${stamp}`, { 'alias.cf': 'config', 'alias.cf2': 'cf' }, /`git config` earlier on the line/],
+    [`git commit --cleanup=strip --no-cleanup ${stamp}`, {}, /--no-cleanup/],
+    [`git commit --cleanup=scissors ${stamp}`, {}, /--cleanup=scissors/],
+    ["git commit -F - <<-'EOF'\nx (#7)\n\nVerified: none\nEOF", {}, /<<-/],
+    ["git commit -m $'x (#7)\\r\\n\\r\\nVerified: none'", {}, /carriage return/],
+    ['git commit -m "x (#7)" -m "a >8 b" -m "Verified: none"', {}, /scissors/],
+  ])) {
+    assert.match(String(verdict(command, { config })), /^the trace cannot tell the verification stamp/, command)
+    assert.match(String(verdict(command, { config })), named, command)
+  }
+  // Settings for who commits, and git's defaults written out, leave the stamp alone.
+  assert.equal(verdict(`git -c user.name=a -c user.email=b commit ${stamp}`), null)
+  assert.equal(verdict(`git add -A && git st && git commit ${stamp}`, { config: { 'alias.st': 'status -s' } }), null)
+  assert.equal(verdict(`git commit ${stamp}`, { config: { 'core.commentChar': '#', 'commit.cleanup': 'default', 'user.name': 'a' } }), null)
+  // Claude Code's heredoc form is text: a stamp in the wrong paragraph is missing, not computed.
+  const footer = '🤖 Generated with [Claude Code](https://claude.com/claude-code)'
+  assert.match(String(verdict(`git commit -m "$(cat <<'EOF'\nx (#7)\n\nVerified: none\n\n${footer}\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)"`)), /carries no verification stamp/)
+  assert.equal(verdict(`git commit -m "$(cat <<'EOF'\nx (#7)\n\n${footer}\n\nVerified: none\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)"`), null)
+  assert.match(String(verdict('$(echo git) commit -m x')), /"#7" and a verification stamp/)
 })
 
 test('an amend that keeps the message is judged by the commit it rewrites', () => {
@@ -1160,11 +1256,11 @@ test('a commit message is judged as git records it: fixups, trailers, cleanup an
   assert.match(String(verdict('git commit --cleanup=strip -m "#7: add the gate"')), /does not reference #7/)
   assert.match(String(verdict('git -c commit.cleanup=strip commit -m "#7: add the gate"')), /does not reference #7/)
   assert.match(String(verdict('git commit -m "#7: add the gate"', { config: { 'commit.cleanup': 'strip' } })), /does not reference #7/)
-  assert.equal(verdict('git -c core.commentChar=";" commit --cleanup=strip -m "#7: add the gate" -m "Verified: none"'), null)
-  // Without an editor, git keeps a scissors line, and reads no trailer after it.
-  assert.match(String(verdict('git commit --cleanup=scissors -m "#7 x" -m "# ------------------------ >8 ------------------------" -m "Verified: none"')), /no verification stamp/)
-  // git here reads the message with its own comment string, GitHub with `#`.
-  assert.match(String(verdict('git -c core.commentChar=";" commit -m "#7 x" -m "; ------------------------ >8 ------------------------" -m "Verified: none"')), /no verification stamp/)
+  // A comment string other than git's default leaves the reference to read, and the stamp not.
+  assert.match(String(verdict('git -c core.commentChar=";" commit --cleanup=strip -m "#7: add the gate" -m "Verified: none"')), /cannot tell the verification stamp/)
+  assert.match(String(verdict('git -c core.commentChar=";" commit --cleanup=strip -m "; #7: add the gate" -m "Verified: none"')), /does not reference #7/)
+  // A scissors line, which git may or may not read as one, leaves the stamp unread.
+  assert.match(String(verdict('git commit -m "#7 x" -m "# ------------------------ >8 ------------------------" -m "Verified: none"')), /cannot tell the verification stamp/)
   assert.equal(verdict('git commit --dry-run'), null)
 })
 
