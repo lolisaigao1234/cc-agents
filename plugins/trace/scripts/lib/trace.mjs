@@ -557,8 +557,10 @@ function commitVerdict(run, world) {
 //   `trailer.*` or `includeIf.onbranch:*` setting (git reads what any other
 //   include sets, and reports it), and DEFAULTS.
 // - No unquoted expansion anywhere in the command, which the shell splits
-//   into words; no `<<-` on the line; no carriage return or `>8` in the
-//   message.
+//   into words, and no unquoted `*`, `?`, `[`, `(…)`, brace pair or tilde
+//   that starts a word or follows `=` or `:`, which it expands (shell.mjs's
+//   `unsure` names each); no `<<-` on the line; no carriage return or `>8`
+//   in the message.
 
 /** @typedef {{ value: string | undefined, opts: [string, string | undefined][], cleanup: string | undefined }} StampOption */
 

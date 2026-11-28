@@ -980,6 +980,8 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
   writeFileSync(other, 'Verified: none\n')
   const template = join(dir, 'template.txt')
   writeFileSync(template, 'x (#7)\n\nprose\n')
+  // Files a pattern the shell expands matches: a stamp with no value, once expanded.
+  for (const name of ['Verified:', 'Verified: ', 'xy']) writeFileSync(join(dir, name), '')
   /**
    * Runs `command` through bash with `config` set in the repository and
    * `text` in msg.txt, and returns the gate's verdict and what git and the
@@ -1034,6 +1036,11 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     'git -c commit.gpgsign=false -c gpg.format=openpgp commit -q --allow-empty -m "x (#7)" -m "Verified: none"',
     'git commit -q --allow-empty --amend --reset-author --no-edit',
     "git commit -q --allow-empty --cleanup=whitespace -s -m 'x (#7)' -m 'Verified: none' -m ' '",
+    // Patterns, braces and tildes quoted, or in a quoted heredoc, are text; a ~ inside a word is too.
+    "git commit -q --allow-empty -m 'x* ? [a] {b,c} ~ (#7)' -m \"Verified: x* ? [a] {b,c} ~\"",
+    `git commit -q --allow-empty -m "$(cat <<'EOF'\nx* ? [a] {b,c} ~ (#7)\n\nVerified: x* ? [a] {b,c} ~\nEOF\n)"`,
+    "git commit -q --allow-empty -F - <<'EOF'\nx* ? [a] {b,c} ~ (#7)\n\nVerified: Verified:*\nEOF",
+    'git commit -q --allow-empty --fixup=HEAD~1 -m "Verified: none"',
   ]) {
     assert.deepEqual(run(command), { why: null, git: true, check: true }, command)
   }
@@ -1149,6 +1156,20 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     const { why, git: byGit, check } = run(command, config, text)
     if (!/cannot tell/.test(String(why))) assert.deepEqual({ gate: why === null, check }, { gate: byGit, check: byGit }, `${command} ${JSON.stringify(config)}: ${why}`)
     else assert.match(String(why), /cannot tell the commit message|cannot tell the verification stamp/, command)
+  }
+
+  // An unquoted pattern, brace or tilde, which the shell expands where the gate reads it as written: here to a
+  // stamp with no value (files `Verified:` and `Verified: ` are there), a word more, or a path. Each was allowed.
+  for (const command of [
+    "git commit -q --allow-empty -m 'x (#7)' -m Verified:*",
+    "git commit -q --allow-empty -m 'x (#7)' -m Verified:?",
+    "git commit -q --allow-empty -m 'x (#7)' -m Verified:[[:space:]]",
+    "git commit -q --allow-empty -m 'x (#7)' -m Verified:{\\ none,}",
+    "git commit -q --allow-empty -m 'x (#7)' --trailer Verified=~",
+    "git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' --date={1..2}",
+  ]) {
+    const { why, git: byGit } = run(command)
+    assert.match(String(why), /cannot tell the verification stamp git reads in this commit, with an unquoted `\*`, `\?`, `\[`, `\(…\)`, brace or tilde/, `${command} (git reads a stamp: ${byGit})`)
   }
 
   // Messages as git records them, judged as the commit that keeps one: the trace check reads what git reads,

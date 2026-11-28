@@ -18,6 +18,8 @@
  * `writes` are the files among `files` that it redirects output to.
  * `unsure` names the first thing in it the shell may read otherwise than
  * as given here: an unquoted expansion, which it splits into words, an
+ * unquoted pattern (`*`, `?`, `[`, `(…)`), brace or tilde, which it
+ * expands where `args` keeps it as written, an
  * escape in `$'…'` beyond \n, \t, \r, \\, \' and \", or an unquoted heredoc
  * fed to it that holds a `$`, a backtick or a backslash.
  *
@@ -280,6 +282,7 @@ export function parseCommands(src, depth = 0) {
     unsure ??= why
   }
   const SPLITS = 'an unquoted expansion, which the shell splits into words'
+  const EXPANDS = 'an unquoted `*`, `?`, `[`, `(…)`, brace or tilde, which the shell expands'
 
   const append = (/** @type {string} */ s) => {
     word = (word ?? '') + s
@@ -288,6 +291,9 @@ export function parseCommands(src, depth = 0) {
     if (word === null) return
     // An argument ends at a NUL, which $'\0' can write.
     if (word.includes('\0')) word = word.slice(0, word.indexOf('\0'))
+    // A brace pair the shell may expand, `{a..b}` included, which expandBraces does not.
+    const lb = word.indexOf(LB)
+    if (lb >= 0 && word.indexOf(RB, lb) > lb) doubt(EXPANDS)
     const expanded = expandBraces(word)
     if (redirect === 'file' || (redirect === 'dup' && !/^(?:\d+-?|-)$/.test(word))) {
       files.push(...expanded)
@@ -461,6 +467,7 @@ export function parseCommands(src, depth = 0) {
       i = k + 1
     } else if (c === '(' && (word !== null || words.length > 0) && !KEYWORDS.has(/** @type {string} */ (words[words.length - 1]))) {
       // In argument position, `(a|b)` is a zsh glob group; it is also read as commands, in case it is a subshell.
+      doubt(EXPANDS)
       const k = closingParen(src, i)
       nested(src.slice(i + 1, k))
       append(src.slice(i, k + 1))
@@ -520,6 +527,8 @@ export function parseCommands(src, depth = 0) {
       }
     } else {
       if (c === '$' && /[A-Za-z_{0-9@*#?!$-]/.test(src[i + 1] ?? '')) doubt(SPLITS)
+      // A pattern anywhere in a word; a tilde that starts one, or follows `=` or `:` (`x=~` is a path too).
+      else if ('*?['.includes(c) || (c === '~' && (word === null || /[=:]$/.test(word)))) doubt(EXPANDS)
       // `${...}` is a parameter, not a brace expansion.
       append(c === '{' && !(word ?? '').endsWith('$') ? LB : c === ',' ? CM : c === '}' ? RB : c)
       i++
