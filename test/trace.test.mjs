@@ -120,14 +120,14 @@ test('the deadline on git and GitHub starts with each call, not when the module 
   assert.match(String(editVerdict(join(dir, 'a.md'))), /default branch/, 'a call long after the module loaded still asks git')
   const reads = noReads()
   const first = worldFor(reads)
-  assert.equal(first.git.message(dir, 'HEAD'), 'init')
+  assert.equal(first.git.message(dir, 'HEAD'), 'init\n')
   assert.equal(first.git.origin(dir), 'owner/name')
   t.mock.timers.tick(15_000)
   const second = worldFor(reads)
   t.mock.timers.tick(15_000)
   assert.throws(() => first.git.message(dir, 'HEAD'), OUT_OF_TIME, 'a later call does not extend an earlier one')
   assert.throws(() => first.github.issueState(dir, 1), OUT_OF_TIME, 'GitHub is bounded too')
-  assert.equal(second.git.message(dir, 'HEAD'), 'init')
+  assert.equal(second.git.message(dir, 'HEAD'), 'init\n')
   git('remote', 'set-url', 'origin', 'https://github.com/owner/other.git')
   assert.equal(second.git.origin(dir), 'owner/other', 'nor does it reuse an earlier call\'s answers')
 })
@@ -192,6 +192,23 @@ test("git's no about a name the branch or the agent chose is an answer, whatever
   assert.equal(world.git.message(dir, 'fix-corrupt-index'), null, 'no such revision')
 })
 
+test("the settings and a stored message the commit gate reads are git's own, byte for byte", () => {
+  const { dir, git } = repo()
+  writeFileSync(join(dir, 'extra.inc'), '[trailer "verified"]\n\tkey = Other\n')
+  git('config', 'trailer.separators', '=')
+  git('config', 'include.path', join(dir, 'extra.inc'))
+  git('config', 'includeIf.onbranch:main.path', join(dir, 'none.inc'))
+  git('commit', '-q', '--allow-empty', '--cleanup=verbatim', '-m', 'x (#7)\n\nVerified: none\n\n\v')
+  git('config', 'x.value', ' a\v')
+  const world = worldFor(noReads())
+  // git follows the include, and reports the key it sets.
+  assert.deepEqual(world.git.configKeys(dir, ['includeif', 'trailer']).sort(), ['includeif.onbranch:main.path', 'trailer.separators', 'trailer.verified.key'])
+  assert.deepEqual(world.git.configKeys(dir, ['nosuchsection']), [])
+  assert.equal(world.git.config(dir, 'x.value'), ' a\v')
+  // git ends a message from -m with a newline, and keeps the \v before it.
+  assert.equal(world.git.message(dir, 'HEAD'), 'x (#7)\n\nVerified: none\n\n\v\n')
+})
+
 test('a HEAD that names no object halts the session, rather than reading as a HEAD without the marker', () => {
   const { dir, git } = repo(false)
   git('checkout', '-qb', '16-x')
@@ -216,7 +233,7 @@ test("a commit's message is read with a git older than --end-of-options, and a r
   process.env.PATH = `${old}:${path}`
   try {
     const world = worldFor(noReads())
-    assert.equal(world.git.message(dir, 'HEAD'), 'init')
+    assert.equal(world.git.message(dir, 'HEAD'), 'init\n')
     assert.equal(world.git.message(dir, '--output=zz'), null)
     assert.equal(existsSync(join(dir, 'zz')), false)
   } finally {
@@ -933,11 +950,22 @@ test('a verification stamp says how a commit was verified, "none" included, as a
   }
 })
 
-test('the commit gate reads a verification stamp only in forms where it reads what git reads, and the trace check reads as git does', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'stamp-'))
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: join(dir, '.git', 'global'), GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', GIT_EDITOR: 'false' }
+test('the commit gate reads a verification stamp only in forms where it reads what git reads, and the trace check reads as git does', t => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'stamp-')))
+  const isolated = { GIT_CONFIG_GLOBAL: join(dir, '.git', 'global'), GIT_CONFIG_NOSYSTEM: '1' }
+  const env = { ...process.env, ...isolated, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', GIT_EDITOR: 'false' }
   const git = (/** @type {string[]} */ args, input = '') => execFileSync('git', args, { cwd: dir, env, input, encoding: 'utf8' })
-  git(['init', '-q'])
+  git(['init', '-q', '-b', '7-stamp'])
+  mkdirSync(join(dir, '.claude'))
+  writeFileSync(join(dir, '.claude/trace.json'), '{}\n')
+  // The gate asks the real git, which reads the same settings as the commands run below; only GitHub is stubbed.
+  const saved = Object.fromEntries(Object.keys(isolated).map(k => [k, process.env[k]]))
+  Object.assign(process.env, isolated)
+  t.after(() => {
+    for (const [k, v] of Object.entries(saved)) v === undefined ? delete process.env[k] : (process.env[k] = v)
+  })
+  const github = { issueState: () => /** @type {const} */ ('OPEN'), issue: () => ({ title: '', body: '', comments: [] }), pr: () => /** @type {const} */ ('NONE'), alias: () => null }
+  const gate = (/** @type {string} */ command) => commandVerdict(command, dir, { ...worldFor({ records: () => [], add() {}, clear() {} }), github })
   // What git, and the trace check on GitHub, read in the commit just made.
   const read = () => ({ git: git(['log', '-1', '--format=%(trailers:key=Verified,valueonly,unfold,separator=%x2C)']).trim() !== '', check: stamped(git(['cat-file', 'commit', 'HEAD']).replace(/^[\s\S]*?\n\n/, '')) })
   // The settings a command on the line wrote, undone before the next: only the scratch repository's own.
@@ -945,17 +973,13 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     writeFileSync(join(dir, '.git', 'config'), '[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n')
     rmSync(join(dir, '.git', 'global'), { force: true })
   }
-  // A command as the gate judges it, with HEAD's message as git has it.
-  const head = () => {
-    try {
-      return { messages: { HEAD: git(['log', '-1', '--format=%B']) } }
-    } catch {
-      return {}
-    }
-  }
   const sob = 'Signed-off-by: A <a@b>'
   const scissors = '# ------------------------ >8 ------------------------'
   const file = join(dir, 'msg.txt')
+  const other = join(dir, 'other.txt')
+  writeFileSync(other, 'Verified: none\n')
+  const template = join(dir, 'template.txt')
+  writeFileSync(template, 'x (#7)\n\nprose\n')
   /**
    * Runs `command` through bash with `config` set in the repository and
    * `text` in msg.txt, and returns the gate's verdict and what git and the
@@ -965,9 +989,8 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
    */
   const run = (command, config = {}, text = 'x (#7)\n\nVerified: none\n') => {
     writeFileSync(file, text)
-    const options = { ...head(), config }
     for (const [key, value] of Object.entries(config)) git(['config', key, value])
-    const why = verdict(command, options)
+    const why = gate(command)
     // A command that fails records nothing, and HEAD's stamp is not its own.
     const seen = spawnSync('bash', ['-c', command], { cwd: dir, env }).status === 0 ? read() : { git: false, check: false }
     reset()
@@ -1000,9 +1023,22 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     'git commit -q --allow-empty --fixup=HEAD -m "Verified: none"',
     'git commit -q --allow-empty --squash=HEAD -m "Verified: none"',
     "git commit -q --allow-empty -m 'Fix `stamped()` in $HOME (#7)' -m 'Verified: none'",
+    // Round 4: the forms the allowlist names.
+    "git commit -q --allow-empty -F - <<< $'x (#7)\\n\\nVerified: none'",
+    "git commit -q --allow-empty -F - <<< 'x (#7)\n\nVerified: none'",
+    `git commit -q --allow-empty --squash=HEAD -F ${file}`,
+    `git commit -q --allow-empty -t ${template} -m "x (#7)" -m "Verified: none"`,
+    `git commit -q --allow-empty -t ${template} -F ${file}`,
+    'git commit -q --allow-empty --author="A <a@b>" --date=2026-01-01T00:00:00 -m "x (#7)" -m "Verified: none"',
+    'git commit -q -v --allow-empty --no-verify --no-gpg-sign -m "x (#7)" -m "Verified: none"',
+    'git -c commit.gpgsign=false -c gpg.format=openpgp commit -q --allow-empty -m "x (#7)" -m "Verified: none"',
+    'git commit -q --allow-empty --amend --reset-author --no-edit',
+    "git commit -q --allow-empty --cleanup=whitespace -s -m 'x (#7)' -m 'Verified: none' -m ' '",
   ]) {
     assert.deepEqual(run(command), { why: null, git: true, check: true }, command)
   }
+  // Settings git reads from an included file are its own: one that sets who commits leaves the stamp alone.
+  assert.deepEqual(run('git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'include.path': file, 'includeIf.gitdir:/.path': file }, '[user]\n\tname = A\n'), { why: null, git: true, check: true })
 
   // Each false pass the reviews found: the gate cannot tell, or the gate, git and the trace check agree.
   const commentChar = { 'core.commentChar': ';' }
@@ -1081,6 +1117,34 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     ['git -c commit.cleanup=strip commit -q --allow-empty -m "x (#7)" -m "Verified: none" -m "# prose"'],
     ['CLEANUP=strip git --config-env=commit.cleanup=CLEANUP commit -q --allow-empty -m "x (#7)" -m "Verified: none" -m "# prose"'],
     ['git -c core.commentChar=";" commit -q --allow-empty --cleanup=strip -m "x (#7)" -m "Verified: none"'],
+    // Round 4: settings in repository config and in a file it includes, read by the real git.
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'include.path': file }, '[trailer "verified"]\n\tkey = Other\n'],
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'includeIf.onbranch:7-stamp.path': file }, '[trailer]\n\tseparators = =\n'],
+    ['git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'includeIf.onbranch:other.path': file }, '[user]\n\tname = A\n'],
+    // An unquoted expansion, which the shell splits into words, here more options.
+    ["git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' --date=$(cat <<'EOF'\nnow -m prose\nEOF\n)"],
+    ["git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' --author=$(cat <<'EOF'\nA<a@b> -m prose\nEOF\n)"],
+    ["X='now -m prose'; git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' --date=$X"],
+    ["git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' --date=`echo now -m prose`"],
+    ["git commit -q --allow-empty -m $(cat <<'EOF'\nx\nEOF\n) -m 'Verified: none (#7)'"],
+    // More than one -F: git reads only the last.
+    [`git commit -q --allow-empty -F ${file} -F ${other}`, {}, 'x (#7)\n'],
+    [`git commit -q --allow-empty -F ${file} -F - <<< 'Verified: none'`, {}, 'x (#7)\n'],
+    [`git commit -q --allow-empty -F ${file} -m 'Verified: none'`, {}, 'x (#7)\n'],
+    [`git commit -q --allow-empty -F ${file} -C HEAD`, {}, 'x (#7)\n'],
+    // An unquoted heredoc whose backslashes the shell reads.
+    ['git commit -q --allow-empty -F - <<EOF\nx (#7)\n\nVerified: a\\\\\nb\nEOF'],
+    ['git commit -q --allow-empty -F - <<EOF\nx (#7)\n\nVerified: a\\\nb\nEOF'],
+    ['git commit -q --allow-empty -F - <<EOF\nx (#7)\n\nVerified: a \\$ b\nEOF'],
+    // Escapes in $'…' that bash reads otherwise than the splitter.
+    ["git commit -q --allow-empty -m $'x (#7)\\n\\nVerified: none\\u000a\\u000aprose'"],
+    ["git commit -q --allow-empty -m $'x (#7)\\n\\nVerified: none\\U0000000a\\U0000000aprose'"],
+    ["git commit -q --allow-empty -m $'x (#7)\\n\\nVerified: none\\cJ\\cJprose'"],
+    ["git commit -q --allow-empty -m $'x (#7)\\n\\nVerified: none\\x0a\\012prose'"],
+    // Verbatim cleanup keeps a whitespace line, after which git signs off in a paragraph of its own.
+    ["git commit -q --allow-empty --cleanup=verbatim -s -m 'x (#7)' -m 'Verified: none' -m ' '"],
+    ["git commit -q --allow-empty --cleanup=verbatim -m 'x (#7)' -m 'Verified: none' -m ' ' --trailer 'Refs: #7'"],
+    ["git ci -q --allow-empty --cleanup=verbatim -m 'x (#7)' -m 'Verified: none' -m ' '", { 'alias.ci': 'commit -s' }],
   ])) {
     const { why, git: byGit, check } = run(command, config, text)
     if (!/cannot tell/.test(String(why))) assert.deepEqual({ gate: why === null, check }, { gate: byGit, check: byGit }, `${command} ${JSON.stringify(config)}: ${why}`)
@@ -1095,7 +1159,7 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     const { git: byGit, check } = read()
     assert.equal(check, byGit, `${what}: ${JSON.stringify(message)}`)
     for (const command of ['git commit --amend --no-edit', 'git commit -C HEAD']) {
-      const why = verdict(command, { messages: { HEAD: git(['log', '-1', '--format=%B']) } })
+      const why = gate(command)
       if (!/cannot tell/.test(String(why))) assert.equal(why === null, byGit, `${command}: ${JSON.stringify(message)}: ${why}`)
     }
   }
@@ -1127,6 +1191,10 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     'x (#7)\n\n\v\nVerified: none',
     'Fix `stamped()` in $HOME (#7)\n\nVerified: none',
     'x (#7)\n\nVerified: npm test `x` $(date)',
+    // Round 4: what git keeps at the end of a stored message.
+    'x (#7)\n\nVerified: none\n\n\v',
+    'x (#7)\n\nVerified: none\n\n\f',
+    'x (#7)\n\nVerified: none\n\n\u00a0',
   ]) {
     agree(message, 'listed')
   }
@@ -1147,7 +1215,7 @@ test('a commit whose stamp the gate cannot read says what to leave out, naming t
   const stamp = '-m "x (#7)" -m "Verified: none"'
   for (const [command, config, named] of /** @type {[string, Record<string, string>, RegExp][]} */ ([
     [`git commit ${stamp}`, { 'trailer.separators': '=' }, /git's `trailer\.separators` setting/],
-    [`git commit ${stamp}`, { 'include.path': '~/x' }, /git's `include\.path` setting/],
+    [`git commit ${stamp}`, { 'includeIf.onbranch:7-gates.path': '~/x' }, /git's `includeIf\.onbranch:7-gates\.path` setting/],
     [`git commit ${stamp}`, { 'core.commentChar': ';' }, /git's `core\.commentChar` setting/],
     [`git commit ${stamp}`, { 'commit.cleanup': 'strip' }, /git's `commit\.cleanup` setting/],
     [`git -c commit.cleanup=strip commit ${stamp}`, {}, /`commit\.cleanup` set on the command line/],
@@ -1159,12 +1227,20 @@ test('a commit whose stamp the gate cannot read says what to leave out, naming t
     ["git commit -F - <<-'EOF'\nx (#7)\n\nVerified: none\nEOF", {}, /<<-/],
     ["git commit -m $'x (#7)\\r\\n\\r\\nVerified: none'", {}, /carriage return/],
     ['git commit -m "x (#7)" -m "a >8 b" -m "Verified: none"', {}, /scissors/],
+    ["git commit -F - -F - <<< 'x (#7)\n\nVerified: none'", {}, /more than one -F/],
+    [`git commit --cleanup=verbatim -s ${stamp}`, {}, /-s with --cleanup=verbatim/],
+    [`git commit --patch ${stamp}`, {}, /without --patch/],
+    [`git commit ${stamp} --date=$(date)`, {}, /unquoted expansion/],
+    ["git commit -m $'x (#7)\\n\\nVerified: none\\u0020'", {}, /`\\u` in `\$'…'`/],
+    ['git commit -F - <<EOF\nx (#7)\n\nVerified: a\\\\\nEOF', {}, /unquoted heredoc/],
   ])) {
     assert.match(String(verdict(command, { config })), /^the trace cannot tell the verification stamp/, command)
     assert.match(String(verdict(command, { config })), named, command)
   }
   // Settings for who commits, and git's defaults written out, leave the stamp alone.
-  assert.equal(verdict(`git -c user.name=a -c user.email=b commit ${stamp}`), null)
+  assert.equal(verdict(`git -c user.name=a -c user.email=b -c commit.gpgsign=false -c gpg.ssh.program=x commit ${stamp}`), null)
+  // A file git includes is read as git reads it; its keys come with the rest.
+  assert.equal(verdict(`git commit ${stamp}`, { config: { 'include.path': '~/x', 'includeIf.gitdir:~/.path': '~/y' } }), null)
   assert.equal(verdict(`git add -A && git st && git commit ${stamp}`, { config: { 'alias.st': 'status -s' } }), null)
   assert.equal(verdict(`git commit ${stamp}`, { config: { 'core.commentChar': '#', 'commit.cleanup': 'default', 'user.name': 'a' } }), null)
   // Claude Code's heredoc form is text: a stamp in the wrong paragraph is missing, not computed.

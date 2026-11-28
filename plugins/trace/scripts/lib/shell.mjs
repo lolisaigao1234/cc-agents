@@ -16,8 +16,12 @@
  * last input redirection, and `piped` says another command's output does.
  * `env` names the variables its assignments and `env` wrapper set.
  * `writes` are the files among `files` that it redirects output to.
+ * `unsure` names the first thing in it the shell may read otherwise than
+ * as given here: an unquoted expansion, which it splits into words, an
+ * escape in `$'…'` beyond \n, \t, \r, \\, \' and \", or an unquoted heredoc
+ * fed to it that holds a `$`, a backtick or a backslash.
  *
- * @typedef {{ name: string, args: string[], files: string[], writes: string[], chdir?: string, level: number, op?: string, stdin?: string, piped?: boolean, env?: string[] }} SimpleCommand
+ * @typedef {{ name: string, args: string[], files: string[], writes: string[], chdir?: string, level: number, op?: string, stdin?: string, piped?: boolean, env?: string[], unsure?: string }} SimpleCommand
  */
 
 import { homedir } from 'node:os'
@@ -270,6 +274,12 @@ export function parseCommands(src, depth = 0) {
   /** The command's last stdin redirection. @type {Heredoc | 'here' | 'file' | null} */
   let lastInput = null
   let prevOp = ''
+  /** @type {string | undefined} the first thing the shell may read otherwise in the command being read */
+  let unsure
+  const doubt = (/** @type {string} */ why) => {
+    unsure ??= why
+  }
+  const SPLITS = 'an unquoted expansion, which the shell splits into words'
 
   const append = (/** @type {string} */ s) => {
     word = (word ?? '') + s
@@ -302,6 +312,7 @@ export function parseCommands(src, depth = 0) {
       if (op) cmd.op = op
       if (lastInput === 'here' && herestring !== undefined) cmd.stdin = herestring
       if (prevOp === '|') cmd.piped = true
+      if (unsure !== undefined) cmd.unsure = unsure
       for (const h of heredocs) {
         if (h.owner !== undefined) continue
         h.owner = cmd
@@ -341,6 +352,7 @@ export function parseCommands(src, depth = 0) {
     writes = []
     herestring = undefined
     lastInput = null
+    unsure = undefined
     prevOp = op
   }
 
@@ -366,7 +378,10 @@ export function parseCommands(src, depth = 0) {
         const text = h.quoted ? body.join('\n') : body.join('\n').replace(/\\\n/g, '')
         // A heredoc fed to a shell is a script; fed to anything else it is data.
         if (SHELLS.has(base(unwrap(h.words).words[0]))) nested(text)
-        else if (h.owner && h.feeds) h.owner.stdin = h.quoted ? literal(text) : text
+        else if (h.owner && h.feeds) {
+          h.owner.stdin = h.quoted ? literal(text) : text
+          if (!h.quoted && /[$`\\]/.test(body.join('\n'))) h.owner.unsure ??= 'an unquoted heredoc that holds a `$`, a backtick or a backslash'
+        }
       }
       heredocs = []
       continue
@@ -388,6 +403,8 @@ export function parseCommands(src, depth = 0) {
           continue
         }
         const e = src[++j] ?? ''
+        // The escapes read here as bash reads them, and no others.
+        if (!'ntr\\\'"'.includes(e)) doubt(`\`\\${e}\` in \`$'…'\``)
         const hex = e === 'x' ? /^[0-9a-fA-F]{1,2}/.exec(src.slice(j + 1)) : null
         const oct = /^[0-7]{1,3}/.exec(src.slice(j))
         if (hex) {
@@ -433,9 +450,11 @@ export function parseCommands(src, depth = 0) {
       const k = closingBacktick(src, i + 1)
       nested(src.slice(i + 1, k))
       append(src.slice(i, k + 1))
+      doubt(SPLITS)
       i = k + 1
     } else if ((c === '$' || c === '<' || c === '>') && src[i + 1] === '(') {
       // $(...) runs a command; <(...) and >(...) too, and stand for a path.
+      if (c === '$') doubt(SPLITS)
       const k = closingParen(src, i + 1)
       nested(src.slice(i + 2, k))
       append(src.slice(i, k + 1))
@@ -500,6 +519,7 @@ export function parseCommands(src, depth = 0) {
         i = k
       }
     } else {
+      if (c === '$' && /[A-Za-z_{0-9@*#?!$-]/.test(src[i + 1] ?? '')) doubt(SPLITS)
       // `${...}` is a parameter, not a brace expansion.
       append(c === '{' && !(word ?? '').endsWith('$') ? LB : c === ',' ? CM : c === '}' ? RB : c)
       i++

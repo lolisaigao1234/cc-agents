@@ -536,16 +536,69 @@ function commitVerdict(run, world) {
   )
 }
 
-// Settings a commit may be given on the command line that leave its message alone: who makes it.
-const IDENTITY = /^(?:user|author|committer)\.(?:name|email)$/i
+// --- the forms the commit gate reads a verification stamp in ----------------
+//
+// The one list of them; plugins/trace/README.md ("The commit gate") says the
+// same. The gate reads a stamp only where it can be sure what git records,
+// and on anything else says it cannot tell, naming what to leave out. The
+// trace check on GitHub, which reads the message git recorded, is the
+// backstop.
+//
+// - The message: one or more `-m`, each written out (quoted, or `$'…'` with
+//   no escape but \n, \t, \r, \\, \' and \"), or a whole double-quoted
+//   `-m "$(cat <<'EOF' … EOF)"`; or one `-F <file>`, or `-F -` fed a quoted
+//   heredoc, a here-string, or an unquoted heredoc with no `$`, backtick or
+//   backslash in it; or a stored message (`-C`, `--fixup`, `--squash`,
+//   `--amend --no-edit`), read as text.
+// - Only the options in STAMP_OPTIONS, each on its condition there.
+// - `-c` only of the settings COMMIT_SETTINGS names, and no `git config` earlier on
+//   the line, nor an alias that may run it.
+// - git's defaults for how it reads trailers, comments and cleanup: no
+//   `trailer.*` or `includeIf.onbranch:*` setting (git reads what any other
+//   include sets, and reports it), and DEFAULTS.
+// - No unquoted expansion anywhere in the command, which the shell splits
+//   into words; no `<<-` on the line; no carriage return or `>8` in the
+//   message.
+
+/** @typedef {{ value: string | undefined, opts: [string, string | undefined][], cleanup: string | undefined }} StampOption */
+
+// The options a source of the message cannot be given beside -F; git refuses each but --squash.
+const BESIDE_FILE = new Set(['message', 'reuse-message', 'reedit-message', 'fixup'])
+
+/**
+ * The commit options the gate reads a stamp beside, each null, or what it
+ * names when it cannot tell (null when it can). Any other, `--no-<option>`
+ * included, it cannot tell.
+ *
+ * @type {Record<string, ((o: StampOption) => string | null) | null>}
+ */
+const STAMP_OPTIONS = {
+  // Where the message comes from. git reads only the last -F.
+  message: null,
+  file: ({ opts }) =>
+    opts.filter(([name]) => name === 'file').length > 1 ? 'more than one -F, of which git reads only the last' : opts.some(([name]) => BESIDE_FILE.has(name)) ? '-F beside -m, -C or --fixup' : null,
+  'reuse-message': null,
+  fixup: null,
+  squash: null,
+  amend: null,
+  'no-edit': null,
+  // git ignores a template beside -m or -F; without them an editor decides the message.
+  template: null,
+  // What git adds to the trailer block. Verbatim cleanup keeps a line of spaces, after which git adds it as a paragraph of its own.
+  signoff: ({ cleanup }) => (cleanup === 'verbatim' ? '-s with --cleanup=verbatim' : null),
+  trailer: ({ cleanup }) => (cleanup === 'verbatim' ? '--trailer with --cleanup=verbatim' : null),
+  cleanup: ({ value = '' }) => (['default', 'strip', 'whitespace', 'verbatim'].includes(value) ? null : `--cleanup=${unliteral(value)}`),
+  // Options that leave the message alone.
+  ...Object.fromEntries(
+    ['quiet', 'verbose', 'all', 'include', 'only', 'allow-empty', 'allow-empty-message', 'author', 'date', 'reset-author', 'gpg-sign', 'no-gpg-sign', 'verify', 'no-verify', 'untracked-files', 'pathspec-from-file', 'pathspec-file-nul', 'no-post-rewrite'].map(name => [name, null]),
+  ),
+}
+
+// Settings a commit may be given on the command line that leave its message alone: who makes it, and how it is signed.
+const COMMIT_SETTINGS = /^(?:(?:user|author|committer)\.(?:name|email)|user\.signingkey|commit\.gpgsign|gpg\..+)$/i
 
 // Settings the stamp's reader takes at git's default, each with that default.
 const DEFAULTS = [['core.commentChar', '#'], ['core.commentString', '#'], ['commit.cleanup', 'default']]
-
-// Options that undo an earlier option the message is made from.
-const UNDOES = /^no-(?:message|file|reuse-message|reedit-message|template|fixup|squash|cleanup|trailer|signoff)$/
-// Cleanup modes the stamp's reader follows.
-const CLEANUPS = new Set(['default', 'strip', 'whitespace', 'verbatim'])
 
 /**
  * Whether a git command may run `git config`: itself, or an alias that runs
@@ -565,10 +618,8 @@ function runsGitConfig({ sub, config }, root, git) {
 
 /**
  * Why the stamp git reads in a commit may not be the one the gate reads in
- * `message`: the gate reads it only in plain forms, with git's default
- * settings for trailers, comments and cleanup, and the trace check on GitHub
- * reads the message git records. Null in a plain form; otherwise what to
- * name, and what to do instead.
+ * `message`: the command is not in a form the list above names. Null in
+ * one; otherwise what to name, and what to do instead.
  *
  * @param {string} message @param {[string, string | undefined][]} opts @param {Run} run
  * @param {string[]} config inline `-c` settings @param {string} root @param {Git} git
@@ -576,23 +627,26 @@ function runsGitConfig({ sub, config }, root, git) {
  */
 function unreadStamp(message, opts, run, config, root, git) {
   const without = (/** @type {string} */ what, fix = `write the message out with -m, -F <file> or a quoted heredoc, without ${what}`) => ({ what, fix })
-  const key = config.map(kv => kv.split('=')[0] ?? '').find(k => !IDENTITY.test(k))
+  const key = config.map(kv => kv.split('=')[0] ?? '').find(k => !COMMIT_SETTINGS.test(k))
   if (key !== undefined) return without(computed(key) ? 'a setting the shell computes on the command line' : `\`${unliteral(key)}\` set on the command line`)
   // A setting an earlier command writes is not set yet to read; one may write it in many forms, or through an alias.
   if (run.earlier.some(c => c.name === 'git' && runsGitConfig(gitParts(c.args), root, git))) {
     return without('a `git config` earlier on the line', 'run `git config` as a command of its own, before this one')
   }
   if (/<<-/.test(run.line)) return without('`<<-`, which drops leading tabs', "use `<<'EOF'` rather than `<<-'EOF'`")
+  if (run.c.unsure) return without(run.c.unsure)
   const cleanup = [...opts].reverse().find(([name]) => name === 'cleanup')?.[1]
-  if (cleanup !== undefined && !CLEANUPS.has(cleanup)) return without(`--cleanup=${unliteral(cleanup)}`)
-  const undo = opts.find(([name]) => UNDOES.test(name))
-  if (undo) return without(`--${undo[0]}`)
+  for (const [name, value] of opts) {
+    if (!(name in STAMP_OPTIONS)) return without(`--${name}`)
+    const named = STAMP_OPTIONS[name]?.({ value, opts, cleanup })
+    if (named) return without(named)
+  }
   const text = unliteral(message)
   // Cleanup drops a carriage return that ends a line; the gate reads none, wherever it is.
   if (text.includes('\r') || opts.some(([, v]) => v?.includes('\r'))) return without('a carriage return')
   if (text.split('\n').some(l => l.includes('>8'))) return without('a scissors line (`>8`)')
   const setting = (/** @type {string} */ name) => ({ what: `git's \`${name}\` setting`, fix: `commit where git does not set \`${name}\`` })
-  const keys = git.configKeys(root, ['include', 'includeif', 'trailer'])
+  const keys = git.configKeys(root, ['includeif', 'trailer']).filter(k => !/^includeif\./i.test(k) || /^includeif\.onbranch:/i.test(k))
   if (keys[0] !== undefined) return setting(keys[0])
   for (const [name, value] of DEFAULTS) {
     const set = git.config(root, /** @type {string} */ (name))
@@ -800,12 +854,14 @@ function commitMessage(opts, run, { root, dir }, config, git) {
       const text = fileText(v, run, dir)
       if (text === null) return null
       texts.push(text)
-    } else if (name === 'edit' || name === 'reedit-message' || name === 'template') [editor, noEdit] = [true, false]
+    } else if (name === 'edit' || name === 'reedit-message') [editor, noEdit] = [true, false]
     else if (name === 'no-edit') [editor, noEdit] = [false, true]
     else if (name === 'amend' || name === 'no-amend') amend = name === 'amend'
     if (name === 'reedit-message') last['reuse-message'] = v
     else last[name] = v
   }
+  // git opens a template in the editor, and ignores it beside -m or -F.
+  if (last.template !== undefined && !opts.some(([name]) => name === 'message' || name === 'file')) return null
   const stored = (/** @type {string} */ rev) => {
     const m = git.message(root, rev)
     return m === null ? null : literal(m)
@@ -1128,8 +1184,18 @@ function realWorld() {
    * @returns {string | null} stdout, or null when git says no; throws Unanswered when it does not answer
    */
   const git = (root, args, answers = GIT_NO) => {
+    const out = exact(root, args, answers)
+    return out === null ? null : out.trim()
+  }
+  /**
+   * stdout as git wrote it, less the one newline it ends a value or a
+   * `--format` with: a message or a setting may end in spaces git keeps.
+   *
+   * @param {string} root @param {string[]} args @param {RegExp} [answers]
+   */
+  const exact = (root, args, answers = GIT_NO) => {
     const r = answered('git', spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', env: GIT_ENV(), timeout: Math.min(3000, timeLeft()) }), answers)
-    return r.status === 0 ? r.stdout.trim() : null
+    return r.status === 0 ? r.stdout.replace(/\n$/, '') : null
   }
 
   /** @type {Map<string, string | null>} */
@@ -1164,7 +1230,7 @@ function realWorld() {
     },
     // The revision may be the agent's: a full hash of no commit is "bad object",
     // and one that looks like an option names no commit, so git is not given it.
-    message: (root, rev) => (rev.startsWith('-') ? null : git(root, ['log', '-1', '--format=%B', rev, '--'], new RegExp(`${GIT_NO.source}|bad object`, 'i'))),
+    message: (root, rev) => (rev.startsWith('-') ? null : exact(root, ['log', '-1', '--format=%B', rev, '--'], new RegExp(`${GIT_NO.source}|bad object`, 'i'))),
     committed(root, n) {
       const def = this.defaultBranch(root)
       const base = def ? ['--ignore-missing', '--not', `refs/heads/${def}`, `refs/remotes/origin/${def}`] : []
@@ -1194,8 +1260,9 @@ function realWorld() {
       const moved = /@\{(.+)\}$/.exec(git(root, ['reflog', 'show', '-1', '--format=%gd', '--date=iso-strict', ref, '--']) ?? '')?.[1]
       return { sha, at: moved && !Number.isNaN(Date.parse(moved)) ? moved : committed }
     },
-    config: (root, key) => git(root, ['config', '--get', key]),
-    configKeys: (root, sections) => (git(root, ['config', '--name-only', '--get-regexp', `^(?:${sections.map(escape).join('|')})\\.`]) ?? '').split('\n').filter(Boolean),
+    config: (root, key) => exact(root, ['config', '--get', key]),
+    // The pattern is git's (POSIX) regular expression; one git cannot read is the trace's own fault, never a no.
+    configKeys: (root, sections) => (exact(root, ['config', '--name-only', '--get-regexp', `^(${sections.map(escape).join('|')})\\.`], NO_ANSWERS) ?? '').split('\n').filter(Boolean),
     headDocs(root) {
       const names = git(root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', 'GLOSSARY.md', 'docs/adr'])
       if (names === null) return null

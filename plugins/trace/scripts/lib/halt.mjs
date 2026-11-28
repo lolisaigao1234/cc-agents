@@ -44,7 +44,7 @@ const GH_FAILS = /gh auth login|HTTP (?:401|5\d\d)|rate limit|error connecting t
 export const GIT_NO = new RegExp([
   'does not exist in', 'invalid object name', 'not a valid object name', 'bad revision', 'unknown revision', 'ambiguous argument',
   "log for '.*' only has \\d+ entries", "log for '.*' is empty",
-  'does not have any commits yet', 'no such remote', 'invalid key', 'does not contain a section', 'does not contain variable name',
+  'does not have any commits yet', 'no such remote', 'invalid key(?! pattern)', 'does not contain a section', 'does not contain variable name',
   // A branch's upstream or push destination, as `<branch>@{upstream}` and `@{push}` resolve them (git's remote.c).
   'no upstream configured', 'not stored as a remote-tracking branch', 'has no local tracking branch', 'has no remote for pushing',
   'push refspecs for .* do not include', 'push has no destination', 'cannot resolve .* push to a single destination',
