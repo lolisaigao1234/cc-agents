@@ -29,7 +29,7 @@ The commit gate does not work out what bash makes of a command line to find a st
 
 ```text
 LINE    := PREFIX* COMMIT     the whole line, less the blanks at its ends, with no carriage return or NUL byte
-PREFIX  := ("git add" (SP PATH)+ | "cd" SP FILE) SP? "&&" SP
+PREFIX  := ("git" SP "add" (SP PATH)+ | "cd" SP FILE) SP? "&&" SP
 COMMIT  := "git" (SP "-c" SP WHO "=" VALUE)* SP "commit" (SP PART)+
 WHO     := ("user" | "author" | "committer") "." ("name" | "email")
 PART    := FLAG | ("-m" | "-am" | "-sm" | "-asm" | "-sam") SP MSG | "-F" SP FILE | "--trailer" SP TRAILER

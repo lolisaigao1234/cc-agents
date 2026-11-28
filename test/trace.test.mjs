@@ -979,7 +979,11 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
   const gate = (/** @type {string} */ command) => commandVerdict(command, dir, { ...worldFor({ records: () => [], add() {}, clear() {} }), github })
   // What git, and the trace check on GitHub, read in the commit just made.
   // git trims a trailer's value of its own whitespace only, so a value of \v or a no-break space is one.
-  const read = () => ({ git: git(['log', '-1', '--format=%(trailers:key=Verified,valueonly,unfold,separator=%x2C)']).replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '') !== '', check: stamped(git(['cat-file', 'commit', 'HEAD']).replace(/^[\s\S]*?\n\n/, '')) })
+  // GitHub hands the message back without its last newline, so `github` is what the trace check reads there.
+  const read = () => {
+    const message = git(['cat-file', 'commit', 'HEAD']).replace(/^[\s\S]*?\n\n/, '')
+    return { git: git(['log', '-1', '--format=%(trailers:key=Verified,valueonly,unfold,separator=%x2C)']).replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '') !== '', check: stamped(message), github: stamped(message.replace(/\n$/, '')) }
+  }
   // The settings a command on the line wrote, undone before the next: only the scratch repository's own.
   const reset = () => {
     writeFileSync(join(dir, '.git', 'config'), '[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n')
@@ -1015,7 +1019,7 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     for (const [key, value] of Object.entries(config)) git(['config', key, value])
     const why = gate(command)
     // A command that fails records nothing, and HEAD's stamp is not its own.
-    const seen = spawnSync('bash', ['-c', command], { cwd: dir, env }).status === 0 ? read() : { git: false, check: false }
+    const seen = spawnSync('bash', ['-c', command], { cwd: dir, env }).status === 0 ? read() : { git: false, check: false, github: false }
     reset()
     return { why, ...seen }
   }
@@ -1059,7 +1063,7 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     "git commit -q --allow-empty -m 'x (#7)' --trailer 'Verified: \v'",
     "git commit -q --allow-empty -m 'x (#7)' --trailer 'Verified: \u00a0'",
   ]) {
-    assert.deepEqual(run(command), { why: null, git: true, check: true }, command)
+    assert.deepEqual(run(command), { why: null, git: true, check: true, github: true }, command)
   }
   // Forms outside the grammar, git reading a stamp in each: the gate cannot tell, and says so.
   for (const command of [
@@ -1086,12 +1090,12 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     // A last `Conflicts:` line, which git reads as an old conflicts list and GitHub, without its newline, does not.
     "git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' -m 'Conflicts:'",
   ]) {
-    const { why, ...seen } = run(command)
+    const { why, github, ...seen } = run(command)
     assert.deepEqual(seen, { git: true, check: true }, command)
     assert.match(String(why), /^the trace cannot tell the verification stamp git reads in this commit, /, command)
   }
   // Settings git reads from an included file are its own: one that sets who commits leaves the stamp alone.
-  assert.deepEqual(run('git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'include.path': file, 'includeIf.gitdir:/.path': file }, '[user]\n\tname = A\n'), { why: null, git: true, check: true })
+  assert.deepEqual(run('git commit -q --allow-empty -m "x (#7)" -m "Verified: none"', { 'include.path': file, 'includeIf.gitdir:/.path': file }, '[user]\n\tname = A\n'), { why: null, git: true, check: true, github: true })
 
   // Each false pass the reviews found: the gate cannot tell, or the gate, git and the trace check agree.
   const commentChar = { 'core.commentChar': ';' }
@@ -1261,24 +1265,37 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     ["git commit -q --allow-empty -s -F msg.txt --trailer 'Verified: none (#7)'", {}, ' \n\t\n'],
     ["cd '-' && git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none'"],
     ["cd '' && git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none'"],
+    // Round 8: a last `Conflicts:` line before -s or --trailer, which git reads as its conflicts list,
+    // since it adds them to the message with its last newline, and puts them before it.
+    ["git commit -q --allow-empty -m 'x (#7)' -m 'Conflicts:' --trailer 'Verified: none'"],
+    ["git commit -q --allow-empty -s -m 'x (#7)' -m 'Conflicts:' --trailer 'Verified: none'"],
+    ["git commit -q --allow-empty -F msg.txt --trailer 'Verified: none'", {}, 'x (#7)\n\nConflicts:\n'],
+    ["git commit -q --allow-empty -m \"$(cat <<'EOF'\nx (#7)\n\nConflicts:\nEOF\n)\" --trailer 'Verified: none'"],
+    [`git commit -q --allow-empty -s -m 'x (#7)' -m 'Verified: none\n${sob}\n${'prose\n'.repeat(7)}Conflicts:'`],
   ])) {
-    const { why, git: byGit, check } = run(command, config, text)
-    if (!/cannot tell/.test(String(why))) assert.deepEqual({ gate: why === null, check }, { gate: byGit, check: byGit }, `${command} ${JSON.stringify(config)}: ${why}`)
+    const { why, git: byGit, check, github } = run(command, config, text)
+    if (!/cannot tell/.test(String(why))) assert.deepEqual({ gate: why === null, check, github }, { gate: byGit, check: byGit, github: byGit }, `${command} ${JSON.stringify(config)}: ${why}`)
     else assert.match(String(why), /cannot tell the commit message|cannot tell the verification stamp/, command)
   }
 
   // An amend that keeps an empty HEAD message, signed off and given a trailer: one paragraph, the subject.
   git(['commit', '-q', '--allow-empty', '--allow-empty-message', '-m', ''])
   const amended = run("git commit -q --allow-empty --amend --no-edit -s --trailer 'Verified: none (#7)'")
-  assert.deepEqual({ gate: amended.why === null, check: amended.check }, { gate: amended.git, check: amended.git }, String(amended.why))
+  assert.deepEqual({ gate: amended.why === null, check: amended.check, github: amended.github }, { gate: amended.git, check: amended.git, github: amended.git }, String(amended.why))
+  // An amend that keeps HEAD's message and adds the stamp as a trailer: the reference is HEAD's.
+  git(['commit', '-q', '--allow-empty', '-m', 'x (#7)'])
+  assert.deepEqual(run("git commit -q --allow-empty --amend --no-edit --trailer 'Verified: none'"), { why: null, git: true, check: true, github: true })
+  git(['commit', '-q', '--allow-empty', '-m', 'x'])
+  assert.match(String(gate("git commit -q --allow-empty --amend --no-edit --trailer 'Verified: none'")), /does not reference #7/)
   git(['commit', '-q', '--allow-empty', '-m', 'x (#7)', '-m', 'Verified: none'])
 
   // Commands generated in the grammar's forms: the gate tells each, allows one only when git reads a stamp,
   // and the trace check reads what git reads. STAMP_FUZZ=3000 runs more.
+  // The generator's high bits pick, since its low bits repeat with a short period.
   let fuzz = 62
   const any = (/** @type {string[]} */ xs) => {
     fuzz = (fuzz * 1103515245 + 12345) % 2 ** 31
-    return /** @type {string} */ (xs[fuzz % xs.length])
+    return /** @type {string} */ (xs[(fuzz >>> 16) % xs.length])
   }
   const paragraphs = ['Verified: none', 'Verified: none', 'Verified: npm test', 'prose', sob, '# c', ' ', 'Why `x` and $HOME.', 'Verified: a\n  b', 'x* ? [a] {b,c} ~', `prose\n${sob}`, 'Don\'t "quote" (me)']
   /** @param {string} v @returns {string | undefined} */
@@ -1300,8 +1317,9 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     const who = any(['', "-c user.name='A B' -c user.email=a@b "])
     const before = any(['', 'git add -A && ', 'git add . && ', ...(source.startsWith('-F') ? [] : ['cd sub && '])])
     const command = `${before}git ${who}commit --allow-empty ${options}${source}${trailer}`
-    const { why, git: byGit, check } = run(command, {}, text)
+    const { why, git: byGit, check, github } = run(command, {}, text)
     assert.equal(check, byGit, `trace check: ${command}`)
+    if (why === null) assert.ok(github, `trace check on GitHub: ${command}`)
     assert.doesNotMatch(String(why), /cannot tell/, command)
     assert.equal(why === null, byGit, `${command}: ${why}`)
     if (why === null) allowed++

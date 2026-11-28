@@ -539,7 +539,7 @@ function commitVerdict(run, world) {
 //
 //   LINE    := PREFIX* COMMIT, the whole line less the blanks at its ends,
 //              with no carriage return or NUL byte anywhere
-//   PREFIX  := (`git add` (SP PATH)+ | `cd` SP FILE) SP? `&&` SP
+//   PREFIX  := (`git` SP `add` (SP PATH)+ | `cd` SP FILE) SP? `&&` SP
 //   COMMIT  := `git` (SP `-c` SP WHO `=` VALUE)* SP `commit` (SP PART)+
 //   WHO     := (`user` | `author` | `committer`) `.` (`name` | `email`)
 //   PART    := FLAG | (`-m` | `-am` | `-sm` | `-asm` | `-sam`) SP MSG
@@ -663,9 +663,11 @@ function stampVerdict(line, { root, dir }, git) {
   const text = file ? file.text : form.messages.length ? form.messages.join('\n\n') : git.message(root, 'HEAD')
   if (text === null) return unread(form.file !== null ? 'whose -F file the gate cannot read' : 'whose HEAD message the gate cannot read', 'write the message out with -m')
   // git cleans the message, signs it off, adds the trailers after the sign-off, and cleans it again. On a
-  // message with nothing in it, the two go in one paragraph, its subject, so they are added at once.
+  // message with nothing in it, the two go in one paragraph, its subject, so they are added at once. git
+  // adds them to the cleaned message with its last newline, so a last `Conflicts:` line is its conflicts list.
   const added = [...(form.signoff ? ['Signed-off-by: A <a@b>'] : []), ...form.trailers.map(v => `Verified: ${v.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '')}`)]
-  const message = stripspace(added.length ? withTrailers(stripspace(text), added) : text)
+  const clean = stripspace(text)
+  const message = stripspace(added.length ? withTrailers(clean ? `${clean}\n` : '', added) : text)
   // A file or a stored message may hold what git's readers take otherwise than at first sight.
   if (message.includes('\r')) return unread('with a carriage return in its message', 'write the message out with -m')
   if (message.split('\n').some(l => l.includes('>8'))) return unread('with a scissors line (`>8`) in its message', 'write the message out with -m, without it')
@@ -877,13 +879,17 @@ const stripspace = text => text.split('\n').map(l => l.replace(/[ \t\r]+$/, ''))
 function commitMessage(opts, run, { root, dir }, config, git) {
   /** @type {string[]} */
   const texts = []
+  // git adds the trailers to the message, so they are not one: `--amend --no-edit --trailer` keeps HEAD's.
+  /** @type {string[]} */
+  const trailers = []
   let editor = false
   let amend = false
   let noEdit = false
   /** @type {Record<string, string | undefined>} */
   const last = {}
   for (const [name, v] of opts) {
-    if (name === 'message' || name === 'trailer') texts.push(v ?? '')
+    if (name === 'message') texts.push(v ?? '')
+    else if (name === 'trailer') trailers.push(v ?? '')
     else if (name === 'file') {
       const text = fileText(v, run, dir)
       if (text === null) return null
@@ -918,6 +924,7 @@ function commitMessage(opts, run, { root, dir }, config, git) {
     texts.push(m)
   }
   if (editor) return null
+  texts.push(...trailers)
   // Without an editor only strip cleanup drops comment lines; git reads scissors as whitespace.
   const mode = last.cleanup ?? setting(config, 'commit.cleanup', root, git)
   if (mode && computed(mode)) return null
