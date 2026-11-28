@@ -633,7 +633,8 @@ export function readOptions(args, table, { abbrev = false, pflag = false } = {})
   /** @type {string | null} */
   let unknown = null
   const shorts = new Map(Object.entries(table).flatMap(([name, o]) => (o.short ? [[o.short, name]] : [])))
-  const longs = [...Object.keys(table), ...Object.keys(table).map(n => `no-${n}`)]
+  // A name the table holds both as itself and as `no-` of another (`no-verify`) is one name, not two to abbreviate.
+  const longs = [...new Set([...Object.keys(table), ...Object.keys(table).map(n => `no-${n}`)])]
   /** @param {string} name @returns {string | undefined} */
   const longName = name => {
     if (longs.includes(name)) return name

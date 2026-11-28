@@ -272,7 +272,7 @@ export function linkedIssue(root, branch, { git, github }) {
  * the shell computes or a variable that moves git or gh came before, and
  * the commands before it on the same line.
  *
- * @typedef {{ c: SimpleCommand, at: string[], moved: boolean, earlier: SimpleCommand[], line: string }} Run
+ * @typedef {{ c: SimpleCommand, at: string[], moved: boolean, earlier: SimpleCommand[], later: SimpleCommand[], line: string }} Run
  */
 
 // Variables that point git or gh at another repository, configuration or alias set.
@@ -296,9 +296,11 @@ export function commandVerdict(command, cwd, world = realWorld()) {
   /** @type {SimpleCommand[]} */
   const earlier = []
   let moved = false
-  for (const { c, at, unknown } of withCwds(command, cwd)) {
+  const all = [...withCwds(command, cwd)]
+  for (const [i, { c, at, unknown }] of all.entries()) {
     const sets = [...(c.env ?? []), ...(DECLARES.has(c.name) ? c.args.map(a => a.replace(/=.*/s, '')) : [])]
-    const run = { c, at, moved: unknown || moved || sets.some(v => MOVERS.test(v)), earlier: [...earlier], line: command }
+    const later = all.slice(i + 1).map(x => x.c)
+    const run = { c, at, moved: unknown || moved || sets.some(v => MOVERS.test(v)), earlier: [...earlier], later, line: command }
     const why = c.name === 'git' ? commitVerdict(run, world) : c.name === 'gh' ? prVerdict(run, world) : computed(c.name) ? computedVerdict(run, world) : null
     if (why) return why
     // A bare assignment or a declaration lasts for the rest of the line.
@@ -487,6 +489,8 @@ function commitVerdict(run, world) {
   // Follow aliases, which may name other aliases; one defined earlier on the line is not known yet.
   const defines = run.earlier.some(definesGitAlias)
   const fix = (/** @type {number} */ n) => `run \`git commit\` directly, with "#${n}" and a verification stamp in its message`
+  /** @type {string | undefined} the alias the commit is reached through, which git splits into words otherwise than the shell */
+  let aliased
   for (const seen = new Set(); parts.sub && !GIT_COMMANDS.has(parts.sub); ) {
     const name = parts.sub
     // git refuses an alias loop; refusing here too says why.
@@ -498,6 +502,7 @@ function commitVerdict(run, world) {
     if (alias === null && !defines && !loops && lookIn) return null
     if (alias === null || alias.startsWith('!') || computed(alias)) return opaqueVerdict(`what \`git ${name}\` runs`, place, world, fix, 'Implement')
     seen.add(name.toLowerCase())
+    aliased ??= name
     const expanded = gitParts(parseCommands(`git ${alias}`)[0]?.args ?? [])
     config = [...config, ...expanded.config]
     parts = { ...expanded, rest: [...expanded.rest, ...parts.rest] }
@@ -522,7 +527,7 @@ function commitVerdict(run, world) {
   const message = unknownOption ? null : commitMessage(opts, run, { root: place.root, dir: place.dir }, config, world.git)
   const asked = { what: 'commit message', how: '-m or a heredoc to -F -', step: 'Implement' }
   const reference = `add "#${n}" to the commit message, e.g. end the subject with "(#${n})"`
-  const unsure = message === null ? null : unreadStamp(message, opts, run, config, place.root, world.git)
+  const unsure = message === null ? null : unreadStamp(message, opts, run, { config, aliased }, place.root, world.git)
   return (
     judge(message, refersTo(n, slug), {
       ...asked,
@@ -532,7 +537,7 @@ function commitVerdict(run, world) {
     }) ??
     (unsure && cannotTell(`the verification stamp git reads in this commit, with ${unsure.what}`, `${unsure.fix}, and ${STAMP_HINT}`, 'Implement')) ??
     // What the shell computes anywhere in the message may empty a paragraph, add one, or cut the message short.
-    judge(message, { test: m => stamped(m) }, { ...asked, fix: STAMP_HINT, refusal: 'this commit message carries no verification stamp.', blank: COMPUTED, heredocs: false })
+    judge(message, { test: m => !m.includes(COMPUTED) && stamped(m) }, { ...asked, fix: STAMP_HINT, refusal: 'this commit message carries no verification stamp.', blank: COMPUTED, heredocs: false })
   )
 }
 
@@ -546,10 +551,14 @@ function commitVerdict(run, world) {
 //
 // - The message: one or more `-m`, each written out (quoted, or `$'…'` with
 //   no escape but \n, \t, \r, \\, \' and \"), or a whole double-quoted
-//   `-m "$(cat <<'EOF' … EOF)"`; or one `-F <file>`, or `-F -` fed a quoted
-//   heredoc, a here-string, or an unquoted heredoc with no `$`, backtick or
-//   backslash in it; or a stored message (`-C`, `--fixup`, `--squash`,
-//   `--amend --no-edit`), read as text.
+//   `-m "$(cat <<'EOF' … EOF)"`; or one `-F <file>` that no command earlier
+//   on the line may write (each is one of FILE_SAFE, names no such file and
+//   redirects no output) and none beside the commit names or writes; or
+//   `-F -` fed a quoted heredoc, a here-string, or an unquoted heredoc with
+//   no `$`, backtick or backslash in it; or a stored message (`-C`,
+//   `--fixup`, `--squash`, `--amend --no-edit`), read as text.
+// - `git commit` itself, not an alias, and not in text another shell runs
+//   (`bash -c`, `eval`, `$(…)`).
 // - Only the options in STAMP_OPTIONS, each on its condition there.
 // - `-c` only of the settings COMMIT_SETTINGS names, and no `git config` earlier on
 //   the line, nor an alias that may run it.
@@ -559,8 +568,8 @@ function commitVerdict(run, world) {
 // - No unquoted expansion anywhere in the command, which the shell splits
 //   into words, and no unquoted `*`, `?`, `[`, `(…)`, brace pair or tilde
 //   that starts a word or follows `=` or `:`, which it expands (shell.mjs's
-//   `unsure` names each); no `<<-` on the line; no carriage return or `>8`
-//   in the message.
+//   `unsure` names each); no `<<-` on the line; nothing RAW_DOUBTS names
+//   in the line's text; no carriage return or `>8` in the message.
 
 /** @typedef {{ value: string | undefined, opts: [string, string | undefined][], cleanup: string | undefined }} StampOption */
 
@@ -596,6 +605,62 @@ const STAMP_OPTIONS = {
   ),
 }
 
+/**
+ * What, in the text of a command line, the shell splitter (shell.mjs) is
+ * known to read otherwise than bash, so that the words a commit's message
+ * is made of may not be the ones git gets: while one is there, the gate
+ * cannot tell the stamp. Each test is of the whole line, heredoc bodies
+ * included, but for `bodies`, the quoted heredocs the gate read, whose
+ * backslashes the shell keeps. Of the splitter's other known differences,
+ * #68-#71 (brace expansion) and #74-#76 (escapes in `$'…'`) are shell.mjs's
+ * `unsure`, and the glob matcher's (#77-#84, #91-#93) are any unquoted
+ * pattern there.
+ *
+ * @type {{ what: string, issue?: number, test: (line: string, bodies: string[]) => boolean }[]}
+ */
+const RAW_DOUBTS = [
+  // The splitter ends a word at a lone CR, which bash keeps in it.
+  { what: 'a carriage return', issue: 66, test: line => line.includes('\r') },
+  // The splitter drops an empty `$''`, which bash passes as an empty word.
+  { what: "an empty `$''`", issue: 67, test: line => line.includes("$''") },
+  // The splitter reads `"$"{a,b}` as `${a,b}`, and does not read `$"…"` as bash does.
+  { what: 'a `$` before a double quote, as in `"$"` or `$"…"`', issue: 73, test: line => line.includes('$"') },
+  // The splitter drops a backslash that ends the line, which bash keeps.
+  { what: 'a backslash that ends the command', issue: 72, test: line => line.endsWith('\\') },
+  // bash joins the lines a backslash ends before it reads words; the splitter does not everywhere.
+  { what: 'a backslash that ends a line outside a quoted heredoc', test: (line, bodies) => continued(line) > bodies.reduce((n, b) => n + continued(b), 0) },
+  // The splitter keeps `<(…)` as text; bash passes a path in its place.
+  { what: 'a process substitution, `<(…)` or `>(…)`', test: line => /[<>]\(/.test(line) },
+  // The splitter does not read which input each heredoc or here-string feeds.
+  { what: 'a numbered input redirection, such as `3<<<`', test: line => /\d</.test(line) },
+  { what: 'more than one heredoc or here-string', test: line => (line.match(/<<+/g) ?? []).length > 1 },
+  { what: 'a heredoc delimiter that is not a plain word', test: line => [...line.matchAll(/<<+/g)].some(m => m[0].length !== 3 && !/^<<[ \t]*(?:\w+|'\w+'|"\w+")(?=[\s;&|<>()]|$)/.test(line.slice(m.index))) },
+]
+
+/** @param {string} t how many lines a backslash ends in `t` */
+const continued = t => t.split('\\\n').length - 1
+
+// Commands that write no file unless they redirect output: those that print,
+// assignments, and git's that read or stage.
+const FILE_SAFE = (/** @type {SimpleCommand} */ e) => PRINTS.has(e.name) || e.name === '' || e.name === 'export' || (e.name === 'git' && ['add', 'status', 'diff', 'log', 'show', 'rev-parse'].includes(gitParts(e.args).sub ?? ''))
+
+/**
+ * Whether a command on the line may write the file `-F` names before git
+ * reads it: one earlier than the commit that is not FILE_SAFE, names the
+ * file in any form or redirects output, the commit's own redirection to it,
+ * or, beside a commit whose output is piped or sent to the background, a
+ * later one that names it or redirects output.
+ *
+ * @param {string} file @param {Run} run
+ */
+function mayWriteFile(file, run) {
+  const name = fold(basename(unliteral(file)))
+  const names = (/** @type {SimpleCommand} */ e) => [...e.args, ...e.files].some(w => computed(w) || /[*?[]/.test(w) || fold(w).endsWith(name))
+  if (run.earlier.some(e => !FILE_SAFE(e) || e.writes.length > 0 || names(e))) return true
+  if (run.c.writes.some(w => fold(w).endsWith(name))) return true
+  return (run.c.op === '|' || run.c.op === '&') && run.later.some(e => e.writes.length > 0 || names(e))
+}
+
 // Settings a commit may be given on the command line that leave its message alone: who makes it, and how it is signed.
 const COMMIT_SETTINGS = /^(?:(?:user|author|committer)\.(?:name|email)|user\.signingkey|commit\.gpgsign|gpg\..+)$/i
 
@@ -624,11 +689,15 @@ function runsGitConfig({ sub, config }, root, git) {
  * one; otherwise what to name, and what to do instead.
  *
  * @param {string} message @param {[string, string | undefined][]} opts @param {Run} run
- * @param {string[]} config inline `-c` settings @param {string} root @param {Git} git
+ * @param {{ config: string[], aliased: string | undefined }} how inline `-c` settings, and the alias the commit is reached through
+ * @param {string} root @param {Git} git
  * @returns {{ what: string, fix: string } | null}
  */
-function unreadStamp(message, opts, run, config, root, git) {
+function unreadStamp(message, opts, run, { config, aliased }, root, git) {
   const without = (/** @type {string} */ what, fix = `write the message out with -m, -F <file> or a quoted heredoc, without ${what}`) => ({ what, fix })
+  if (aliased !== undefined) return without(`the alias \`git ${unliteral(aliased)}\`, whose words git splits otherwise than the shell`, 'run `git commit` directly')
+  // Text another shell runs: the quotes this line strips are not the ones that shell reads.
+  if (run.c.level >= 100 || run.earlier.some(e => e.name === 'eval')) return without('a commit in text another shell runs (`bash -c`, `eval`, `$(…)`)', 'run `git commit` directly')
   const key = config.map(kv => kv.split('=')[0] ?? '').find(k => !COMMIT_SETTINGS.test(k))
   if (key !== undefined) return without(computed(key) ? 'a setting the shell computes on the command line' : `\`${unliteral(key)}\` set on the command line`)
   // A setting an earlier command writes is not set yet to read; one may write it in many forms, or through an alias.
@@ -636,7 +705,13 @@ function unreadStamp(message, opts, run, config, root, git) {
     return without('a `git config` earlier on the line', 'run `git config` as a command of its own, before this one')
   }
   if (/<<-/.test(run.line)) return without('`<<-`, which drops leading tabs', "use `<<'EOF'` rather than `<<-'EOF'`")
+  const doubt = RAW_DOUBTS.find(d => d.test(run.line, quotedBodies(opts, run)))
+  if (doubt) return without(doubt.what)
   if (run.c.unsure) return without(run.c.unsure)
+  const file = [...opts].reverse().find(([name]) => name === 'file')?.[1]
+  if (file !== undefined && file !== '-' && mayWriteFile(file, run)) {
+    return without('a command on the line that may write the -F file', 'write the file with a command of its own, before this one')
+  }
   const cleanup = [...opts].reverse().find(([name]) => name === 'cleanup')?.[1]
   for (const [name, value] of opts) {
     if (!(name in STAMP_OPTIONS)) return without(`--${name}`)
@@ -644,6 +719,8 @@ function unreadStamp(message, opts, run, config, root, git) {
     if (named) return without(named)
   }
   const text = unliteral(message)
+  // The gate writes that character where the shell computes text, so one written out it cannot tell from one.
+  if (text.includes(COMPUTED)) return without('the character U+E030, which the gate writes for text the shell computes')
   // Cleanup drops a carriage return that ends a line; the gate reads none, wherever it is.
   if (text.includes('\r') || opts.some(([, v]) => v?.includes('\r'))) return without('a carriage return')
   if (text.split('\n').some(l => l.includes('>8'))) return without('a scissors line (`>8`)')
@@ -753,13 +830,12 @@ function trailerBlock(message) {
 /**
  * A message's trailers, as `[token, value]`, as `git log
  * --format=%(trailers)` reads them; a line that starts with a space or a tab
- * continues the trailer before it. Null when nothing can be read: the
- * message has no trailer block, or the shell computes some of it.
+ * continues the trailer before it. Null when the message has no trailer
+ * block.
  *
  * @param {string} message @returns {[string, string][] | null}
  */
 function trailers(message) {
-  if (message.includes(COMPUTED)) return null
   const { lines, end, block } = trailerBlock(message)
   if (block === null) return null
   /** @type {string[]} */
@@ -810,6 +886,26 @@ function withTrailers(message, added) {
  */
 const stripspace = text => text.split('\n').map(l => l.replace(/[ \t\r]+$/, '')).join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '')
 
+// A whole `$(cat <<'EOF' … EOF)`: its quote, delimiter and body. Only a space
+// or a tab parts `cat` from `<<`; bash reads a newline there as the end of
+// the command, and a form feed as part of the word.
+const CAT_HEREDOC = /^\$\([ \t\n]*cat[ \t]*<<[ \t]*(['"]?)(\w+)\1[ \t]*\n([\s\S]*?)\n\2\n[ \t\n]*\)$/
+
+/**
+ * The bodies of the quoted heredocs the gate reads a commit's message from:
+ * in a whole `-m "$(cat <<'EOF' … EOF)"`, or fed to `-F -`.
+ *
+ * @param {[string, string | undefined][]} opts @param {Run} run
+ */
+function quotedBodies(opts, run) {
+  const bodies = opts.flatMap(([name, v]) => {
+    const [, quote, , body] = name === 'message' ? (CAT_HEREDOC.exec(v ?? '') ?? []) : []
+    return quote && body !== undefined ? [body] : []
+  })
+  const fed = opts.some(([name, v]) => name === 'file' && v === '-') && run.c.stdin !== undefined && /<<[ \t]*['"]/.test(run.line)
+  return fed ? [...bodies, unliteral(/** @type {string} */ (run.c.stdin))] : bodies
+}
+
 /**
  * The text a `-m` value gives git: a whole `"$(cat <<'EOF' … EOF)"` is its
  * heredoc's text, less the newlines that end it, when the shell takes it as
@@ -819,7 +915,7 @@ const stripspace = text => text.split('\n').map(l => l.replace(/[ \t\r]+$/, ''))
  * @param {string} v
  */
 function messageText(v) {
-  const [, quote, delim, body] = /^\$\(\s*cat\s*<<[ \t]*(['"]?)(\w+)\1[ \t]*\n([\s\S]*?)\n\2\n\s*\)$/.exec(v) ?? []
+  const [, quote, delim, body] = CAT_HEREDOC.exec(v) ?? []
   if (delim === undefined || body === undefined || (!quote && /[$`\\]/.test(body))) return v
   // The heredoc ends at the first line that is its delimiter.
   return body.split('\n').includes(delim) ? v : literal(body.replace(/\n+$/, ''))

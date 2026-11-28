@@ -957,6 +957,7 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
   const git = (/** @type {string[]} */ args, input = '') => execFileSync('git', args, { cwd: dir, env, input, encoding: 'utf8' })
   git(['init', '-q', '-b', '7-stamp'])
   mkdirSync(join(dir, '.claude'))
+  mkdirSync(join(dir, 'sub'))
   writeFileSync(join(dir, '.claude/trace.json'), '{}\n')
   // The gate asks the real git, which reads the same settings as the commands run below; only GitHub is stubbed.
   const saved = Object.fromEntries(Object.keys(isolated).map(k => [k, process.env[k]]))
@@ -1041,6 +1042,12 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     `git commit -q --allow-empty -m "$(cat <<'EOF'\nx* ? [a] {b,c} ~ (#7)\n\nVerified: x* ? [a] {b,c} ~\nEOF\n)"`,
     "git commit -q --allow-empty -F - <<'EOF'\nx* ? [a] {b,c} ~ (#7)\n\nVerified: Verified:*\nEOF",
     'git commit -q --allow-empty --fixup=HEAD~1 -m "Verified: none"',
+    // Round 5: what runs before or after the commit on the line.
+    'git add -A && git commit -q --allow-empty -m "x (#7)" -m "Verified: none"',
+    'cd sub && git commit -q --allow-empty -m "x (#7)" -m "Verified: none"',
+    'git commit -q --allow-empty -m "x (#7)" -m "Verified: none" 2>&1 | tail -1',
+    `cd sub && git add -A && git commit -q --allow-empty -F ${file} && rm -f other.txt`,
+    `git commit -q --allow-empty -m "$(cat<<'EOF'\nx (#7)\n\nVerified: none\nEOF\n)"`,
   ]) {
     assert.deepEqual(run(command), { why: null, git: true, check: true }, command)
   }
@@ -1152,6 +1159,31 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     ["git commit -q --allow-empty --cleanup=verbatim -s -m 'x (#7)' -m 'Verified: none' -m ' '"],
     ["git commit -q --allow-empty --cleanup=verbatim -m 'x (#7)' -m 'Verified: none' -m ' ' --trailer 'Refs: #7'"],
     ["git ci -q --allow-empty --cleanup=verbatim -m 'x (#7)' -m 'Verified: none' -m ' '", { 'alias.ci': 'commit -s' }],
+    // Round 5: what the splitter reads otherwise than bash, in the raw text of the line.
+    ["git commit -q --allow-empty -m 'x (#7)' -m <(: 'Verified: none')"],
+    ["git commit -q --allow-empty -m 'x (#7)' -m >(: 'Verified: none')"],
+    ["git commit -q --allow-empty -m 'x (#7)' -m \"$(cat\n<<'EOF'\nVerified: none\nEOF\n)\""],
+    ["git commit -q --allow-empty -m 'x (#7)' -m \"$(cat\f<<'EOF'\nVerified: none\nEOF\n)\""],
+    ["git commit -q --allow-empty -m 'x (#7)' -m \r'Verified: none'"],
+    ["git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' -t $'' -m prose"],
+    ["X='now -m prose'; git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' --date=$\\\nX"],
+    ["git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' -t -m\"$\"{a,b}"],
+    ["git commit -q --allow-empty -m 'x (#7)' -m 'Verified: none' -m \\"],
+    ["git commit -q --allow-empty -F - <<< 'x (#7)' 3<<< $'x (#7)\\n\\nVerified: none'"],
+    ["git commit -q --allow-empty -F - <<'a\"b'\nx (#7)\n\nVerified: none\na\"b"],
+    ["git commit -q --allow-empty -F - <<'E #'\nx (#7)\n\nVerified: none\nE #"],
+    ["bash -c 'git commit -q --allow-empty -m \"x (#7)\" -m \"$1\"' _ 'Verified: none'"],
+    // An earlier command that writes, or may write, the -F file; one that runs beside the commit.
+    ["cat < msg.txt <<'EOF' && git commit -q --allow-empty -F msg.txt\nx (#7)\n\nVerified: none\nEOF", {}, 'x (#7)\n'],
+    ["cat >> msg.txt <<'EOF' && git commit -q --allow-empty -F msg.txt\nx (#7)\n\nVerified: none\nEOF", {}, `x (#7)\n${scissors}\n`],
+    ['cat > msg.txt <<EOF && git commit -q --allow-empty -F msg.txt\nx (#7)\n\nVerified: a\\\\\nprose\nEOF'],
+    ["cat > sub/msg.txt <<'EOF' && git commit -q --allow-empty -F msg.txt\nx (#7)\n\nVerified: none\nEOF", {}, 'x (#7)\n'],
+    ["if false; then cat > msg.txt <<'EOF'\nx (#7)\n\nVerified: none\nEOF\nfi && git commit -q --allow-empty -F msg.txt", {}, 'x (#7)\n'],
+    ['git commit -q --allow-empty -F msg.txt > msg.txt'],
+    ['git commit -q --allow-empty -F msg.txt | tee msg.txt', {}, 'x (#7)\n'],
+    // A commit through an alias, which git splits into words otherwise than the shell.
+    ['git ci -q --allow-empty', { 'alias.ci': 'commit -m "x (#7)" -m "Verified: none" -t a; -m prose' }],
+    ['git ci -q --allow-empty', { 'alias.ci': 'commit -m "x (#7)" -m{prose,"Verified: none"}' }],
   ])) {
     const { why, git: byGit, check } = run(command, config, text)
     if (!/cannot tell/.test(String(why))) assert.deepEqual({ gate: why === null, check }, { gate: byGit, check: byGit }, `${command} ${JSON.stringify(config)}: ${why}`)
@@ -1171,6 +1203,43 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     const { why, git: byGit } = run(command)
     assert.match(String(why), /cannot tell the verification stamp git reads in this commit, with an unquoted `\*`, `\?`, `\[`, `\(…\)`, brace or tilde/, `${command} (git reads a stamp: ${byGit})`)
   }
+
+  // Commands generated in the forms the gate reads: it allows one only when git reads a stamp, and refuses
+  // one only when git reads none, and the trace check reads what git reads. STAMP_FUZZ=3000 runs more.
+  let fuzz = 62
+  const any = (/** @type {string[]} */ xs) => {
+    fuzz = (fuzz * 1103515245 + 12345) % 2 ** 31
+    return /** @type {string} */ (xs[fuzz % xs.length])
+  }
+  const paragraphs = ['Verified: none', 'Verified: none', 'Verified: npm test', 'prose', sob, '# c', ' ', 'Why `x` and $HOME.', 'Verified: a\n  b', 'x* ? [a] {b,c} ~', `prose\n${sob}`]
+  const quoted = (/** @type {string} */ v) =>
+    any([!v.includes("'") ? `'${v}'` : '', !/[$`"\\!]/.test(v) ? `"${v}"` : '', `$'${v.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n')}'`].filter(Boolean))
+  let allowed = 0
+  const count = Number(process.env.STAMP_FUZZ ?? 40)
+  for (let i = 0; i < count; i++) {
+    const parts = ['x (#7)', ...Array.from({ length: 1 + (i % 3) }, () => any(paragraphs))]
+    const text = parts.join('\n\n')
+    const options = [any(['', '-s ']), any(['', '-a ']), any(['', '', '--cleanup=strip ', '--cleanup=whitespace ', '--cleanup=verbatim '])].join('')
+    const source = any([
+      parts.map(p => `-m ${quoted(p)}`).join(' '),
+      `-m "$(cat <<'EOF'\n${text}\nEOF\n)"`,
+      `-F - <<'EOF'\n${text}\nEOF`,
+      !text.includes("'") ? `-F - <<< '${text}'` : `-F ${file}`,
+      `-F ${file}`,
+    ])
+    const trailer = any(['', '', " --trailer 'Verified: npm test'"])
+    const heredoc = source.includes('\nEOF') && !source.includes('$(cat')
+    const [before, after] = [any(['', 'git add -A && ', 'cd sub && ']), heredoc ? '' : any(['', ' 2>&1 | tail -1', ' && git log -1 --format=%h'])]
+    const command = heredoc
+      ? `${before}git commit -q --allow-empty ${options}${trailer} ${source}`
+      : `${before}git commit -q --allow-empty ${options}${source}${trailer}${after}`
+    const { why, git: byGit, check } = run(command, {}, text)
+    assert.equal(check, byGit, `trace check: ${command}`)
+    if (!/cannot tell/.test(String(why))) assert.equal(why === null, byGit, `${command}: ${why}`)
+    if (why === null) allowed++
+  }
+  // Most are in forms the gate reads, so a gate that could tell nothing fails here.
+  assert.ok(allowed > count / 3, `${allowed} of ${count} generated commands allowed`)
 
   // Messages as git records them, judged as the commit that keeps one: the trace check reads what git reads,
   // and the gate allows only what git reads as stamped.
@@ -1216,6 +1285,8 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
     'x (#7)\n\nVerified: none\n\n\v',
     'x (#7)\n\nVerified: none\n\n\f',
     'x (#7)\n\nVerified: none\n\n\u00a0',
+    // Round 5: the character the gate writes for computed text, here written out.
+    'x (#7)\n\nVerified: none \uE030',
   ]) {
     agree(message, 'listed')
   }
@@ -1232,8 +1303,11 @@ test('the commit gate reads a verification stamp only in forms where it reads wh
   rmSync(dir, { recursive: true, force: true })
 })
 
-test('a commit whose stamp the gate cannot read says what to leave out, naming the setting, the option or the text', () => {
+test('a commit whose stamp the gate cannot read says what to leave out, naming the setting, the option or the text', t => {
   const stamp = '-m "x (#7)" -m "Verified: none"'
+  const msg = join(mkdtempSync(join(tmpdir(), 'msg-')), 'msg.txt')
+  writeFileSync(msg, 'x (#7)\n\nVerified: none\n')
+  t.after(() => rmSync(join(msg, '..'), { recursive: true, force: true }))
   for (const [command, config, named] of /** @type {[string, Record<string, string>, RegExp][]} */ ([
     [`git commit ${stamp}`, { 'trailer.separators': '=' }, /git's `trailer\.separators` setting/],
     [`git commit ${stamp}`, { 'includeIf.onbranch:7-gates.path': '~/x' }, /git's `includeIf\.onbranch:7-gates\.path` setting/],
@@ -1253,7 +1327,15 @@ test('a commit whose stamp the gate cannot read says what to leave out, naming t
     [`git commit --patch ${stamp}`, {}, /without --patch/],
     [`git commit ${stamp} --date=$(date)`, {}, /unquoted expansion/],
     ["git commit -m $'x (#7)\\n\\nVerified: none\\u0020'", {}, /`\\u` in `\$'…'`/],
-    ['git commit -F - <<EOF\nx (#7)\n\nVerified: a\\\\\nEOF', {}, /unquoted heredoc/],
+    ['git commit -F - <<EOF\nx (#7)\n\nVerified: a $b\nEOF', {}, /unquoted heredoc/],
+    // Round 5: what the splitter reads otherwise than bash, an alias, another shell, a writer of the -F file.
+    [`git commit ${stamp} -t $'' -m prose`, {}, /an empty `\$''`/],
+    [`git commit ${stamp} -m <(echo)`, {}, /process substitution/],
+    [`git commit ${stamp} --date=$\\\nX`, {}, /a backslash that ends a line outside a quoted heredoc/],
+    ["git commit -F - <<'E #'\nx (#7)\n\nVerified: none\nE #", {}, /heredoc delimiter/],
+    ['git ci', { 'alias.ci': `commit ${stamp}` }, /the alias `git ci`/],
+    [`bash -c 'git commit ${stamp}'`, {}, /text another shell runs/],
+    [`npm test && git commit -F ${msg}`, {}, /may write the -F file/],
   ])) {
     assert.match(String(verdict(command, { config })), /^the trace cannot tell the verification stamp/, command)
     assert.match(String(verdict(command, { config })), named, command)
@@ -1302,7 +1384,8 @@ test('a commit whose message cannot be told from the command is refused with a r
 
 test('a commit through a git alias is judged as the command it runs', () => {
   assert.match(String(verdict('git ci -m x', { aliases: { ci: 'commit -a' } })), /#7/)
-  assert.equal(verdict('git ci -m "x #7" -m "Verified: none"', { aliases: { ci: 'commit -a' } }), null)
+  // Its stamp the gate cannot tell: git splits an alias into words otherwise than the shell.
+  assert.match(String(verdict('git ci -m "x #7" -m "Verified: none"', { aliases: { ci: 'commit -a' } })), /cannot tell the verification stamp .*the alias `git ci`/)
   assert.match(String(verdict('git -c alias.k=commit k -m x')), /#7/)
   assert.match(String(verdict('git sh', { aliases: { sh: '!git commit -m x' } })), /cannot tell/)
   assert.match(String(verdict('cd "$X" && git ci -m x', { aliases: { ci: 'commit' } })), /cannot tell/)
@@ -1380,7 +1463,8 @@ test('a commit an editor, an unknown option or a computed source decides is refu
   ]) {
     assert.match(String(verdict(command, { messages: { abc: 'x (#7)' } })), /cannot tell/, command)
   }
-  assert.equal(verdict("cat > m.txt <<'EOF'\nAdd the gate (#7)\n\nVerified: none\nEOF\ngit commit -F m.txt"), null)
+  // A file written earlier on the line is read for #<n>; its stamp, which any earlier writer may change, the gate cannot tell.
+  assert.match(String(verdict("cat > m.txt <<'EOF'\nAdd the gate (#7)\n\nVerified: none\nEOF\ngit commit -F m.txt")), /cannot tell the verification stamp .*may write the -F file/)
   assert.match(String(verdict("cat > m.txt <<'EOF'\nAdd the gate\nEOF\ngit commit -F m.txt")), /does not reference #7/)
   assert.equal(verdict('$(echo git) status'), null)
 })
