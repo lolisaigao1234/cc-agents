@@ -17,10 +17,36 @@ In an opted-in repository, a PreToolUse hook on Edit, Write, MultiEdit and Noteb
 On Bash, the same hook refuses, in a traced repository:
 
 - `git commit` whose message does not reference the linked issue (`#<n>`), read as git records it: `-m`, `--trailer`, `-F <file>`, a heredoc or here-string to `-F -`, `-C`, `--fixup`, the commit an `--amend --no-edit` rewrites, with comment lines dropped under `strip` cleanup;
+- `git commit` whose message carries no verification stamp: a `Verified: <how it was verified>` trailer, or `Verified: none`, in the message's trailer block. It reads that block as `git log --format=%(trailers)` does with git's default settings: past comment lines, in a last paragraph that is not the subject and holds only trailers, or a quarter of trailers with one git writes itself (`Signed-off-by:`, `(cherry picked from commit …)`). It reads a stamp only from a command line in the forms below, and says it cannot tell on any other. It judges that a stamp is there, never whether the verification happened or was enough;
 - `gh pr create` (or `gh pr new`), and `gh pr edit` changing the body, whose body does not say `Closes #<n>` (or `Fixes`, `Resolves`, with `owner/name#<n>` or the issue's URL), read from `--body-file`, else the last `--body`, outside code and HTML comments;
 - either one when it cannot tell the message, the body or the repository: an editor, `--fill`, `--web`, an option it does not know, a piped, shell-computed or same-line-written file, a `cd` it cannot follow, a variable such as `GIT_DIR` or `GH_REPO`, a git or gh alias that runs a shell (`!…`), or a PR that gh would open outside origin's repository (`-R`, a fork's upstream). Other git and gh aliases are followed.
 
-Every refusal names the pipeline step; one for a missing reference also names the linked issue and the exact text to add. The edit gate's branch rules apply to commits and PRs too.
+Every refusal names the pipeline step. One for a missing reference also names the linked issue and the exact text to add; one for a missing stamp, the exact text to add. The edit gate's branch rules apply to commits and PRs too.
+
+### The stamp's forms
+
+The commit gate does not work out what bash makes of a command line to find a stamp. It matches the line's raw text, whole, against this grammar (also in `scripts/lib/trace.mjs`):
+
+```text
+LINE    := PREFIX* COMMIT     the whole line, less the blanks at its ends, with no carriage return or NUL byte
+PREFIX  := ("git" SP "add" (SP PATH)+ | "cd" SP FILE) SP? "&&" SP
+COMMIT  := "git" (SP "-c" SP WHO "=" VALUE)* SP "commit" (SP PART)+
+WHO     := ("user" | "author" | "committer") "." ("name" | "email")
+PART    := FLAG | ("-m" | "-am" | "-sm" | "-asm" | "-sam") SP MSG | "-F" SP FILE | "--trailer" SP TRAILER
+FLAG    := "-q" | "--quiet" | "-a" | "--all" | "-s" | "--signoff" | "--allow-empty"
+         | "--amend" | "--no-edit" | "-v" | "--verbose" | "--reset-author"
+MSG     := '…' (any text but ')  |  "…" (any text but " $ ` \)
+         | "$(cat <<'EOF'  NL  (BODY NL)*  EOF  NL  )"      no BODY line starting with EOF
+TRAILER := 'Verified: …'  |  "Verified: …"     (one line, quoted as a MSG is)
+VALUE   := '…'  |  "…"  |  [A-Za-z0-9._@+-]+   (one line, quoted as a MSG is)
+PATH    := -A | FILE
+FILE    := [A-Za-z0-9._/+][A-Za-z0-9._/+-]*  |  '…' (one line, not empty, not starting with -)
+SP      := one or more spaces
+```
+
+The message comes from the `-m` values, which git joins as paragraphs; from one `-F` with no `-m`, and no `cd` before it, which would change the file it names, naming a plain file inside the repository with no `..` and no symbolic link on its path, so the hook and git read the same file; or from `--amend --no-edit` alone, which keeps HEAD's message. `-s` and `--trailer` add their lines where git adds them, the sign-off first; on a message with nothing in it they make its subject, which carries no stamp. git's settings for `trailer.*`, `includeIf.onbranch:*` (git's answer includes what any other included file sets), `core.commentChar`, `core.commentString` and `commit.cleanup` must be its defaults, and the message must hold no carriage return or scissors line (`>8`), nor end in a `Conflicts:` line, which git reads with the newline it records and the trace check reads without it, as GitHub returns the message.
+
+Claude Code's own form fits: `git commit -m "$(cat <<'EOF'` … `EOF` `)"`, footers included, with `Verified:` in the last paragraph beside `Co-Authored-By:`. Anything else, such as `… 2>&1 | tail`, `-F - <<'EOF'`, `--cleanup`, a git alias, a second command after the commit, or `-c user.name="$(…)"`, the gate cannot tell: it refuses, names where the line leaves the grammar and lists the forms it reads. Running the same commit in one of the forms is the fix. The trace check on GitHub reads every commit's recorded message as git does, so it judges what the gate cannot tell, and a commit hook or a setting the gate does not read.
 
 ### The trace check
 
@@ -28,11 +54,12 @@ Hooks judge a change only where a session runs them. On GitHub, this repository'
 
 - its branch's `<n>-` prefix names an open issue of the repository: not a closed or missing issue, nor a pull request;
 - every commit its branch has and its base branch does not references `#<n>`, read as the commit gate reads a message. A merge (a commit with two parents or more) is not asked: `git merge` and GitHub's "Update branch" write its message, and the commit gate does not judge them either. GitHub lists 250 commits of a pull request at most; one with more fails;
+- every one of those commits but a merge carries a verification stamp, read as the commit gate reads one;
 - its body says `Closes #<n>`, read as the PR gate reads a body, with the line ends GitHub stores (CRLF) read as line ends.
 
 It runs when a pull request is opened or reopened, when commits are pushed to it, and when its body, title or base branch is edited. Each run asks GitHub for the pull request as it is then, so re-running a run judges it afresh: that is how to judge again after an issue is closed or reopened, which starts no run. A failure names each broken rule and its pipeline step; when GitHub does not answer the run, it fails. A merged pull request passes unread: merging closed its issue, and it cannot merge again.
 
-It differs from the gates where GitHub does. It reads what git recorded, not a command's text, so it judges commits whoever made them, and a merge that a session concluded with `git commit`, which the commit gate asks for `#<n>`, is not asked here. A stacked branch's pull request takes its blocker's branch as its base (`gh pr create --base`, `gh pr edit --base`) while the blocker's PR awaits merge: against the default branch, the blocker's commits would be judged as its own.
+It differs from the gates where GitHub does. It reads what git recorded, not a command's text, so it judges commits whoever made them, and a merge that a session concluded with `git commit`, which the commit gate asks for `#<n>` and a verification stamp, is asked for neither here. A stacked branch's pull request takes its blocker's branch as its base (`gh pr create --base`, `gh pr edit --base`) while the blocker's PR awaits merge: against the default branch, the blocker's commits would be judged as its own.
 
 The workflow runs on `pull_request_target`, so GitHub takes the workflow file and the script from the default branch, never from the pull request: a change cannot alter the check that judges it, and a change to the check judges pull requests only once it is merged. Nothing of the pull request is checked out or run. The run's token can only read: `contents` (the script), `pull-requests` and `issues`.
 
@@ -66,7 +93,17 @@ JSON
 - No force pushes to the default branch and no deleting it. Linear history stays off: the human merges with merge commits, which stacked branches rely on.
 - `strict` (a branch up to date before merging) is off: no rule here needs it.
 
-A pull request opened before the check reached the default branch has no run of it. It gets one at its next push, edit or reopening.
+A pull request opened before the check reached the default branch has no run of it. It gets one at its next push, edit or reopening. Likewise, a pull request whose commits predate the stamp rule keeps its last result until its next run, which fails on each commit without a stamp; mending that means rewriting its branch, which is the human's to do.
+
+### Unverified commits
+
+A commit verified by nothing says so with `Verified: none`, and one without a stamp got past no gate. This lists both kinds on the current branch, with the branch's base in place of `origin/main` while it is stacked:
+
+```sh
+git log --no-merges --format='%h%x09%(trailers:key=Verified,valueonly,unfold,separator=%x2C)%x09%s' origin/main..HEAD | awk -F '\t' 'tolower($2) ~ /^(none)?(,(none)?)*$/'
+```
+
+Each line is a commit's short hash, its stamps (`none`, several joined by commas, or nothing), and its subject, separated by tabs.
 
 ### Forced reads
 

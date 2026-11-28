@@ -1,14 +1,14 @@
 // The trace's rules for a change, judged on GitHub itself (ADR 0006): a pull
 // request's branch names an open issue, each of its commits references that
-// issue, and its body closes it. The hooks' gates judge the same rules where
+// issue and carries a verification stamp, and its body closes it. The hooks' gates judge the same rules where
 // a session works; this judges what reached GitHub, however it got there. A
-// branch's issue, a commit's reference and a body's closing words are read
-// by the gates' own readers (trace.mjs).
+// branch's issue, a commit's reference and stamp, and a body's closing words
+// are read by the gates' own readers (trace.mjs).
 
 import { spawnSync } from 'node:child_process'
 
 import { NO_ANSWERS, answered } from './halt.mjs'
-import { branchIssue, closesIssue, dropMarkdownCode, refersTo } from './trace.mjs'
+import { STAMP_HINT, branchIssue, closesIssue, dropMarkdownCode, refersTo, stamped } from './trace.mjs'
 
 /**
  * A pull request as the check reads it: the branch it comes from, its body,
@@ -66,10 +66,17 @@ export function pullRequestVerdict(n, github) {
   if (commits.length < pr.commits) {
     why.push(`GitHub lists ${commits.length} of this PR's ${pr.commits} commits, so the rest cannot be judged. Implement step: a change this long is split into tickets, each with its own branch and PR.`)
   }
-  const unreferenced = commits.filter(c => c.parents < 2 && !refers.test(c.message))
+  const judged = commits.filter(c => c.parents < 2)
+  /** @param {Commit[]} cs */
+  const named = cs => cs.map(c => `${c.sha.slice(0, 7)} "${c.message.split(/\r?\n/)[0]}"`).join(', ')
+  const rewrite = "A pushed commit's message changes only by rewriting the branch, which is the human's to do"
+  const unreferenced = judged.filter(c => !refers.test(c.message))
   if (unreferenced.length) {
-    const named = unreferenced.map(c => `${c.sha.slice(0, 7)} "${c.message.split(/\r?\n/)[0]}"`).join(', ')
-    why.push(`${unreferenced.length === 1 ? 'a commit does' : `${unreferenced.length} commits do`} not reference #${issue}, the linked issue: ${named}. Implement step: every commit message carries "#${issue}". A pushed commit's message changes only by rewriting the branch, which is the human's to do; commits of a blocker's branch leave the PR when its base is set to that branch (\`gh pr edit --base <blocker's branch>\`).`)
+    why.push(`${unreferenced.length === 1 ? 'a commit does' : `${unreferenced.length} commits do`} not reference #${issue}, the linked issue: ${named(unreferenced)}. Implement step: every commit message carries "#${issue}". ${rewrite}; commits of a blocker's branch leave the PR when its base is set to that branch (\`gh pr edit --base <blocker's branch>\`).`)
+  }
+  const unstamped = judged.filter(c => !stamped(c.message))
+  if (unstamped.length) {
+    why.push(`${unstamped.length === 1 ? 'a commit carries' : `${unstamped.length} commits carry`} no verification stamp: ${named(unstamped)}. Implement step: ${STAMP_HINT}. ${rewrite}.`)
   }
   // GitHub stores a body typed in the browser with CRLF line ends; the readers know a shell's.
   if (!closesIssue(issue, github.slug).test(dropMarkdownCode(pr.body.replace(/\r\n?/g, '\n')))) {

@@ -1,11 +1,11 @@
 // The trace: whether an action is traceable, from git and GitHub state
 // (ADR 0006). In a traced repository, a file inside it may be edited only on
 // the branch of an open issue, by an agent that has read the related docs
-// (ADR 0007); a commit must reference that issue and a PR close it, and
-// nothing the model writes turns that off.
+// (ADR 0007); a commit must reference that issue and carry a verification
+// stamp, and a PR close it, and nothing the model writes turns that off.
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
@@ -26,7 +26,8 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
 /**
  * What the trace needs from git. `origin` is origin's GitHub repository as
  * `owner/name`, and `ghBase` the one gh opens PRs in when not told; `message`
- * a commit's message; `config` a setting's value; `headDocs` the glossary and
+ * a commit's message; `config` a setting's value, and `configKeys` the
+ * names of the settings in any of some sections; `headDocs` the glossary and
  * ADRs as HEAD has them; `pushed` the head of a branch as its remote last
  * had it here, and when it got there (ISO 8601), or null when that holds
  * nothing beyond the remote's other branches; `committed` whether HEAD has a
@@ -44,6 +45,7 @@ const TRACK_HINT = '`gh issue create` with an `## Acceptance criteria` section'
  *   message(root: string, rev: string): string | null,
  *   ghBase(root: string): string | null,
  *   config(root: string, key: string): string | null,
+ *   configKeys(root: string, sections: string[]): string[],
  *   headDocs(root: string): import('./docs.mjs').HeadDocs,
  *   pushed(root: string, branch: string): { sha: string, at: string } | null,
  *   committed(root: string, n: number): boolean,
@@ -268,9 +270,9 @@ export function linkedIssue(root, branch, { git, github }) {
 /**
  * One command of a Bash command line, with where it may run, whether a `cd`
  * the shell computes or a variable that moves git or gh came before, and
- * the commands before it on the same line.
+ * the commands before it on the same line, and the line's text.
  *
- * @typedef {{ c: SimpleCommand, at: string[], moved: boolean, earlier: SimpleCommand[] }} Run
+ * @typedef {{ c: SimpleCommand, at: string[], moved: boolean, earlier: SimpleCommand[], line: string }} Run
  */
 
 // Variables that point git or gh at another repository, configuration or alias set.
@@ -279,9 +281,10 @@ const DECLARES = new Set(['export', 'declare', 'typeset', 'readonly'])
 
 /**
  * Why a Bash command breaks the trace: a `git commit` whose message does not
- * reference the linked issue, or a `gh pr create` or `gh pr edit` whose body
- * does not close it. When the message, the body or the repository cannot be
- * told from the command text, it refuses rather than guess.
+ * reference the linked issue or carries no verification stamp, or a `gh pr
+ * create` or `gh pr edit` whose body does not close it. When the message, the
+ * body or the repository cannot be told from the command text, it refuses
+ * rather than guess.
  *
  * @param {string} command
  * @param {string} cwd
@@ -295,7 +298,7 @@ export function commandVerdict(command, cwd, world = realWorld()) {
   let moved = false
   for (const { c, at, unknown } of withCwds(command, cwd)) {
     const sets = [...(c.env ?? []), ...(DECLARES.has(c.name) ? c.args.map(a => a.replace(/=.*/s, '')) : [])]
-    const run = { c, at, moved: unknown || moved || sets.some(v => MOVERS.test(v)), earlier: [...earlier] }
+    const run = { c, at, moved: unknown || moved || sets.some(v => MOVERS.test(v)), earlier: [...earlier], line: command }
     const why = c.name === 'git' ? commitVerdict(run, world) : c.name === 'gh' ? prVerdict(run, world) : computed(c.name) ? computedVerdict(run, world) : null
     if (why) return why
     // A bare assignment or a declaration lasts for the rest of the line.
@@ -478,7 +481,7 @@ function commitVerdict(run, world) {
   let config = parts.config
   // Follow aliases, which may name other aliases; one defined earlier on the line is not known yet.
   const defines = run.earlier.some(definesGitAlias)
-  const fix = (/** @type {number} */ n) => `run \`git commit\` directly, with "#${n}" in its message`
+  const fix = (/** @type {number} */ n) => `run \`git commit\` directly, with "#${n}" and a verification stamp in its message`
   for (const seen = new Set(); parts.sub && !GIT_COMMANDS.has(parts.sub); ) {
     const name = parts.sub
     // git refuses an alias loop; refusing here too says why.
@@ -505,20 +508,363 @@ function commitVerdict(run, world) {
   const linked = linkedIssue(place.root, world.git.branch(place.root), world)
   if ('why' in linked) return linked.why
   const { opts, unknown: unknownOption } = readOptions(parts.rest, GIT_COMMIT_OPTIONS, { abbrev: true })
-  if (opts.some(([name]) => name === 'dry-run')) return null
+  // git reads the last of --dry-run and --no-dry-run.
+  if ([...opts].reverse().find(([name]) => name === 'dry-run' || name === 'no-dry-run')?.[0] === 'dry-run') return null
   const { n } = linked
   // What a commit takes cannot be told from its text, so every active ADR counts.
   const unread = readVerdict(place.root, n, null, world)
   if (unread) return unread
   const slug = world.git.origin(place.root)
-  return judge(unknownOption ? null : commitMessage(opts, run, { root: place.root, dir: place.dir }, config, world.git), refersTo(n, slug), {
-    what: 'commit message',
-    how: '-m or a heredoc to -F -',
-    step: 'Implement',
-    fix: `add "#${n}" to the commit message, e.g. end the subject with "(#${n})"`,
-    refusal: `this commit message does not reference #${n}, the linked issue.`,
+  const message = unknownOption ? null : commitMessage(opts, run, { root: place.root, dir: place.dir }, config, world.git)
+  const reference = `add "#${n}" to the commit message, e.g. end the subject with "(#${n})"`
+  return (
+    judge(message, refersTo(n, slug), {
+      what: 'commit message',
+      how: '-m or a heredoc to -F -',
+      step: 'Implement',
+      // A message it cannot tell is asked for both.
+      fix: message === null ? `${reference}, and ${STAMP_HINT}` : reference,
+      refusal: `this commit message does not reference #${n}, the linked issue.`,
+    }) ?? stampVerdict(run.line, { root: place.root, dir: place.dir }, world.git)
+  )
+}
+
+// --- the forms the commit gate reads a verification stamp in ----------------
+//
+// The gate reads a commit's verification stamp only from a Bash command line
+// whose whole raw text is one of a few exact forms, and on any other says it
+// cannot tell; it does not work out what bash makes of other text. The
+// grammar, which plugins/trace/README.md ("The stamp's forms") and ADR 0006
+// state too:
+//
+//   LINE    := PREFIX* COMMIT, the whole line less the blanks at its ends,
+//              with no carriage return or NUL byte anywhere
+//   PREFIX  := (`git` SP `add` (SP PATH)+ | `cd` SP FILE) SP? `&&` SP
+//   COMMIT  := `git` (SP `-c` SP WHO `=` VALUE)* SP `commit` (SP PART)+
+//   WHO     := (`user` | `author` | `committer`) `.` (`name` | `email`)
+//   PART    := FLAG | (`-m` | `-am` | `-sm` | `-asm` | `-sam`) SP MSG
+//            | `-F` SP FILE | `--trailer` SP TRAILER
+//   FLAG    := `-q` | `--quiet` | `-a` | `--all` | `-s` | `--signoff` | `--allow-empty`
+//            | `--amend` | `--no-edit` | `-v` | `--verbose` | `--reset-author`
+//   MSG     := `'` any text but `'` `'` | `"` any text but `"` `$` `` ` `` `\` `"`
+//            | `"$(cat <<'EOF'` NL (BODY NL)* `EOF` NL `)"`, no BODY line starting with `EOF`
+//   TRAILER := `'Verified: ` one line but `'` `'` | `"Verified: ` one line but `"` `$` `` ` `` `\` `"`
+//   VALUE   := `'` one line but `'` `'` | `"` one line but `"` `$` `` ` `` `\` `"` | [A-Za-z0-9._@+-]+
+//   PATH    := `-A` | FILE
+//   FILE    := [A-Za-z0-9._/+][A-Za-z0-9._/+-]* | `'` one line but `'`, not empty and not starting with `-` `'`
+//   SP      := one or more spaces
+//
+// The message comes from the -m values, which git joins as paragraphs, from
+// one -F with no -m and no `cd` before it (which would change the file it
+// names), or from `--amend --no-edit` with neither. The -F file must be a
+// plain path inside the repository, with no `..` and no symbolic link on it,
+// so that the hook and git read the same file. git's settings for
+// trailers, comments and cleanup must be its defaults, and the message must
+// read alike with the last newline git records and without it, as GitHub
+// returns it. Nothing may follow the commit, not even a redirection or a
+// comment. The gate then reads the stamp in the message as git records it.
+// The trace check on GitHub, which reads every commit git recorded, is the
+// backstop.
+
+// A FILE and a VALUE, as patterns.
+const FILE = "[A-Za-z0-9._/+][A-Za-z0-9._/+-]*|'[^'\\n-][^'\\n]*'"
+const VALUE = "'[^'\\n]*'|\"[^\"$`\\\\\\n]*\"|[A-Za-z0-9._@+-]+"
+// Each part ends where a space or the line does.
+const END = '(?= |$)'
+const STAMP_PREFIX = new RegExp(`(?:git +add(?: +(?:-A|${FILE}))+|(cd) +(?:${FILE})) *&& +`, 'y')
+const STAMP_GIT = new RegExp(`git(?: +-c +(?:user|author|committer)\\.(?:name|email)=(?:${VALUE})${END})* +commit${END}`, 'y')
+const STAMP_FLAG = new RegExp(`(?:-q|--quiet|-a|--all|-s|--signoff|--allow-empty|--amend|--no-edit|-v|--verbose|--reset-author)${END}`, 'y')
+const STAMP_MESSAGE = new RegExp(`(-m|-am|-sm|-asm|-sam) +(?:'([^']*)'|"\\$\\(cat <<'EOF'\\n((?:(?!EOF)[^\\n]*\\n)*)EOF\\n\\)"|"([^"$\`\\\\]*)")${END}`, 'y')
+const STAMP_FILE = new RegExp(`-F +(${FILE})${END}`, 'y')
+const STAMP_TRAILER = new RegExp(`--trailer +(?:'Verified: ([^'\\n]*)'|"Verified: ([^"$\`\\\\\\n]*)")${END}`, 'y')
+
+// The forms, as a refusal names them.
+const STAMP_FORMS =
+  "run the commit as the last command on its line, with only `git add <paths> && ` or `cd <dir> && ` before it and nothing after it, as `git commit` with -m '<text>', -m \"<text>\" or -m \"$(cat <<'EOF' … EOF)\", one -F <file>, or --amend --no-edit, beside nothing but -q, -a, -s, -v, --allow-empty, --amend, --reset-author, --trailer 'Verified: <how>' and `git -c user.name=<name> -c user.email=<email>`"
+
+/** @typedef {{ messages: string[], file: string | null, trailers: string[], signoff: boolean }} StampForm */
+
+/**
+ * A commit line's parts in the stamp's grammar, or why it is not in it.
+ *
+ * @param {string} raw the whole command line
+ * @returns {{ form: StampForm } | { why: string }}
+ */
+function stampForm(raw) {
+  const line = raw.replace(/^[ \t\n]+|[ \t\n]+$/g, '')
+  if (line.includes('\r')) return { why: 'with a carriage return on its line' }
+  if (line.includes('\0')) return { why: 'with a NUL byte on its line' }
+  let i = 0
+  /** @param {RegExp} re a sticky pattern */
+  const take = re => {
+    re.lastIndex = i
+    const m = re.exec(line)
+    if (m) i = re.lastIndex
+    return m
+  }
+  const leaves = () => {
+    const rest = line.slice(i).split('\n')[0] ?? ''
+    return { why: i >= line.length ? 'which ends before the commit has a message' : `which leaves the forms the gate reads at \`${rest.length > 30 ? `${rest.slice(0, 30)}…` : rest}\`` }
+  }
+  const unquote = (/** @type {string} */ w) => (w.startsWith("'") ? w.slice(1, -1) : w)
+  let cd = false
+  for (let m; (m = take(STAMP_PREFIX)); ) cd ||= m[1] === 'cd'
+  if (!take(STAMP_GIT)) return leaves()
+  /** @type {StampForm} */
+  const form = { messages: [], file: null, trailers: [], signoff: false }
+  const files = []
+  const flags = new Set()
+  while (i < line.length) {
+    if (!take(/ +/y)) return leaves()
+    let m
+    if ((m = take(STAMP_FLAG))) flags.add(m[0])
+    else if ((m = take(STAMP_MESSAGE))) {
+      for (const f of m[1]?.slice(1, -1) ?? '') flags.add(`-${f}`)
+      form.messages.push(/** @type {string} */ (m[2] ?? (m[3] === undefined ? m[4] : m[3].replace(/\n+$/, ''))))
+    } else if ((m = take(STAMP_FILE))) files.push(unquote(/** @type {string} */ (m[1])))
+    else if ((m = take(STAMP_TRAILER))) form.trailers.push(/** @type {string} */ (m[1] ?? m[2]))
+    else return leaves()
+  }
+  const amend = flags.has('--amend')
+  const noEdit = flags.has('--no-edit')
+  if (files.length > 1) return { why: 'with more than one -F, of which git reads only the last' }
+  if (files.length && form.messages.length) return { why: 'with -F beside -m' }
+  if (files.length && cd) return { why: 'with -F after a `cd`, which changes the file it names' }
+  if (noEdit && (!amend || form.messages.length || files.length)) return { why: 'with --no-edit other than as `--amend --no-edit` alone' }
+  if (!form.messages.length && !files.length && !noEdit) return { why: 'whose message an editor writes, with no -m, -F or --amend --no-edit' }
+  form.file = files[0] ?? null
+  form.signoff = flags.has('-s') || flags.has('--signoff')
+  return { form }
+}
+
+// Settings the stamp's reader takes at git's default, each with that default.
+const DEFAULTS = [['core.commentChar', '#'], ['core.commentString', '#'], ['commit.cleanup', 'default']]
+
+/**
+ * The stamp's verdict on a commit the reference check allowed: null when
+ * the line is in the grammar above and the message git records from it
+ * carries a stamp; otherwise what to change.
+ *
+ * @param {string} line @param {{ root: string, dir: string | null }} place @param {Git} git
+ * @returns {string | null}
+ */
+function stampVerdict(line, { root, dir }, git) {
+  const unread = (/** @type {string} */ why, fix = STAMP_FORMS) => cannotTell(`the verification stamp git reads in this commit, ${why}`, `${fix}, and ${STAMP_HINT}`, 'Implement')
+  const read = stampForm(line)
+  if ('why' in read) return unread(read.why)
+  const { form } = read
+  // git reads what an include sets, and reports its keys; an include by branch it reads only on that branch.
+  const keys = git.configKeys(root, ['includeif', 'trailer']).filter(k => !/^includeif\./i.test(k) || /^includeif\.onbranch:/i.test(k))
+  const differs = (/** @type {string[]} */ [name = '', value]) => ![null, value].includes(git.config(root, name))
+  const set = keys[0] ?? DEFAULTS.find(differs)?.[0]
+  if (set !== undefined) return unread(`with git's \`${set}\` setting`, `commit where git does not set \`${set}\``)
+  const file = form.file === null ? null : messageFile(form.file, root, dir)
+  if (file && 'why' in file) return unread(file.why, 'write the message out with -m')
+  const text = file ? file.text : form.messages.length ? form.messages.join('\n\n') : git.message(root, 'HEAD')
+  if (text === null) return unread(form.file !== null ? 'whose -F file the gate cannot read' : 'whose HEAD message the gate cannot read', 'write the message out with -m')
+  // git cleans the message, signs it off, adds the trailers after the sign-off, and cleans it again. On a
+  // message with nothing in it, the two go in one paragraph, its subject, so they are added at once. git
+  // adds them to the cleaned message with its last newline, so a last `Conflicts:` line is its conflicts list.
+  const added = [...(form.signoff ? ['Signed-off-by: A <a@b>'] : []), ...form.trailers.map(v => `Verified: ${v.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '')}`)]
+  const clean = stripspace(text)
+  const message = stripspace(added.length ? withTrailers(clean ? `${clean}\n` : '', added) : text)
+  // A file or a stored message may hold what git's readers take otherwise than at first sight.
+  if (message.includes('\r')) return unread('with a carriage return in its message', 'write the message out with -m')
+  if (message.split('\n').some(l => l.includes('>8'))) return unread('with a scissors line (`>8`) in its message', 'write the message out with -m, without it')
+  // git records the message with a last newline, and GitHub hands it back without one.
+  if (stamped(`${message}\n`) !== stamped(message)) return unread('whose last lines git and the trace check on GitHub read otherwise', 'end the message with the `Verified:` paragraph')
+  return stamped(message) ? null : `this commit message carries no verification stamp. Implement step: ${STAMP_HINT}.`
+}
+
+/**
+ * The -F file's text as git reads it, or why the gate cannot tell that it
+ * reads the same file: one inside the repository, on a path with no `..`
+ * and no symbolic link, which the hook and git resolve alike.
+ *
+ * @param {string} file @param {string} root @param {string | null} dir
+ * @returns {{ text: string | null } | { why: string }}
+ */
+function messageFile(file, root, dir) {
+  if (dir === null) return { text: null }
+  if (file.split('/').includes('..')) return { why: 'whose -F path holds `..`' }
+  let top
+  let path
+  try {
+    top = realpathSync(root)
+    path = resolve(realpathSync(dir), file)
+  } catch {
+    return { text: null }
+  }
+  if (!path.startsWith(`${top}/`)) return { why: 'whose -F file is outside the repository' }
+  let at = top
+  for (const part of path.slice(top.length + 1).split('/')) {
+    at = join(at, part)
+    try {
+      if (lstatSync(at).isSymbolicLink()) return { why: 'whose -F path goes through a symbolic link' }
+    } catch {
+      return { text: null }
+    }
+  }
+  return { text: smallFile(path) }
+}
+
+/** @param {string} path @returns {string | null} a regular file's text, or null */
+function smallFile(path) {
+  try {
+    // A FIFO or a device would block the hook past its timeout.
+    const st = statSync(path)
+    return st.isFile() && st.size <= 1_000_000 ? readFileSync(path, 'utf8') : null
+  } catch {
+    return null
+  }
+}
+
+// The text to add for a verification stamp, which a session's gate and the trace check both ask for.
+export const STAMP_HINT = 'end the commit message with a last paragraph "Verified: <how it was verified>", or "Verified: none", e.g. `-m "Verified: npm test"`'
+
+// Where, in a line, a trailer's token ends at its colon, as git finds it: a
+// token of letters, digits and hyphens, then spaces or tabs. -1 when none.
+/** @param {string} line */
+function separatorAt(line) {
+  let spaced = false
+  for (let i = 0; i < line.length; i++) {
+    const c = /** @type {string} */ (line[i])
+    if (c === ':') return i
+    if (!spaced && /[A-Za-z0-9-]/.test(c)) continue
+    if (i > 0 && (c === ' ' || c === '\t')) spaced = true
+    else break
+  }
+  return -1
+}
+
+// A line git counts as blank, and one that starts with what git counts as a space.
+/** @param {string} l */
+const blank = l => /^[ \t\r]*$/.test(l)
+/** @param {string} l */
+const indented = l => /^[ \t\r]/.test(l)
+
+// Lines git writes itself, which make a paragraph a trailer block with fewer trailers in it.
+const GIT_WRITTEN = ['Signed-off-by: ', '(cherry picked from commit ']
+
+// git's comment string, as GitHub and git with its default settings read a message.
+const COMMENT = '#'
+// The line where git's reading of a message ends, when a bare newline ends it.
+const SCISSORS = `${COMMENT} ------------------------ >8 ------------------------`
+
+/**
+ * A message's lines as git reads them for trailers with its default
+ * settings (its trailer.c, with no `---` divider, as `git log` and `git
+ * commit --trailer` read it): up to a scissors line and before the comment
+ * and blank lines that end it, then the trailer block, its last paragraph
+ * when that holds only trailers, or a quarter of them and one git writes.
+ * The subject is never trailers. A lone carriage return ends no line, and a
+ * scissors line ends the message only when a bare newline ends it.
+ *
+ * @param {string} message
+ * @returns {{ lines: string[], end: number, block: number | null }} `end` the line its body ends before, `block` the line its trailer block starts at
+ */
+function trailerBlock(message) {
+  const raw = message.split('\n')
+  // A newline ends every piece but the last, and with a carriage return before it, ends it as CRLF.
+  const cuts = raw.findIndex((l, i) => i < raw.length - 1 && l === SCISSORS)
+  const all = raw.map((l, i) => (i < raw.length - 1 ? l.replace(/\r$/, '') : l))
+  if (all.length > 1 && all[all.length - 1] === '') all.pop()
+  // git reads from the subject, its first line that is not blank.
+  const from = all.findIndex(l => !blank(l))
+  const lines = from < 0 ? [] : all.slice(from)
+  const isComment = (/** @type {string} */ l) => l.startsWith(COMMENT)
+  let end = cuts < 0 ? lines.length : cuts - from
+  // Comment and empty lines at the end, and an old "Conflicts:" list, git ignores (line 0 never starts them).
+  let ignored = 0
+  let conflicts = false
+  for (let i = 0; i < end; i++) {
+    const l = /** @type {string} */ (lines[i])
+    if (isComment(l) || l === '') ignored ||= i
+    // git reads `Conflicts:` only with a newline right after it.
+    else if (raw[i + from] === 'Conflicts:' && i + from < raw.length - 1) [conflicts, ignored] = [true, ignored || i]
+    else if (!(conflicts && l.startsWith('\t')) && ignored) [conflicts, ignored] = [false, 0]
+  }
+  if (ignored) end = ignored
+  let title = 0
+  while (title < end && (isComment(/** @type {string} */ (lines[title])) || !blank(/** @type {string} */ (lines[title])))) title++
+  let [trailerLines, other, maybe, written, spaces] = [0, 0, 0, false, true]
+  for (let i = end - 1; i >= title; i--) {
+    const l = /** @type {string} */ (lines[i])
+    if (isComment(l)) [other, maybe] = [other + maybe, 0]
+    else if (blank(l)) {
+      if (spaces) continue
+      other += maybe
+      const block = (written && trailerLines * 3 >= other) || (trailerLines > 0 && other === 0)
+      return { lines, end, block: block ? i + 1 : null }
+    } else {
+      spaces = false
+      if (GIT_WRITTEN.some(p => l.startsWith(p))) [trailerLines, maybe, written] = [trailerLines + 1, 0, true]
+      else if (separatorAt(l) >= 1 && !indented(l)) [trailerLines, maybe] = [trailerLines + 1, 0]
+      else if (indented(l)) maybe++
+      else [other, maybe] = [other + 1 + maybe, 0]
+    }
+  }
+  return { lines, end, block: null }
+}
+
+/**
+ * A message's trailers, as `[token, value]`, as `git log
+ * --format=%(trailers)` reads them; a line that starts with a space or a tab
+ * continues the trailer before it. Null when the message has no trailer
+ * block.
+ *
+ * @param {string} message @returns {[string, string][] | null}
+ */
+function trailers(message) {
+  const { lines, end, block } = trailerBlock(message)
+  if (block === null) return null
+  /** @type {string[]} */
+  const items = []
+  let continues = false
+  for (const l of lines.slice(block, end)) {
+    if (continues && indented(l)) items[items.length - 1] += `\n${l}`
+    else {
+      items.push(l)
+      continues = separatorAt(l) >= 1
+    }
+  }
+  return items.flatMap(t => {
+    const at = separatorAt(t)
+    const trim = (/** @type {string} */ x) => x.replace(/^[ \t\n\r]+|[ \t\n\r]+$/g, '')
+    return at >= 1 ? [/** @type {[string, string]} */ ([trim(t.slice(0, at)), trim(t.slice(at + 1))])] : []
   })
 }
+
+/**
+ * Whether a commit message carries a verification stamp: a `Verified:`
+ * trailer saying how the commit was verified, `none` included, as git reads
+ * trailers with its default settings. Nothing here judges whether it was.
+ *
+ * @param {string} message @returns {boolean}
+ */
+export const stamped = message => (trailers(message) ?? []).some(([token, value]) => token.toLowerCase() === 'verified' && value !== '')
+
+/**
+ * `message` with trailers added as `git commit --trailer` adds them, with
+ * git's default settings: at the end of its trailer block, or in a paragraph
+ * of their own, before the comment and blank lines git ignores at its end.
+ *
+ * @param {string} message @param {string[]} added
+ */
+function withTrailers(message, added) {
+  const { lines, end, block } = trailerBlock(message)
+  const before = lines.slice(0, end)
+  const gap = block === null && before.length && !blank(/** @type {string} */ (before[before.length - 1])) ? [''] : []
+  return [...before, ...gap, ...added, ...lines.slice(end)].join('\n')
+}
+
+/**
+ * Text as git's `stripspace` leaves it: each line without its trailing
+ * spaces, no blank lines at either end, and no two in a row.
+ *
+ * @param {string} text
+ */
+const stripspace = text => text.split('\n').map(l => l.replace(/[ \t\r]+$/, '')).join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '')
 
 /**
  * The message `git commit` records, or null when an editor, a computed
@@ -533,13 +879,17 @@ function commitVerdict(run, world) {
 function commitMessage(opts, run, { root, dir }, config, git) {
   /** @type {string[]} */
   const texts = []
+  // git adds the trailers to the message, so they are not one: `--amend --no-edit --trailer` keeps HEAD's.
+  /** @type {string[]} */
+  const trailers = []
   let editor = false
   let amend = false
   let noEdit = false
   /** @type {Record<string, string | undefined>} */
   const last = {}
   for (const [name, v] of opts) {
-    if (name === 'message' || name === 'trailer') texts.push(v ?? '')
+    if (name === 'message') texts.push(v ?? '')
+    else if (name === 'trailer') trailers.push(v ?? '')
     else if (name === 'file') {
       const text = fileText(v, run, dir)
       if (text === null) return null
@@ -574,6 +924,7 @@ function commitMessage(opts, run, { root, dir }, config, git) {
     texts.push(m)
   }
   if (editor) return null
+  texts.push(...trailers)
   // Without an editor only strip cleanup drops comment lines; git reads scissors as whitespace.
   const mode = last.cleanup ?? setting(config, 'commit.cleanup', root, git)
   if (mode && computed(mode)) return null
@@ -727,7 +1078,7 @@ function computedVerdict(run, world) {
   const a = run.c.args
   const commits = a.includes('commit')
   if (!commits && !(a.includes('pr') && a.some(w => w === 'create' || w === 'new' || w === 'edit'))) return null
-  const fix = commits ? (/** @type {number} */ n) => `name git directly, with "#${n}" in the message` : (/** @type {number} */ n) => `name gh directly, with "Closes #${n}" in the body`
+  const fix = commits ? (/** @type {number} */ n) => `name git directly, with "#${n}" and a verification stamp in the message` : (/** @type {number} */ n) => `name gh directly, with "Closes #${n}" in the body`
   return opaqueVerdict(`which command \`${run.c.name}\` is`, where(run.at, run.moved, world.git), world, fix, commits ? 'Implement' : 'Review')
 }
 
@@ -866,8 +1217,18 @@ function realWorld() {
    * @returns {string | null} stdout, or null when git says no; throws Unanswered when it does not answer
    */
   const git = (root, args, answers = GIT_NO) => {
+    const out = exact(root, args, answers)
+    return out === null ? null : out.trim()
+  }
+  /**
+   * stdout as git wrote it, less the one newline it ends a value or a
+   * `--format` with: a message or a setting may end in spaces git keeps.
+   *
+   * @param {string} root @param {string[]} args @param {RegExp} [answers]
+   */
+  const exact = (root, args, answers = GIT_NO) => {
     const r = answered('git', spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', env: GIT_ENV(), timeout: Math.min(3000, timeLeft()) }), answers)
-    return r.status === 0 ? r.stdout.trim() : null
+    return r.status === 0 ? r.stdout.replace(/\n$/, '') : null
   }
 
   /** @type {Map<string, string | null>} */
@@ -902,7 +1263,7 @@ function realWorld() {
     },
     // The revision may be the agent's: a full hash of no commit is "bad object",
     // and one that looks like an option names no commit, so git is not given it.
-    message: (root, rev) => (rev.startsWith('-') ? null : git(root, ['log', '-1', '--format=%B', rev, '--'], new RegExp(`${GIT_NO.source}|bad object`, 'i'))),
+    message: (root, rev) => (rev.startsWith('-') ? null : exact(root, ['log', '-1', '--format=%B', rev, '--'], new RegExp(`${GIT_NO.source}|bad object`, 'i'))),
     committed(root, n) {
       const def = this.defaultBranch(root)
       const base = def ? ['--ignore-missing', '--not', `refs/heads/${def}`, `refs/remotes/origin/${def}`] : []
@@ -932,7 +1293,9 @@ function realWorld() {
       const moved = /@\{(.+)\}$/.exec(git(root, ['reflog', 'show', '-1', '--format=%gd', '--date=iso-strict', ref, '--']) ?? '')?.[1]
       return { sha, at: moved && !Number.isNaN(Date.parse(moved)) ? moved : committed }
     },
-    config: (root, key) => git(root, ['config', '--get', key]),
+    config: (root, key) => exact(root, ['config', '--get', key]),
+    // The pattern is git's (POSIX) regular expression; one git cannot read is the trace's own fault, never a no.
+    configKeys: (root, sections) => (exact(root, ['config', '--name-only', '--get-regexp', `^(${sections.map(escape).join('|')})\\.`], NO_ANSWERS) ?? '').split('\n').filter(Boolean),
     headDocs(root) {
       const names = git(root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', 'GLOSSARY.md', 'docs/adr'])
       if (names === null) return null

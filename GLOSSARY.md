@@ -32,6 +32,10 @@ _Avoid_: epic
 A comment on the linked issue recording a round of work's progress, decisions and verification results.
 _Avoid_: status update, round comment
 
+**Verification stamp**:
+The `Verified:` trailer of a commit message, saying how the commit was verified, `Verified: none` when it was not. It records a claim; nothing judges it.
+_Avoid_: verified tag, test note
+
 **Trace check**:
 The judgement of a pull request against the trace's rules that GitHub itself runs.
 _Avoid_: PR lint, CI gate, status check
